@@ -35,6 +35,29 @@ core/  →  symbols/, rules/, render/  →  io/  →  ui/  →  app/
 - Le canevas (`ui/folioview.cpp`) est un QWidget, **pas** une QGraphicsView —
   conséquence directe du point précédent.
 
+## Ce qui vient d'AutoCAD (et pourquoi)
+
+L'utilisateur veut un outil qui ressemble à AutoCAD Electrical. Les emprunts
+sont délibérés et documentés dans le code :
+
+- **`core/snapengine.*`** — les onze modes d'accrochage (OSNAP) avec leurs
+  marqueurs normatifs : carré = extrémité, triangle = milieu, cercle =
+  centre, cercle barré = nodal, losange = quadrant, croix = intersection.
+  Les formes sont aussi normatives que les symboles.
+- **Priorité d'accrochage** : un point du dessin prime sur la contrainte
+  d'angle, qui prime sur la grille. Le classement mêle distance et
+  importance du mode.
+- **`core/wiretools.*`** — AJUSTER (TRIM) et PROLONGER (EXTEND). Attention :
+  un obstacle colinéaire ne « croise » rien géométriquement, or c'est le cas
+  courant (prolonger jusqu'à une borne alignée) — traité à part.
+- **`rules/ladder.*`** — l'échelle de commande d'AutoCAD Electrical.
+- **`ui/commandline.*`** — la ligne de commande et ses alias (L, E, CP, Z…).
+- **Sélection fenêtre (bleu plein) vs capture (vert pointillé)**, poignées
+  bleues qui rougissent au survol, réticule pleine vue, saisie dynamique.
+- **Touches de fonction** : F3 accrochage objets, F7 grille, F8 ortho,
+  F9 résolution, F10 polaire, F12 paramètres. Portée application, parce
+  qu'on lâche une touche de fonction sans regarder où est le curseur.
+
 ## Invariants à ne pas casser
 
 1. **Ce que l'utilisateur a saisi à la main n'est jamais écrasé** par un
@@ -54,6 +77,10 @@ core/  →  symbols/, rules/, render/  →  io/  →  ui/  →  app/
    redonne exactement les mêmes repères (test dédié).
 8. Un document d'une version **plus récente est refusé net** ; une entité
    inconnue dans un document lisible est **ignorée** sans bloquer l'ouverture.
+9. **Ortho est allumé par défaut** : un schéma se trace en traits droits.
+10. Une opération qui pose ou retire plusieurs entités (ajuster, échelle,
+    coller, mise en page globale) passe par **une macro** : elle doit se
+    défaire d'une seule annulation.
 
 ## Bibliothèque de symboles
 

@@ -10,6 +10,7 @@ add_library(dessins_ui STATIC
     draftingsettingsdialog.h draftingsettingsdialog.cpp
     pagesetupdialog.h pagesetupdialog.cpp
     commandline.h     commandline.cpp
+    ladderdialog.h    ladderdialog.cpp
     mainwindow.h      mainwindow.cpp
 )
 

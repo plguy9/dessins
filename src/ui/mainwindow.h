@@ -71,6 +71,7 @@ private:
     void syncDraftingToggles();
     void editDraftingSettings();
     void editPageSetup();
+    void insertLadder();
 
     bool maybeSave();
     QString suggestedFileName(const QString &extension) const;

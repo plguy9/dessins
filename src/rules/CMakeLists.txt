@@ -4,6 +4,7 @@ add_library(dessins_rules STATIC
     profile.h    profile.cpp
     numbering.h  numbering.cpp
     reports.h    reports.cpp
+    ladder.h     ladder.cpp
 )
 
 target_link_libraries(dessins_rules PUBLIC dessins_core)

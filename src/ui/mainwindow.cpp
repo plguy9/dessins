@@ -5,6 +5,8 @@
 #include "io/dsnfile.h"
 #include "io/dxfexport.h"
 #include "commandline.h"
+#include "ladderdialog.h"
+#include "rules/ladder.h"
 #include "draftingsettingsdialog.h"
 #include "pagesetupdialog.h"
 #include "propertiespanel.h"
@@ -460,6 +462,9 @@ void MainWindow::createActions()
     make(projectMenu, false, G::Info, tr("&Informations du projet…"), QKeySequence(),
          tr("Titre, client, référence — ce que porte le cartouche"),
          &MainWindow::editProjectInfo);
+    make(projectMenu, false, G::Grid, tr("Insérer une &échelle de commande…"), QKeySequence(),
+         tr("Deux rails d'alimentation et des lignes numérotées"),
+         &MainWindow::insertLadder);
     make(projectMenu, true, G::Renumber, tr("&Repérage automatique"),
          QKeySequence(Qt::CTRL | Qt::Key_R),
          tr("Désigner les appareils et repérer les fils"), &MainWindow::renumberAll);
@@ -824,6 +829,8 @@ void MainWindow::registerCommands()
                }
                m_reports->refresh();
            });
+    simple(QStringLiteral("ECHELLE"), { QStringLiteral("EC"), QStringLiteral("LADDER") },
+           tr("Insérer une échelle de commande"), [this] { insertLadder(); });
     simple(QStringLiteral("NOUVSYMBOLE"), { QStringLiteral("NS") },
            tr("Créer un symbole"), [this] { newSymbol(); });
 
@@ -842,6 +849,35 @@ void MainWindow::registerCommands()
     connect(m_command, &CommandLine::commandExecuted, this, [this](const QString &name) {
         statusBar()->showMessage(name, 2500);
     });
+}
+
+void MainWindow::insertLadder()
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return;
+
+    LadderDialog dialog(*folio, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    auto entities = LadderBuilder::build(dialog.spec());
+    if (entities.empty())
+        return;
+
+    const int count = int(entities.size());
+    // Une echelle pose des dizaines d'entites : elle doit se defaire d'une
+    // seule annulation, sinon la corriger devient un supplice.
+    m_document->pushMacro(tr("Insérer une échelle"), [&] {
+        for (auto &entity : entities) {
+            m_document->push(std::make_unique<AddEntityCommand>(m_document->project(),
+                                                                folio->id(), std::move(entity),
+                                                                tr("Insérer une échelle")));
+        }
+    });
+
+    m_view->update();
+    statusBar()->showMessage(tr("Échelle insérée : %n élément(s).", "", count), 5000);
 }
 
 void MainWindow::createStatusBar()

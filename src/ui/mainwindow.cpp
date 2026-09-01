@@ -4,6 +4,7 @@
 #include "io/csvexport.h"
 #include "io/dsnfile.h"
 #include "io/dxfexport.h"
+#include "commandline.h"
 #include "draftingsettingsdialog.h"
 #include "pagesetupdialog.h"
 #include "propertiespanel.h"
@@ -154,6 +155,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     m_darkAction->blockSignals(false);
     applyTheme(dark);
 
+    registerCommands();
+    resizeDocks({ m_commandDock }, { 108 }, Qt::Vertical);
     syncDraftingToggles();
     resize(1560, 980);
     updateTitle();
@@ -203,6 +206,21 @@ void MainWindow::createDocks()
     propertiesDock->setMinimumWidth(280);
     resizeDocks({ paletteDock, propertiesDock }, { 320, 340 }, Qt::Horizontal);
     resizeDocks({ paletteDock, navigatorDock }, { 3, 2 }, Qt::Vertical);
+
+    m_commandDock = new QDockWidget(tr("Ligne de commande"), this);
+    m_commandDock->setObjectName(QStringLiteral("dock.command"));
+    m_command = new CommandLine(m_commandDock);
+    m_commandDock->setWidget(m_command);
+    addDockWidget(Qt::BottomDockWidgetArea, m_commandDock);
+    // Trois lignes d'historique, comme la ligne de commande d'AutoCAD :
+    // elle informe sans manger la place du dessin. Elle reste
+    // redimensionnable pour qui veut relire une longue liste.
+    m_commandDock->setMinimumHeight(84);
+    m_commandDock->setMaximumHeight(320);
+
+    // Echap dans la ligne de commande rend la main au dessin : on ne reste
+    // jamais coince au clavier alors qu'on voulait tracer.
+    connect(m_command, &CommandLine::escapePressed, this, [this] { m_view->setFocus(); });
 
     connect(m_palette, &SymbolPalette::symbolChosen, this, [this](const QString &id) {
         m_view->setPendingSymbol(id);
@@ -375,6 +393,13 @@ void MainWindow::createActions()
          tr("Zoom arrière"), [this] { m_view->zoomOut(); });
     make(viewMenu, true, G::ZoomFit, tr("&Ajuster au folio"), QKeySequence(Qt::CTRL | Qt::Key_0),
          tr("Voir le folio entier"), [this] { m_view->zoomToFit(); });
+    make(viewMenu, false, G::Text, tr("Ligne de &commande"),
+         QKeySequence(Qt::CTRL | Qt::Key_9), tr("Placer le curseur dans la ligne de commande"),
+         [this] {
+             m_commandDock->show();
+             m_commandDock->raise();
+             m_command->focusInput();
+         });
     make(viewMenu, false, G::ZoomFit, tr("&Taille réelle"), QKeySequence(Qt::CTRL | Qt::Key_1),
          tr("Un millimètre du dessin pour un millimètre à l'écran"),
          [this] { m_view->zoomActual(); });
@@ -640,6 +665,156 @@ void MainWindow::editPageSetup()
                                       m_document->folioCount())
                                  : tr("Mise en page du folio appliquée"),
                              5000);
+}
+
+void MainWindow::zoomCommand(const QStringList &arguments)
+{
+    const QString option = arguments.isEmpty() ? QStringLiteral("E") : arguments.first().toUpper();
+    if (option.startsWith(QLatin1Char('E')) || option.startsWith(QLatin1Char('A'))) {
+        m_view->zoomToFit();
+        m_command->write(tr("   Zoom étendu."));
+        return;
+    }
+    if (option.startsWith(QLatin1Char('R'))) {
+        m_view->zoomActual();
+        m_command->write(tr("   Zoom à l'échelle réelle."));
+        return;
+    }
+    bool numeric = false;
+    const double percent = option.toDouble(&numeric);
+    if (numeric && percent > 0.0) {
+        const double pixelsPerMm = std::max(1.0, double(logicalDpiX())) / kMmPerInch;
+        m_view->setZoom(pixelsPerMm * percent / 100.0);
+        m_command->write(tr("   Zoom %1 %.").arg(percent, 0, 'f', 0));
+        return;
+    }
+    m_command->writeError(tr("   Option de zoom inconnue. Attendu : E (étendu), "
+                             "R (réel) ou un pourcentage."));
+}
+
+void MainWindow::registerCommands()
+{
+    // Les alias reprennent ceux d'AutoCAD, en francais et en anglais : un
+    // dessinateur les a dans les doigts, pas dans la tete.
+    auto add = [this](const QString &name, const QStringList &aliases,
+                      const QString &description, auto handler) {
+        m_command->registerCommand({ name, aliases, description,
+                                     [handler](const QStringList &args) { handler(args); } });
+    };
+    auto simple = [&](const QString &name, const QStringList &aliases,
+                      const QString &description, auto action) {
+        add(name, aliases, description, [action](const QStringList &) { action(); });
+    };
+
+    // ---- outils de trace ------------------------------------------------
+    simple(QStringLiteral("LIGNE"), { QStringLiteral("L"), QStringLiteral("FIL") },
+           tr("Tracer un fil"), [this] { m_view->setTool(FolioView::Tool::Wire); });
+    simple(QStringLiteral("SELECTION"), { QStringLiteral("S") }, tr("Outil de sélection"),
+           [this] { m_view->setTool(FolioView::Tool::Select); });
+    simple(QStringLiteral("JONCTION"), { QStringLiteral("J") }, tr("Poser une jonction"),
+           [this] { m_view->setTool(FolioView::Tool::Junction); });
+    simple(QStringLiteral("ETIQUETTE"), { QStringLiteral("ET") }, tr("Nommer un potentiel"),
+           [this] { m_view->setTool(FolioView::Tool::Label); });
+    simple(QStringLiteral("TEXTE"), { QStringLiteral("T"), QStringLiteral("DT") },
+           tr("Annoter le folio"), [this] { m_view->setTool(FolioView::Tool::Text); });
+    simple(QStringLiteral("INSERER"), { QStringLiteral("I") },
+           tr("Chercher un symbole dans la palette"), [this] {
+               if (auto *dock = findChild<QDockWidget *>(QStringLiteral("dock.symbols")))
+                   dock->show();
+               m_palette->setFocus();
+           });
+
+    // ---- edition ---------------------------------------------------------
+    simple(QStringLiteral("EFFACER"), { QStringLiteral("E"), QStringLiteral("SU") },
+           tr("Supprimer la sélection"), [this] { m_view->deleteSelection(); });
+    simple(QStringLiteral("COPIER"), { QStringLiteral("CP"), QStringLiteral("CO") },
+           tr("Copier la sélection"), [this] { m_view->copySelection(); });
+    simple(QStringLiteral("COLLER"), { QStringLiteral("CC") }, tr("Coller"),
+           [this] { m_view->pasteClipboard(); });
+    simple(QStringLiteral("PIVOTER"), { QStringLiteral("RO"), QStringLiteral("RT") },
+           tr("Pivoter d'un quart de tour"), [this] { m_view->rotateSelection(true); });
+    simple(QStringLiteral("MIROIR"), { QStringLiteral("MI") }, tr("Retourner la sélection"),
+           [this] { m_view->mirrorSelection(); });
+    simple(QStringLiteral("ANNULER"), { QStringLiteral("U"), QStringLiteral("AN") },
+           tr("Annuler la dernière action"), [this] { m_document->undo(); });
+    simple(QStringLiteral("RETABLIR"), { QStringLiteral("RT2") }, tr("Rétablir"),
+           [this] { m_document->redo(); });
+    simple(QStringLiteral("TOUTSELECT"), { QStringLiteral("SELTOUT") }, tr("Tout sélectionner"),
+           [this] { m_view->selectAll(); });
+    simple(QStringLiteral("POTENTIEL"), { QStringLiteral("PT") },
+           tr("Mettre en évidence le potentiel de la sélection"),
+           [this] { m_view->highlightNetOfSelection(); });
+
+    // ---- vue et aides ----------------------------------------------------
+    add(QStringLiteral("ZOOM"), { QStringLiteral("Z") },
+        tr("Zoom : E étendu, R réel, ou un pourcentage"),
+        [this](const QStringList &args) { zoomCommand(args); });
+    simple(QStringLiteral("REGEN"), { QStringLiteral("RG") }, tr("Redessiner la vue"),
+           [this] { m_view->update(); });
+    simple(QStringLiteral("ORTHO"), { QStringLiteral("OR") }, tr("Basculer le mode ortho"),
+           [this] { m_orthoAction->toggle(); });
+    simple(QStringLiteral("POLAIRE"), { QStringLiteral("PO") }, tr("Basculer le repérage polaire"),
+           [this] { m_polarAction->toggle(); });
+    simple(QStringLiteral("ACCROBJ"), { QStringLiteral("OS") },
+           tr("Basculer l'accrochage aux objets"), [this] { m_osnapAction->toggle(); });
+    simple(QStringLiteral("GRILLE"), { QStringLiteral("GR") }, tr("Afficher ou masquer la grille"),
+           [this] { m_gridAction->toggle(); });
+    simple(QStringLiteral("RESOL"), {}, tr("Basculer l'accrochage à la grille"),
+           [this] { m_gridSnapAction->toggle(); });
+    simple(QStringLiteral("PARAMDESSIN"), { QStringLiteral("PD"), QStringLiteral("DSETTINGS") },
+           tr("Paramètres de dessin"), [this] { editDraftingSettings(); });
+
+    // ---- fichier et projet ----------------------------------------------
+    simple(QStringLiteral("NOUVEAU"), { QStringLiteral("NEW") }, tr("Nouveau projet"),
+           [this] { newProject(); });
+    simple(QStringLiteral("OUVRIR"), { QStringLiteral("OPEN") }, tr("Ouvrir un projet"),
+           [this] { openProject(); });
+    simple(QStringLiteral("ENREGISTRER"), { QStringLiteral("SAVE"), QStringLiteral("QSAVE") },
+           tr("Enregistrer le projet"), [this] { saveProject(); });
+    simple(QStringLiteral("ENREGISTRERSOUS"), { QStringLiteral("SAVEAS") },
+           tr("Enregistrer sous un autre nom"), [this] { saveProjectAs(); });
+    simple(QStringLiteral("IMPRIMER"), { QStringLiteral("PLOT"), QStringLiteral("IMP") },
+           tr("Imprimer le dossier"), [this] { printProject(); });
+    simple(QStringLiteral("EXPORTPDF"), { QStringLiteral("PDF") }, tr("Exporter en PDF"),
+           [this] { exportPdf(); });
+    simple(QStringLiteral("EXPORTDXF"), { QStringLiteral("DXF") }, tr("Exporter en DXF"),
+           [this] { exportDxf(); });
+    simple(QStringLiteral("MISENPAGE"), { QStringLiteral("MP"), QStringLiteral("PAGESETUP") },
+           tr("Format de feuille et cadre"), [this] { editPageSetup(); });
+    simple(QStringLiteral("INFOPROJET"), { QStringLiteral("IP") },
+           tr("Informations du projet"), [this] { editProjectInfo(); });
+
+    // ---- metier -----------------------------------------------------------
+    simple(QStringLiteral("REPERAGE"), { QStringLiteral("RN"), QStringLiteral("RENUM") },
+           tr("Repérage automatique des fils et des appareils"), [this] { renumberAll(); });
+    simple(QStringLiteral("CONTROLE"), { QStringLiteral("VERIF"), QStringLiteral("AUDIT") },
+           tr("Contrôler le schéma"), [this] { checkSchematic(); });
+    simple(QStringLiteral("RAPPORTS"), { QStringLiteral("NOMENCLATURE"), QStringLiteral("BOM") },
+           tr("Afficher les rapports"), [this] {
+               if (auto *dock = findChild<QDockWidget *>(QStringLiteral("dock.reports"))) {
+                   dock->show();
+                   dock->raise();
+               }
+               m_reports->refresh();
+           });
+    simple(QStringLiteral("NOUVSYMBOLE"), { QStringLiteral("NS") },
+           tr("Créer un symbole"), [this] { newSymbol(); });
+
+    // ---- folios -----------------------------------------------------------
+    simple(QStringLiteral("NOUVFOLIO"), { QStringLiteral("NF") }, tr("Ajouter un folio"),
+           [this] { m_navigator->addFolioFromCommand(); });
+    simple(QStringLiteral("FOLIOSUIVANT"), { QStringLiteral("FS") }, tr("Folio suivant"),
+           [this] {
+               m_document->setCurrentFolioIndex(m_document->currentFolioIndex() + 1);
+           });
+    simple(QStringLiteral("FOLIOPRECEDENT"), { QStringLiteral("FP") }, tr("Folio précédent"),
+           [this] {
+               m_document->setCurrentFolioIndex(m_document->currentFolioIndex() - 1);
+           });
+
+    connect(m_command, &CommandLine::commandExecuted, this, [this](const QString &name) {
+        statusBar()->showMessage(name, 2500);
+    });
 }
 
 void MainWindow::createStatusBar()

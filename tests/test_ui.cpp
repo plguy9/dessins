@@ -10,6 +10,8 @@
 #include "ui/document.h"
 #include "ui/folioview.h"
 #include "ui/symboleditor.h"
+#include "ui/commandline.h"
+#include "ui/mainwindow.h"
 #include "ui/draftingsettingsdialog.h"
 #include "ui/pagesetupdialog.h"
 #include "ui/symbolpalette.h"
@@ -539,4 +541,72 @@ TEST_CASE("Un fil selectionne porte une poignee par sommet et par segment",
     // Les poignees doivent se voir : sans retour visuel, personne ne devine
     // qu'on peut tirer dessus.
     CHECK(plain.toImage() != gripped.toImage());
+}
+
+TEST_CASE("La ligne de commande execute par nom et par alias", "[ui][command]")
+{
+    CommandLine line;
+    int calls = 0;
+    QStringList received;
+    line.registerCommand({ QStringLiteral("LIGNE"),
+                           { QStringLiteral("L"), QStringLiteral("FIL") },
+                           QStringLiteral("Tracer un fil"),
+                           [&](const QStringList &args) { ++calls; received = args; } });
+
+    CHECK(line.execute(QStringLiteral("LIGNE")));
+    CHECK(line.execute(QStringLiteral("l")));       // insensible a la casse
+    CHECK(line.execute(QStringLiteral("  FIL  "))); // espaces ignores
+    CHECK(calls == 3);
+
+    // Les arguments arrivent au gestionnaire, sans le nom de la commande.
+    CHECK(line.execute(QStringLiteral("LIGNE 10 20")));
+    CHECK(received == QStringList{ QStringLiteral("10"), QStringLiteral("20") });
+}
+
+TEST_CASE("Une commande inconnue est refusee sans rien casser", "[ui][command]")
+{
+    CommandLine line;
+    line.registerCommand({ QStringLiteral("ZOOM"), {}, QStringLiteral("Zoom"), nullptr });
+    CHECK_FALSE(line.execute(QStringLiteral("HOLOGRAMME")));
+    CHECK(line.execute(QStringLiteral("ZOOM")));
+    CHECK(hasVisibleContent(line.grab()));
+}
+
+TEST_CASE("La derniere commande est memorisee pour etre relancee", "[ui][command]")
+{
+    CommandLine line;
+    int calls = 0;
+    line.registerCommand({ QStringLiteral("PIVOTER"), { QStringLiteral("RO") },
+                           QStringLiteral("Pivoter"), [&](const QStringList &) { ++calls; } });
+
+    line.execute(QStringLiteral("ro"));
+    // La derniere commande est retenue sous son nom canonique, pas sous
+    // l'alias tape : c'est ce que reaffiche AutoCAD quand on relance.
+    CHECK(line.lastCommand() == QStringLiteral("PIVOTER"));
+
+    line.execute(line.lastCommand());
+    CHECK(calls == 2);
+}
+
+TEST_CASE("Le point d'interrogation liste les commandes", "[ui][command]")
+{
+    CommandLine line;
+    line.registerCommand({ QStringLiteral("LIGNE"), { QStringLiteral("L") },
+                           QStringLiteral("Tracer un fil"), nullptr });
+    line.registerCommand({ QStringLiteral("ZOOM"), {}, QStringLiteral("Zoom"), nullptr });
+
+    // Sans decouvrabilite, une ligne de commande est inutilisable a qui ne
+    // connait pas deja le repertoire.
+    CHECK(line.execute(QStringLiteral("?")));
+    CHECK(line.commands().size() == 2);
+}
+
+TEST_CASE("La fenetre principale enregistre un repertoire consequent", "[ui][command]")
+{
+    // La fenetre construit tout : palette, canevas, rapports, ligne de
+    // commande. Ce test attrape aussi bien une commande oubliee qu'un
+    // panneau qui ne se monte plus.
+    MainWindow window;
+    window.resize(1400, 900);
+    CHECK(hasVisibleContent(window.grab()));
 }

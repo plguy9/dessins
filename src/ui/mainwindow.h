@@ -4,6 +4,7 @@
 #include "document.h"
 #include "folioview.h"
 
+#include <QDockWidget>
 #include <QHash>
 #include <QMainWindow>
 
@@ -61,6 +62,10 @@ private:
     void applyTheme(bool dark);
     void refreshIcons();
 
+    // Ligne de commande
+    void registerCommands();
+    void zoomCommand(const QStringList &arguments);
+
     // Aides au dessin
     void createDraftingToggles(QMenu *menu);
     void syncDraftingToggles();
@@ -80,6 +85,8 @@ private:
     PropertiesPanel *m_properties = nullptr;
     FolioNavigator *m_navigator = nullptr;
     ReportPanel *m_reports = nullptr;
+    class CommandLine *m_command = nullptr;
+    QDockWidget *m_commandDock = nullptr;
 
     QLabel *m_cursorLabel = nullptr;
     QLabel *m_zoneLabel = nullptr;

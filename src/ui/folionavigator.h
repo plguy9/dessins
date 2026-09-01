@@ -22,6 +22,8 @@ public:
     explicit FolioNavigator(Document *document, QWidget *parent = nullptr);
 
     void refresh();
+    // Expose l'ajout de folio a la ligne de commande.
+    void addFolioFromCommand() { addFolio(); }
 
 Q_SIGNALS:
     void statusMessage(const QString &message);

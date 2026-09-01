@@ -9,6 +9,7 @@ add_library(dessins_ui STATIC
     symboleditor.h    symboleditor.cpp
     draftingsettingsdialog.h draftingsettingsdialog.cpp
     pagesetupdialog.h pagesetupdialog.cpp
+    commandline.h     commandline.cpp
     mainwindow.h      mainwindow.cpp
 )
 

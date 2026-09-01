@@ -99,6 +99,14 @@ sont délibérés et documentés dans le code :
   moitié du menu s'appliquerait à une autre sélection.
 - **Sélection fenêtre (bleu plein) vs capture (vert pointillé)**, poignées
   bleues qui rougissent au survol, réticule pleine vue, saisie dynamique.
+- **`core/coordinateentry.*`** — la saisie de cote au clavier : `50`,
+  `50<45`, `@10,5`, `#120,80`. La virgule sépare les coordonnées (convention
+  de toute la CAO), le point est décimal, le point-virgule est accepté comme
+  séparateur pour qui tient à sa virgule décimale. Une distance seule n'a de
+  sens qu'avec une direction visée — sans elle on ne pose rien plutôt que
+  d'inventer un défaut.
+- **Un point désigné passe par `FolioView::placeAt`**, que le clic ou la
+  frappe l'ait produit : deux chemins finiraient par diverger.
 - **Touches de fonction** : F3 accrochage objets, F7 grille, F8 ortho,
   F9 résolution, F10 polaire, F11 repérage d'accrochage, F12 paramètres. Portée application, parce
   qu'on lâche une touche de fonction sans regarder où est le curseur.

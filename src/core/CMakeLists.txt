@@ -15,6 +15,7 @@ add_library(dessins_core STATIC
     snapengine.h      snapengine.cpp
     wiretools.h       wiretools.cpp
     wiretype.h        wiretype.cpp
+    coordinateentry.h coordinateentry.cpp
     command.h         command.cpp
     documentcommands.h documentcommands.cpp
 )

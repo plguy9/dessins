@@ -21,6 +21,7 @@ add_executable(dessins_tests
     test_wiretype.cpp
     test_crossref.cpp
     test_reportplacer.cpp
+    test_coordinateentry.cpp
 )
 
 target_link_libraries(dessins_tests PRIVATE

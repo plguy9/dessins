@@ -42,6 +42,13 @@ CommandLine::CommandLine(QWidget *parent) : QWidget(parent)
     m_completer->setCompletionMode(QCompleter::PopupCompletion);
     m_completer->setFilterMode(Qt::MatchStartsWith);
     m_input->setCompleter(m_completer);
+    // La liste montre ce que fait chaque commande, pas seulement son nom :
+    // c'est ainsi qu'on apprend le repertoire en s'en servant, au lieu
+    // d'aller lire une aide. Seul le nom est insere a la validation.
+    connect(m_completer, QOverload<const QString &>::of(&QCompleter::activated), this,
+            [this](const QString &entry) {
+                m_input->setText(entry.section(QStringLiteral("  —  "), 0, 0).trimmed());
+            });
 
     connect(m_input, &QLineEdit::returnPressed, this, [this] {
         const QString text = m_input->text().trimmed();
@@ -72,8 +79,16 @@ void CommandLine::refreshCompletion()
 {
     QStringList entries;
     for (const CommandDefinition &command : std::as_const(m_commands)) {
-        entries.append(command.name);
-        entries += command.aliases;
+        const QString description = command.description;
+        entries.append(description.isEmpty()
+                               ? command.name
+                               : command.name + QStringLiteral("  —  ") + description);
+        for (const QString &alias : command.aliases) {
+            // L'alias rappelle le nom complet : c'est comme cela qu'on passe
+            // du raccourci appris par hasard a la commande qu'il abrege.
+            entries.append(alias + QStringLiteral("  —  ") + description
+                           + QStringLiteral("  (") + command.name + QLatin1Char(')'));
+        }
     }
     entries.sort(Qt::CaseInsensitive);
     m_completionModel->setStringList(entries);

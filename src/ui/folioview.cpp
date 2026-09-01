@@ -1,5 +1,6 @@
 #include "folioview.h"
 
+#include "core/coordinateentry.h"
 #include "core/documentcommands.h"
 #include "core/wiretools.h"
 #include "render/foliopainter.h"
@@ -111,7 +112,13 @@ const QPointF *FolioView::gestureOrigin() const
 {
     // Le trace de fil fournit une origine : c'est elle qui donne son sens a
     // l'accrochage perpendiculaire et aux contraintes de direction.
-    return m_wirePoints.isEmpty() ? nullptr : &m_wirePoints.last();
+    if (!m_wirePoints.isEmpty())
+        return &m_wirePoints.last();
+    // Un deplacement ou un etirement en a une aussi, des que le point de base
+    // est pose : leur second point merite la meme contrainte et la meme cote.
+    if (m_pending == Pending::MoveTarget || m_pending == Pending::StretchTarget)
+        return &m_moveBase;
+    return nullptr;
 }
 
 QString FolioView::gestureExclusion() const
@@ -728,6 +735,138 @@ void FolioView::applyStretch(const QPointF &delta)
     Q_EMIT statusMessage(tr("%n élément(s) étiré(s).", "", count));
 }
 
+bool FolioView::applyPointAt(const QPointF &scenePoint)
+{
+    // Une cote en cours de frappe est abandonnee des qu'on designe autrement :
+    // le clic dit ou, la frappe ne dit plus rien.
+    if (handlePendingClick(scenePoint)) {
+        cancelTyping();
+        return true;
+    }
+    return false;
+}
+
+void FolioView::placeAt(const QPointF &scenePoint)
+{
+    switch (m_tool) {
+    case Tool::Wire:
+        if (m_wirePoints.isEmpty()) {
+            beginWireAt(scenePoint);
+        } else {
+            const QPointF previous = m_wirePoints.last();
+            if (!samePoint(scenePoint, previous))
+                m_wirePoints.append(scenePoint);
+        }
+        update();
+        return;
+    case Tool::Symbol:
+        // L'outil reste arme : poser dix bornes ne doit pas demander dix
+        // allers-retours vers la palette.
+        placeSymbolAt(scenePoint);
+        return;
+    case Tool::Junction:
+        placeJunctionAt(scenePoint);
+        return;
+    case Tool::Label:
+        placeLabelAt(scenePoint);
+        return;
+    case Tool::Text:
+        placeTextAt(scenePoint);
+        return;
+    case Tool::Trim:
+    case Tool::Extend:
+    case Tool::Select:
+        break;
+    }
+}
+
+QPointF FolioView::committedPoint() const
+{
+    if (m_typing) {
+        const QPointF *from = gestureOrigin();
+        if (const auto typed = CoordinateEntry::resolve(m_typed, from, snap(m_cursorMm)))
+            return *typed;
+    }
+    return snap(m_cursorMm);
+}
+
+void FolioView::cancelTyping()
+{
+    if (!m_typing)
+        return;
+    m_typing = false;
+    m_typed.clear();
+    update();
+}
+
+bool FolioView::commitTypedEntry()
+{
+    if (!m_typing)
+        return false;
+    const QPointF *from = gestureOrigin();
+    const auto point = CoordinateEntry::resolve(m_typed, from, snap(m_cursorMm));
+    if (!point) {
+        Q_EMIT statusMessage(tr("Saisie incomprise : « %1 ». Formes acceptées : 50, "
+                                "50<45, @10,5, #120,80.").arg(m_typed));
+        return false;
+    }
+
+    m_typing = false;
+    m_typed.clear();
+    if (!applyPointAt(*point))
+        placeAt(*point);
+    update();
+    return true;
+}
+
+bool FolioView::handleTypedKey(QKeyEvent *event)
+{
+    // La saisie n'a de sens que pendant un geste : hors commande, un chiffre
+    // reste libre pour d'autres usages.
+    const bool commandRunning = !m_wirePoints.isEmpty() || m_pending != Pending::None
+            || m_tool == Tool::Symbol || m_tool == Tool::Junction || m_tool == Tool::Label
+            || m_tool == Tool::Text || m_tool == Tool::Wire;
+
+    if (m_typing) {
+        switch (event->key()) {
+        case Qt::Key_Return:
+        case Qt::Key_Enter:
+            commitTypedEntry();
+            return true;
+        case Qt::Key_Escape:
+            // Echap abandonne la cote, pas la commande : on s'est trompe de
+            // chiffre, on ne veut pas recommencer le trace.
+            cancelTyping();
+            Q_EMIT statusMessage(tr("Saisie abandonnée."));
+            return true;
+        case Qt::Key_Backspace:
+            m_typed.chop(1);
+            if (m_typed.isEmpty())
+                m_typing = false;
+            update();
+            return true;
+        default:
+            break;
+        }
+        if (!event->text().isEmpty() && event->text().at(0).isPrint()) {
+            m_typed += event->text();
+            update();
+            return true;
+        }
+        return false;
+    }
+
+    if (!commandRunning || !CoordinateEntry::startsEntry(event->text()))
+        return false;
+
+    m_typing = true;
+    m_typed = event->text();
+    Q_EMIT statusMessage(tr("Cote : Entrée pour valider, Échap pour abandonner. "
+                            "50 · 50<45 · @10,5 · #120,80"));
+    update();
+    return true;
+}
+
 bool FolioView::handlePendingClick(const QPointF &scenePoint)
 {
     switch (m_pending) {
@@ -1260,7 +1399,7 @@ void FolioView::mousePressEvent(QMouseEvent *event)
     if (event->button() != Qt::LeftButton)
         return;
 
-    if (handlePendingClick(snapped))
+    if (applyPointAt(snapped))
         return;
 
     if (m_zoomWindowArmed) {
@@ -1279,32 +1418,11 @@ void FolioView::mousePressEvent(QMouseEvent *event)
 
     switch (m_tool) {
     case Tool::Wire:
-        if (m_wirePoints.isEmpty()) {
-            beginWireAt(snapped);
-        } else {
-            const QPointF previous = m_wirePoints.last();
-            if (!samePoint(snapped, previous))
-                m_wirePoints.append(snapped);
-        }
-        update();
-        return;
-
     case Tool::Symbol:
-        placeSymbolAt(snapped);
-        // L'outil reste arme : poser dix bornes ne doit pas demander dix
-        // allers-retours vers la palette.
-        return;
-
     case Tool::Junction:
-        placeJunctionAt(snapped);
-        return;
-
     case Tool::Label:
-        placeLabelAt(snapped);
-        return;
-
     case Tool::Text:
-        placeTextAt(snapped);
+        placeAt(snapped);
         return;
 
     case Tool::Trim:
@@ -1516,6 +1634,11 @@ void FolioView::wheelEvent(QWheelEvent *event)
 
 void FolioView::keyPressEvent(QKeyEvent *event)
 {
+    // La cote tapee passe avant tout le reste : pendant une saisie, « 8 » est
+    // un chiffre, pas un raccourci.
+    if (handleTypedKey(event))
+        return;
+
     const double step = event->modifiers() & Qt::ShiftModifier ? m_style.gridStep * 4.0
                                                                : m_style.gridStep;
     switch (event->key()) {
@@ -1651,7 +1774,9 @@ void FolioView::paintPendingWire(QPainter &painter) const
         return;
 
     QVector<QPointF> preview = m_wirePoints;
-    preview.append(snap(m_cursorMm));
+    // Le fantome suit la cote tapee des qu'il y en a une : sans cela on tape
+    // une longueur sans voir ou elle mene.
+    preview.append(committedPoint());
 
     QPen pen(m_style.wire);
     pen.setWidthF(m_style.wireWidth);
@@ -1995,40 +2120,58 @@ void FolioView::paintCrosshair(QPainter &painter) const
 
 void FolioView::paintDynamicInput(QPainter &painter) const
 {
-    if (!m_style.showDynamicInput || !m_cursorInside)
+    if (!m_style.showDynamicInput || (!m_cursorInside && !m_typing))
         return;
     const QPointF *from = gestureOrigin();
-    if (!from)
+    if (!from && !m_typing)
         return;
 
-    const QPointF target = snap(m_cursorMm);
-    const QPointF delta = target - *from;
-    const double length = std::hypot(delta.x(), delta.y());
-    if (length < 1e-6)
-        return;
+    const QPointF target = committedPoint();
+    QString text;
+    bool editing = false;
 
-    // L'angle est donne comme le lit un dessinateur : sens trigonometrique,
-    // origine a trois heures, alors que l'axe des ordonnees descend a l'ecran.
-    double angle = -std::atan2(delta.y(), delta.x()) * 180.0 / std::numbers::pi;
-    if (angle < 0.0)
-        angle += 360.0;
+    if (m_typing) {
+        // Pendant la frappe, le champ montre ce qui est tape, pas ce que la
+        // souris raconte : c'est le clavier qui commande.
+        const bool understood = CoordinateEntry::resolve(m_typed, from, snap(m_cursorMm))
+                                        .has_value();
+        text = m_typed + QStringLiteral("▏");
+        editing = true;
+        if (!understood)
+            text += QStringLiteral("  ?");
+    } else {
+        const QPointF delta = target - *from;
+        const double length = std::hypot(delta.x(), delta.y());
+        if (length < 1e-6)
+            return;
+        text = QStringLiteral("%1 mm   ∠ %2°")
+                       .arg(length, 0, 'f', 1)
+                       .arg(CoordinateEntry::screenAngle(delta), 0, 'f', 1);
+    }
 
-    const QString text = QStringLiteral("%1 mm   ∠ %2°")
-                                 .arg(length, 0, 'f', 1)
-                                 .arg(angle, 0, 'f', 1);
-
-    const QPointF anchor = toWidget(target) + QPointF(16, 20);
+    const QPointF anchor = toWidget(m_typing ? m_cursorMm : target) + QPointF(16, 20);
     QFont font = painter.font();
-    font.setPointSizeF(9.0);
+    font.setPointSizeF(editing ? 10.5 : 9.0);
+    if (editing)
+        font.setBold(true);
     const QFontMetricsF metrics(font);
-    const QRectF box(anchor, QSizeF(metrics.horizontalAdvance(text) + 14, metrics.height() + 8));
+    const QRectF box(anchor, QSizeF(metrics.horizontalAdvance(text) + 18, metrics.height() + 10));
 
     painter.save();
     painter.setFont(font);
     painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(0, 0, 0, 165));
-    painter.drawRoundedRect(box, 4, 4);
-    painter.setPen(QColor(0xF0, 0xF4, 0xF2));
+    // Le champ en cours de frappe s'annonce : il a la main sur le geste, il
+    // doit se distinguer de l'affichage passif de la cote.
+    painter.setBrush(editing ? QColor(0x1F, 0x33, 0x28, 235) : QColor(0, 0, 0, 165));
+    painter.drawRoundedRect(box, 5, 5);
+    if (editing) {
+        QPen border(m_style.snapMarker);
+        border.setWidthF(1.4);
+        painter.setPen(border);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRoundedRect(box, 5, 5);
+    }
+    painter.setPen(editing ? m_style.snapMarker : QColor(0xF0, 0xF4, 0xF2));
     painter.drawText(box, Qt::AlignCenter, text);
     painter.restore();
 }

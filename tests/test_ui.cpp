@@ -1095,3 +1095,150 @@ TEST_CASE("Sans repere acquis, le trace n'est pas devie", "[ui][tracking]")
     CHECK_THAT(drawn->points.last().x(), WithinAbs(122.0, 1e-9)); // le curseur garde la main
 }
 
+
+TEST_CASE("Taper une cote pose le point a la distance voulue", "[ui][entry]")
+{
+    // Le geste d'AutoCAD : clic, on vise la direction, on tape la longueur.
+    // Sans lui, toute cote exacte passe par la grille.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setTool(FolioView::Tool::Wire);
+
+    auto click = [&](const QPointF &scene, Qt::MouseButton button) {
+        const QPointF at = view.mapFromScene(scene);
+        QMouseEvent e(QEvent::MouseButtonPress, at, view.mapToGlobal(at), button, button,
+                      Qt::NoModifier);
+        QApplication::sendEvent(&view, &e);
+    };
+    auto move = [&](const QPointF &scene) {
+        const QPointF at = view.mapFromScene(scene);
+        QMouseEvent e(QEvent::MouseMove, at, view.mapToGlobal(at), Qt::NoButton, Qt::NoButton,
+                      Qt::NoModifier);
+        QApplication::sendEvent(&view, &e);
+    };
+    auto type = [&](const QString &text) {
+        for (const QChar c : text) {
+            QKeyEvent e(QEvent::KeyPress, 0, Qt::NoModifier, QString(c));
+            QApplication::sendEvent(&view, &e);
+        }
+    };
+    auto enter = [&] {
+        QKeyEvent e(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+        QApplication::sendEvent(&view, &e);
+    };
+
+    click(QPointF(60, 100), Qt::LeftButton);
+    move(QPointF(140, 100));   // on vise a droite, distance quelconque
+    type(QStringLiteral("50"));
+    CHECK(view.typing());
+    CHECK(view.typedText() == QLatin1String("50"));
+    enter();
+    CHECK_FALSE(view.typing());
+    click(QPointF(0, 0), Qt::RightButton);   // termine le trace
+
+    const Wire *drawn = nullptr;
+    for (const EntityPtr &entity : folio->entities()) {
+        if (const auto *wire = dynamic_cast<const Wire *>(entity.get()))
+            drawn = wire;
+    }
+    REQUIRE(drawn);
+    CHECK_THAT(drawn->points.first().x(), WithinAbs(60.0, 1e-9));
+    // Exactement 50 mm a droite, quelle que soit la position du curseur.
+    CHECK_THAT(drawn->points.last().x(), WithinAbs(110.0, 1e-9));
+    CHECK_THAT(drawn->points.last().y(), WithinAbs(100.0, 1e-9));
+}
+
+TEST_CASE("Une cote relative tapee place le point au decalage voulu", "[ui][entry]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setTool(FolioView::Tool::Wire);
+
+    auto click = [&](const QPointF &scene, Qt::MouseButton button) {
+        const QPointF at = view.mapFromScene(scene);
+        QMouseEvent e(QEvent::MouseButtonPress, at, view.mapToGlobal(at), button, button,
+                      Qt::NoModifier);
+        QApplication::sendEvent(&view, &e);
+    };
+    auto type = [&](const QString &text) {
+        for (const QChar c : text) {
+            QKeyEvent e(QEvent::KeyPress, 0, Qt::NoModifier, QString(c));
+            QApplication::sendEvent(&view, &e);
+        }
+        QKeyEvent done(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+        QApplication::sendEvent(&view, &done);
+    };
+
+    click(QPointF(60, 100), Qt::LeftButton);
+    type(QStringLiteral("@40,30"));   // 40 a droite, 30 vers le haut
+    click(QPointF(0, 0), Qt::RightButton);
+
+    const Wire *drawn = nullptr;
+    for (const EntityPtr &entity : folio->entities()) {
+        if (const auto *wire = dynamic_cast<const Wire *>(entity.get()))
+            drawn = wire;
+    }
+    REQUIRE(drawn);
+    CHECK_THAT(drawn->points.last().x(), WithinAbs(100.0, 1e-9));
+    CHECK_THAT(drawn->points.last().y(), WithinAbs(70.0, 1e-9));
+}
+
+TEST_CASE("Echap abandonne la cote, pas le trace", "[ui][entry]")
+{
+    // On s'est trompe de chiffre : on ne veut pas recommencer tout le fil.
+    Document document;
+    document.newProject(builtinLibrary());
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setTool(FolioView::Tool::Wire);
+
+    const QPointF at = view.mapFromScene(QPointF(60, 100));
+    QMouseEvent press(QEvent::MouseButtonPress, at, view.mapToGlobal(at), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+
+    QKeyEvent five(QEvent::KeyPress, 0, Qt::NoModifier, QStringLiteral("5"));
+    QApplication::sendEvent(&view, &five);
+    CHECK(view.typing());
+
+    QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QApplication::sendEvent(&view, &escape);
+    CHECK_FALSE(view.typing());
+    // Le trace est toujours en cours : un second Echap seulement l'annule.
+    CHECK(view.tool() == FolioView::Tool::Wire);
+    QApplication::sendEvent(&view, &escape);
+}
+
+TEST_CASE("Hors commande, un chiffre reste libre", "[ui][entry]")
+{
+    // Sans geste en cours, taper un chiffre ne doit pas ouvrir un champ de
+    // cote : il n'y a pas de point a poser.
+    Document document;
+    document.newProject(builtinLibrary());
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setTool(FolioView::Tool::Select);
+
+    QKeyEvent five(QEvent::KeyPress, 0, Qt::NoModifier, QStringLiteral("5"));
+    QApplication::sendEvent(&view, &five);
+    CHECK_FALSE(view.typing());
+}
+

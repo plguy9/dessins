@@ -75,6 +75,15 @@ public:
     // Zoom fenetre et zoom precedent, comme ZOOM W et ZOOM P d'AutoCAD.
     // Le zoom precedent depile les vues successives : c'est le filet de
     // securite quand on s'est perdu dans un folio dense.
+    // Saisie de cote au clavier pendant un geste : taper « 50 » pose le point
+    // a 50 mm dans la direction visee, « @10,5 » a un decalage donne. C'est ce
+    // qui separe dessiner de pointer.
+    bool typing() const { return m_typing; }
+    QString typedText() const { return m_typed; }
+    // Applique la saisie en cours comme si l'on avait cliqué. Expose pour les
+    // tests et pour la ligne de commande.
+    bool commitTypedEntry();
+
     void beginZoomWindow();
     void zoomToRect(const QRectF &sceneRect);
     void zoomPrevious();
@@ -224,6 +233,11 @@ private:
     // millimetres : ce sont des reperes d'ecran, pas des elements du dessin.
     void paintCrosshair(QPainter &painter) const;
     void paintDynamicInput(QPainter &painter) const;
+    // Le point que designerait un clic maintenant : le curseur accroche, ou
+    // la cote tapee si l'on est en train d'en saisir une.
+    QPointF committedPoint() const;
+    bool handleTypedKey(QKeyEvent *event);
+    void cancelTyping();
 
     void pushViewState();
     void rebuildGrips();
@@ -235,6 +249,11 @@ private:
     // d'AutoCAD : la vue attend un point, puis un autre.
     enum class Pending { None, MoveBase, MoveTarget, OffsetSide, StretchBase, StretchTarget };
     bool handlePendingClick(const QPointF &scenePoint);
+    // Un point designe, par clic ou par cote tapee. Les deux chemins doivent
+    // faire exactement la meme chose, sinon dessiner au clavier et dessiner a
+    // la souris divergent.
+    bool applyPointAt(const QPointF &scenePoint);
+    void placeAt(const QPointF &scenePoint);
     void applyOffset(const QPointF &sidePoint);
     void applyStretch(const QPointF &delta);
     void paintPendingGesture(QPainter &painter) const;
@@ -292,6 +311,12 @@ private:
     Label::Scope m_labelScope = Label::Scope::Folio;
     Label::Role m_labelRole = Label::Role::Plain;
     QString m_currentWireType = WireTypeSet::defaultId();
+
+    // Saisie de cote en cours. Le texte est retenu tel qu'il est frappe : on
+    // ne l'interprete qu'a la validation, pour que « 1 » puis « 0 » ne pose
+    // pas un point a un millimetre avant d'en poser un a dix.
+    bool m_typing = false;
+    QString m_typed;
 
     QPointF m_cursorMm;
     std::optional<SnapHit> m_snapHit;

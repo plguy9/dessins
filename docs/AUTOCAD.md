@@ -65,6 +65,15 @@ Les décomptes « déjà en place » de chaque section datent du relevé. Ce qui
 | Repérage d'accrochage aux objets, `OTRACK` (F11) | `SnapEngine::acquire` / `track`. Survoler un point d'accrochage un instant le retient ; des traits d'alignement pointillés en partent et le curseur s'y pose. Survoler à nouveau l'oublie. Jusqu'à 7 repères, relâchés à la fin de la commande. |
 | Croisement d'alignements | Deux repères acquis donnent un point précis à l'intersection de leurs chemins ; un repère plus la direction contrainte du tracé aussi — c'est le geste que le dispositif sert vraiment. Un croisement l'emporte sur une simple projection, même un peu plus loin du curseur. |
 
+**Lot 7 — 2026-09-01**
+
+| Repris d'AutoCAD | Chez nous |
+|---|---|
+| Saisie de distance directe | On vise la direction à la souris, on tape la longueur, Entrée. `core/coordinateentry.*`. Le fantôme du tracé suit la cote tapée — sans cela on tape une longueur sans voir où elle mène. |
+| Saisie dynamique éditable | Le champ au curseur devient saisissable dès la première frappe utile. Échap abandonne la cote sans abandonner le tracé ; un chiffre hors commande reste libre. |
+| Coordonnées absolues, relatives et polaires | `#120,80` absolu, `@10,5` et `10,5` relatifs (le défaut de la saisie dynamique), `50<45` polaire. L'ordonnée se saisit vers le haut, comme sur un plan coté. |
+| Autocomplétion de la ligne de commande | La liste montre ce que fait chaque commande et rappelle le nom complet derrière chaque alias : on apprend le répertoire en s'en servant. |
+
 Reste notamment : gestionnaire de projet multi-dossiers, entrées-sorties API,
 éditeur de borniers, Scoot, Surfer.
 

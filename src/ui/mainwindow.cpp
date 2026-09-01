@@ -254,6 +254,8 @@ void MainWindow::createActions()
          tr("Créer un projet vide"), &MainWindow::newProject);
     make(fileMenu, true, G::Open, tr("&Ouvrir…"), QKeySequence::Open,
          tr("Ouvrir un projet .dsn"), &MainWindow::openProject);
+    m_recentMenu = fileMenu->addMenu(tr("Fichiers &récents"));
+    rebuildRecentMenu();
     make(fileMenu, true, G::Save, tr("&Enregistrer"), QKeySequence::Save,
          tr("Enregistrer le projet"), [this] { saveProject(); });
     make(fileMenu, false, G::Save, tr("Enregistrer &sous…"), QKeySequence::SaveAs,
@@ -583,6 +585,61 @@ void MainWindow::applyTheme(bool dark)
 // --------------------------------------------------------------------------
 // Fichier
 
+namespace {
+constexpr auto kRecentKey = "files/recent";
+constexpr int kRecentMax = 10;
+}
+
+void MainWindow::addRecentFile(const QString &path)
+{
+    if (path.isEmpty())
+        return;
+    QSettings settings;
+    QStringList recent = settings.value(QLatin1String(kRecentKey)).toStringList();
+    const QString absolute = QFileInfo(path).absoluteFilePath();
+    recent.removeAll(absolute);
+    recent.prepend(absolute);
+    while (recent.size() > kRecentMax)
+        recent.removeLast();
+    settings.setValue(QLatin1String(kRecentKey), recent);
+    rebuildRecentMenu();
+}
+
+void MainWindow::rebuildRecentMenu()
+{
+    if (!m_recentMenu)
+        return;
+    m_recentMenu->clear();
+
+    const QStringList recent = QSettings().value(QLatin1String(kRecentKey)).toStringList();
+    int shown = 0;
+    for (const QString &path : recent) {
+        // Un fichier disparu n'encombre pas le menu, mais il n'est pas retire
+        // de la liste : une cle USB debranchee peut revenir.
+        if (!QFileInfo::exists(path))
+            continue;
+        ++shown;
+        auto *action = m_recentMenu->addAction(
+                QStringLiteral("&%1  %2").arg(shown).arg(QFileInfo(path).completeBaseName()));
+        action->setStatusTip(path);
+        action->setToolTip(path);
+        connect(action, &QAction::triggered, this, [this, path] {
+            if (maybeSave())
+                openFile(path);
+        });
+    }
+
+    m_recentMenu->setEnabled(shown > 0);
+    if (shown > 0) {
+        m_recentMenu->addSeparator();
+        connect(m_recentMenu->addAction(tr("&Vider la liste")), &QAction::triggered, this,
+                [this] {
+                    QSettings().remove(QLatin1String(kRecentKey));
+                    rebuildRecentMenu();
+                });
+    }
+}
+
 bool MainWindow::maybeSave()
 {
     if (!m_document->isModified())
@@ -654,6 +711,7 @@ bool MainWindow::openFile(const QString &path)
         QMessageBox::warning(this, tr("Projet ouvert avec des réserves"),
                              warnings.join(QStringLiteral("\n")));
     }
+    addRecentFile(path);
     statusBar()->showMessage(tr("Projet ouvert : %1").arg(QFileInfo(path).fileName()), 5000);
     return true;
 }
@@ -667,6 +725,7 @@ bool MainWindow::saveProject()
         QMessageBox::critical(this, tr("Enregistrement impossible"), error);
         return false;
     }
+    addRecentFile(m_document->filePath());
     statusBar()->showMessage(tr("Projet enregistré"), 4000);
     return true;
 }
@@ -684,6 +743,7 @@ bool MainWindow::saveProjectAs()
         return false;
     }
     updateTitle();
+    addRecentFile(path);
     statusBar()->showMessage(tr("Projet enregistré : %1").arg(QFileInfo(path).fileName()), 4000);
     return true;
 }

@@ -1,0 +1,227 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "ansi:current-transformer",
+      "logicalId": "current-transformer",
+      "norm": "ANSI",
+      "name": "Current transformer",
+      "category": "Metering",
+      "keywords": [
+        "CT",
+        "current"
+      ],
+      "prefix": "CT",
+      "deviceKind": "ct",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -9,
+              0
+            ],
+            [
+              9,
+              0
+            ]
+          ],
+          "lineWidth": 0.5
+        }
+      ],
+      "pins": [
+        {
+          "number": "H1",
+          "at": [
+            -12,
+            0
+          ],
+          "dir": 180,
+          "length": 3.0
+        },
+        {
+          "number": "H2",
+          "at": [
+            12,
+            0
+          ],
+          "dir": 0,
+          "length": 3.0
+        },
+        {
+          "number": "X1",
+          "at": [
+            -2.5,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        },
+        {
+          "number": "X2",
+          "at": [
+            2.5,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -8.0
+      ],
+      "valueAnchor": [
+        0.0,
+        14.0
+      ]
+    },
+    {
+      "id": "ansi:meter-ammeter",
+      "logicalId": "meter-ammeter",
+      "norm": "ANSI",
+      "name": "Ammeter",
+      "category": "Metering",
+      "keywords": [
+        "ammeter",
+        "current"
+      ],
+      "prefix": "AM",
+      "deviceKind": "meter",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.8
+            ]
+          ],
+          "text": "A",
+          "textHeight": 4.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:meter-voltmeter",
+      "logicalId": "meter-voltmeter",
+      "norm": "ANSI",
+      "name": "Voltmeter",
+      "category": "Metering",
+      "keywords": [
+        "voltmeter",
+        "voltage"
+      ],
+      "prefix": "VM",
+      "deviceKind": "meter",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.8
+            ]
+          ],
+          "text": "V",
+          "textHeight": 4.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    }
+  ]
+}

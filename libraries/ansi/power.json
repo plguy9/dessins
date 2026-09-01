@@ -630,8 +630,8 @@
               0
             ]
           ],
-          "radius": 5.0,
-          "startAngle": 90,
+          "radius": 4.0,
+          "startAngle": 0,
           "spanAngle": 180,
           "lineWidth": 0.3
         },
@@ -639,15 +639,15 @@
           "kind": "line",
           "points": [
             [
-              -5,
+              -6,
               0
             ],
             [
-              5,
+              6,
               0
             ]
           ],
-          "lineWidth": 0.0
+          "lineWidth": 0.25
         }
       ],
       "pins": [
@@ -658,7 +658,7 @@
             0
           ],
           "dir": 180,
-          "length": 5.0
+          "length": 4.0
         },
         {
           "number": "2",
@@ -667,7 +667,7 @@
             0
           ],
           "dir": 0,
-          "length": 5.0
+          "length": 4.0
         }
       ],
       "defaultFields": {},
@@ -678,6 +678,272 @@
       "valueAnchor": [
         8.0,
         -2.0
+      ]
+    },
+    {
+      "id": "ansi:fuse-disconnector",
+      "logicalId": "fuse-disconnector",
+      "norm": "ANSI",
+      "name": "Fused disconnect",
+      "category": "Power",
+      "keywords": [
+        "fused",
+        "disconnect"
+      ],
+      "prefix": "DS",
+      "deviceKind": "disconnector",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -7,
+              0
+            ],
+            [
+              -4.5,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.5,
+              0
+            ],
+            [
+              0,
+              -3.8
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              1.5,
+              0
+            ],
+            [
+              5.5,
+              0
+            ]
+          ],
+          "lineWidth": 0.2
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              3.5,
+              0
+            ]
+          ],
+          "radius": 2.0,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              5.5,
+              0
+            ],
+            [
+              7,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 3.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 3.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:heater",
+      "logicalId": "heater",
+      "norm": "ANSI",
+      "name": "Heating element",
+      "category": "Power",
+      "keywords": [
+        "heater",
+        "element"
+      ],
+      "prefix": "HTR",
+      "deviceKind": "heater",
+      "graphics": [
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -6,
+              0
+            ],
+            [
+              -4.5,
+              -3
+            ],
+            [
+              -1.5,
+              3
+            ],
+            [
+              1.5,
+              -3
+            ],
+            [
+              4.5,
+              3
+            ],
+            [
+              6,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 4.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 4.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:motor-1ph",
+      "logicalId": "motor-1ph",
+      "norm": "ANSI",
+      "name": "Motor, single phase",
+      "category": "Power",
+      "keywords": [
+        "motor",
+        "single phase"
+      ],
+      "prefix": "M",
+      "deviceKind": "motor",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 8.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              2.0
+            ]
+          ],
+          "text": "M",
+          "textHeight": 6.0,
+          "align": "center"
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              6.5
+            ]
+          ],
+          "text": "1~",
+          "textHeight": 2.6,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "T1",
+          "at": [
+            -4,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "T2",
+          "at": [
+            4,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -11.0,
+        0.0
+      ],
+      "valueAnchor": [
+        11.0,
+        0.0
       ]
     },
     {
@@ -764,6 +1030,200 @@
       "valueAnchor": [
         11.0,
         0.0
+      ]
+    },
+    {
+      "id": "ansi:socket-outlet",
+      "logicalId": "socket-outlet",
+      "norm": "ANSI",
+      "name": "Receptacle",
+      "category": "Power",
+      "keywords": [
+        "receptacle",
+        "outlet"
+      ],
+      "prefix": "REC",
+      "deviceKind": "socket",
+      "graphics": [
+        {
+          "kind": "arc",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              0
+            ],
+            [
+              5,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              -5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "L",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "N",
+          "at": [
+            5,
+            5
+          ],
+          "dir": 0,
+          "length": 3.0
+        },
+        {
+          "number": "G",
+          "at": [
+            -5,
+            5
+          ],
+          "dir": 180,
+          "length": 3.0,
+          "type": "ground"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:switch-disconnector",
+      "logicalId": "switch-disconnector",
+      "norm": "ANSI",
+      "name": "Load-break switch",
+      "category": "Power",
+      "keywords": [
+        "load break",
+        "switch",
+        "disconnect"
+      ],
+      "prefix": "DS",
+      "deviceKind": "disconnector",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              0
+            ],
+            [
+              -1.5,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -1.5,
+              0
+            ],
+            [
+              4.0,
+              -4.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              5,
+              0
+            ],
+            [
+              3.0,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "circle",
+          "points": [
+            [
+              -1.5,
+              0
+            ]
+          ],
+          "radius": 0.8,
+          "lineWidth": 0.3,
+          "filled": true
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
       ]
     },
     {
@@ -900,6 +1360,202 @@
       "valueAnchor": [
         0.0,
         14.0
+      ]
+    },
+    {
+      "id": "ansi:transformer",
+      "logicalId": "transformer",
+      "norm": "ANSI",
+      "name": "Control transformer",
+      "category": "Power",
+      "keywords": [
+        "transformer",
+        "control"
+      ],
+      "prefix": "T",
+      "deviceKind": "transformer",
+      "graphics": [
+        {
+          "kind": "arc",
+          "points": [
+            [
+              -4.5,
+              -3
+            ]
+          ],
+          "radius": 1.5,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              -1.5,
+              -3
+            ]
+          ],
+          "radius": 1.5,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              1.5,
+              -3
+            ]
+          ],
+          "radius": 1.5,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              4.5,
+              -3
+            ]
+          ],
+          "radius": 1.5,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -6,
+              -0.7
+            ],
+            [
+              6,
+              -0.7
+            ]
+          ],
+          "lineWidth": 0.2
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -6,
+              0.7
+            ],
+            [
+              6,
+              0.7
+            ]
+          ],
+          "lineWidth": 0.2
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              -4.5,
+              3
+            ]
+          ],
+          "radius": 1.5,
+          "startAngle": 180,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              -1.5,
+              3
+            ]
+          ],
+          "radius": 1.5,
+          "startAngle": 180,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              1.5,
+              3
+            ]
+          ],
+          "radius": 1.5,
+          "startAngle": 180,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              4.5,
+              3
+            ]
+          ],
+          "radius": 1.5,
+          "startAngle": 180,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        }
+      ],
+      "pins": [
+        {
+          "number": "H1",
+          "at": [
+            -6,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "H2",
+          "at": [
+            6,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "X1",
+          "at": [
+            -6,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        },
+        {
+          "number": "X2",
+          "at": [
+            6,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {
+        "value": "480 / 120 V"
+      },
+      "designationAnchor": [
+        -10.0,
+        0.0
+      ],
+      "valueAnchor": [
+        10.0,
+        0.0
       ]
     }
   ]

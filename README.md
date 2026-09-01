@@ -12,12 +12,12 @@ native, Qt 6 et C++20.
 |---|---|---|
 | **M0** Socle | ✅ | Cœur sans GUI : géométrie en millimètres, modèle de document, extraction des potentiels, pile d'annulation |
 | **M1** Canevas | ✅ | Grille, zoom, panoramique, sélection, accrochage aux broches, cadre et cartouche |
-| **M2** Symboles | ✅ | 78 symboles CEI et ANSI intégrés, palette, **éditeur de symboles** |
+| **M2** Symboles | ✅ | 103 symboles CEI et ANSI intégrés, palette, **éditeur de symboles** |
 | **M3** Connectivité | ✅ | Fils orthogonaux, jonctions, **liaisons multi-conducteurs**, étiquettes de potentiel, renvois de folio |
 | **M4** Automatismes | ✅ | Repérage des fils, désignation des appareils, nomenclature, bornier, liste des fils |
 | **M5** Sortie | ✅ | Impression et export PDF multi-folios |
 | **M6** Interopérabilité | ✅ | Export DXF R12, un fichier par folio |
-| **M7** Profil ANSI | ◐ | Symboles et règles de repérage en place ; jeu de symboles à compléter |
+| **M7** Profil ANSI | ✅ | 41 symboles ANSI, repérage nord-américain, formats et unités impériales, commutation par projet |
 | **M8** Unifilaires | ◐ | Le modèle multi-conducteurs est en place ; symboles et bilan de puissance à faire |
 | **M9** Électronique | ◐ | Symboles en place ; export de netlist SPICE / KiCad à faire |
 

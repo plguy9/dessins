@@ -63,6 +63,10 @@ private:
     bool maybeSave();
     QString suggestedFileName(const QString &extension) const;
 
+    // Fichiers recents
+    void addRecentFile(const QString &path);
+    void rebuildRecentMenu();
+
     Document *m_document = nullptr;
     FolioView *m_view = nullptr;
     SymbolPalette *m_palette = nullptr;
@@ -81,6 +85,7 @@ private:
     QList<QAction *> m_toolActions;
     QHash<QAction *, int> m_actionGlyphs; // action -> Icons::Glyph, pour le rehabillage
     class QToolBar *m_toolBar = nullptr;
+    class QMenu *m_recentMenu = nullptr;
     bool m_dark = true;
 };
 

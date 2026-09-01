@@ -3,6 +3,98 @@
   "version": 1,
   "symbols": [
     {
+      "id": "ansi:chassis",
+      "logicalId": "chassis",
+      "norm": "ANSI",
+      "name": "Chassis ground",
+      "category": "Terminals",
+      "keywords": [
+        "chassis",
+        "ground"
+      ],
+      "prefix": "GND",
+      "deviceKind": "earth",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4,
+              0
+            ],
+            [
+              4,
+              0
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4,
+              0
+            ],
+            [
+              -6,
+              3
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              -2,
+              3
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              4,
+              0
+            ],
+            [
+              2,
+              3
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "MA",
+          "at": [
+            0,
+            -6
+          ],
+          "dir": 270,
+          "length": 6.0,
+          "type": "ground"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        3.0
+      ],
+      "valueAnchor": [
+        8.0,
+        3.0
+      ]
+    },
+    {
       "id": "ansi:earth",
       "logicalId": "earth",
       "norm": "ANSI",

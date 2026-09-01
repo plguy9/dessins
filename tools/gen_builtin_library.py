@@ -535,9 +535,11 @@ ansi("indicator-lamp", "Indicating light", "Control", "H", "lamp",
      [pin("X1", -9, 0, LEFT, 5.0), pin("X2", 9, 0, RIGHT, 5.0)],
      keywords=["pilot light", "lamp"])
 
+# Le fusible NFPA est une bosse sur un trait continu : l'arc part de zero,
+# pas de quatre-vingt-dix, sans quoi il dessine un « C » couche.
 ansi("fuse", "Fuse", "Power", "FU", "fuse",
-     [arc(0, 0, 5.0, 90, 180, 0.3), line(-5, 0, 5, 0, 0.0)],
-     [pin("1", -10, 0, LEFT, 5.0), pin("2", 10, 0, RIGHT, 5.0)],
+     [arc(0, 0, 4.0, 0, 180, 0.3), line(-6, 0, 6, 0, 0.25)],
+     [pin("1", -10, 0, LEFT, 4.0), pin("2", 10, 0, RIGHT, 4.0)],
      keywords=["fuse", "protection"])
 
 ansi("circuit-breaker-1p", "Circuit breaker, 1-pole", "Power", "CB", "breaker",
@@ -594,6 +596,161 @@ ansi("contactor-power-3p", "Contactor, 3-pole", "Power", "K", "contactor",
       pin("3", -10, 0, LEFT, 5.0), pin("4", 10, 0, RIGHT, 5.0),
       pin("5", -10, 7.5, LEFT, 5.0), pin("6", 10, 7.5, RIGHT, 5.0)],
      keywords=["contactor"], desig=(0.0, -13.0), value=(0.0, 14.0))
+
+# -- commande, complement ------------------------------------------------
+
+ansi("emergency-stop", "Emergency stop, mushroom head", "Control", "S", "pushbutton",
+     [line(-2.0, -4, -2.0, 4, 0.35), line(2.0, -4, 2.0, 4, 0.35),
+      line(-4.0, 4.5, 4.0, -4.5, 0.35),
+      line(0, -4.5, 0, -8.0), arc(0, -8.0, 3.5, 0, 180, 0.3)],
+     [pin("11", -10, 0, LEFT, 8.0), pin("12", 10, 0, RIGHT, 8.0)],
+     keywords=["emergency", "stop", "mushroom"])
+
+ansi("selector-switch", "Selector switch, 2-position", "Control", "SS", "switch",
+     [line(-2.0, -4, -2.0, 4, 0.35), line(2.0, -4, 2.0, 4, 0.35),
+      line(0, -4.5, -3.5, -8.0), line(-5.5, -8.0, -2.0, -8.0)],
+     [pin("1", -10, 0, LEFT, 8.0), pin("2", 10, 0, RIGHT, 8.0)],
+     keywords=["selector", "switch"])
+
+ansi("limit-switch-no", "Limit switch, normally open", "Control", "LS", "switch",
+     [line(-2.0, -4, -2.0, 4, 0.35), line(2.0, -4, 2.0, 4, 0.35),
+      poly([(-6.5, 6.0), (-2.5, 6.0), (-4.5, 8.5), (-6.5, 6.0)])],
+     [pin("13", -10, 0, LEFT, 8.0), pin("14", 10, 0, RIGHT, 8.0)],
+     keywords=["limit switch"])
+
+ansi("limit-switch-nc", "Limit switch, normally closed", "Control", "LS", "switch",
+     [line(-2.0, -4, -2.0, 4, 0.35), line(2.0, -4, 2.0, 4, 0.35),
+      line(-4.0, 4.5, 4.0, -4.5, 0.35),
+      poly([(-6.5, 6.0), (-2.5, 6.0), (-4.5, 8.5), (-6.5, 6.0)])],
+     [pin("11", -10, 0, LEFT, 8.0), pin("12", 10, 0, RIGHT, 8.0)],
+     keywords=["limit switch"])
+
+# Contact de relais de surcharge : les deux crochets decales de la convention
+# NEMA, reconnaissables au premier coup d'oeil sur une echelle de commande.
+ansi("thermal-contact", "Overload relay contact", "Control", "OL", "contact",
+     [poly([(-3.0, 0.0), (-3.0, -2.6), (-0.8, -2.6)], 0.3),
+      poly([(3.0, 0.0), (3.0, 2.6), (0.8, 2.6)], 0.3)],
+     [pin("95", -10, 0, LEFT, 7.0), pin("96", 10, 0, RIGHT, 7.0)],
+     keywords=["overload", "OL", "thermal"])
+
+ansi("relay-coil", "Control relay coil", "Control", "CR", "coil",
+     [circle(0, 0, 5.0), line(-3.5, -3.5, 3.5, 3.5)],
+     [pin("A1", -10, 0, LEFT, 5.0), pin("A2", 10, 0, RIGHT, 5.0)],
+     keywords=["relay", "CR"])
+
+ansi("coil-timer-on", "On-delay timer coil", "Control", "TR", "coil",
+     [circle(0, 0, 5.0), text(0, 1.6, "TR", 3.0)],
+     [pin("A1", -10, 0, LEFT, 5.0), pin("A2", 10, 0, RIGHT, 5.0)],
+     keywords=["timer", "on-delay"])
+
+ansi("coil-timer-off", "Off-delay timer coil", "Control", "TR", "coil",
+     [circle(0, 0, 5.0), text(0, 1.6, "TO", 3.0)],
+     [pin("A1", -10, 0, LEFT, 5.0), pin("A2", 10, 0, RIGHT, 5.0)],
+     keywords=["timer", "off-delay"])
+
+ansi("horn", "Horn, audible alarm", "Control", "H", "horn",
+     [arc(0, 0, 4.0, -90, 180, 0.3), line(0, -4, 0, 4)],
+     [pin("1", -9, 0, LEFT, 5.0), pin("2", 9, 0, RIGHT, 5.0)],
+     keywords=["horn", "alarm", "siren"])
+
+# -- puissance, complement -----------------------------------------------
+
+ansi("switch-disconnector", "Load-break switch", "Power", "DS", "disconnector",
+     [line(-5, 0, -1.5, 0), line(-1.5, 0, 4.0, -4.0), line(5, 0, 3.0, 0),
+      circle(-1.5, 0, 0.8, 0.3, True)],
+     [pin("1", -10, 0, LEFT, 5.0), pin("2", 10, 0, RIGHT, 5.0)],
+     keywords=["load break", "switch", "disconnect"])
+
+ansi("fuse-disconnector", "Fused disconnect", "Power", "DS", "disconnector",
+     [line(-7, 0, -4.5, 0), line(-4.5, 0, 0, -3.8),
+      line(1.5, 0, 5.5, 0, 0.2), arc(3.5, 0, 2.0, 0, 180, 0.3), line(5.5, 0, 7, 0)],
+     [pin("1", -10, 0, LEFT, 3.0), pin("2", 10, 0, RIGHT, 3.0)],
+     keywords=["fused", "disconnect"])
+
+ansi("motor-1ph", "Motor, single phase", "Power", "M", "motor",
+     [circle(0, 0, 8.0), text(0, 2.0, "M", 6.0), text(0, 6.5, "1~", 2.6)],
+     [pin("T1", -4, -13, UP, 5.0), pin("T2", 4, -13, UP, 5.0)],
+     keywords=["motor", "single phase"], desig=(-11.0, 0.0), value=(11.0, 0.0))
+
+ansi("transformer", "Control transformer", "Power", "T", "transformer",
+     [arc(-4.5, -3, 1.5, 0, 180, 0.3), arc(-1.5, -3, 1.5, 0, 180, 0.3),
+      arc(1.5, -3, 1.5, 0, 180, 0.3), arc(4.5, -3, 1.5, 0, 180, 0.3),
+      line(-6, -0.7, 6, -0.7, 0.2), line(-6, 0.7, 6, 0.7, 0.2),
+      arc(-4.5, 3, 1.5, 180, 180, 0.3), arc(-1.5, 3, 1.5, 180, 180, 0.3),
+      arc(1.5, 3, 1.5, 180, 180, 0.3), arc(4.5, 3, 1.5, 180, 180, 0.3)],
+     [pin("H1", -6, -10, UP, 7.0), pin("H2", 6, -10, UP, 7.0),
+      pin("X1", -6, 10, DOWN, 7.0), pin("X2", 6, 10, DOWN, 7.0)],
+     keywords=["transformer", "control"], fields={"value": "480 / 120 V"},
+     desig=(-10.0, 0.0), value=(10.0, 0.0))
+
+ansi("heater", "Heating element", "Power", "HTR", "heater",
+     [poly([(-6, 0), (-4.5, -3), (-1.5, 3), (1.5, -3), (4.5, 3), (6, 0)])],
+     [pin("1", -10, 0, LEFT, 4.0), pin("2", 10, 0, RIGHT, 4.0)],
+     keywords=["heater", "element"])
+
+ansi("socket-outlet", "Receptacle", "Power", "REC", "socket",
+     [arc(0, 0, 5.0, 0, 180, 0.3), line(-5, 0, 5, 0), line(0, 0, 0, -5)],
+     [pin("L", 0, -10, UP, 5.0), pin("N", 5, 5, RIGHT, 3.0),
+      pin("G", -5, 5, LEFT, 3.0, ptype="ground")],
+     keywords=["receptacle", "outlet"])
+
+# -- mesure ----------------------------------------------------------------
+
+ansi("meter-ammeter", "Ammeter", "Metering", "AM", "meter",
+     [circle(0, 0, 5.0), text(0, 1.8, "A", 4.0)],
+     [pin("1", -10, 0, LEFT, 5.0), pin("2", 10, 0, RIGHT, 5.0)],
+     keywords=["ammeter", "current"])
+
+ansi("meter-voltmeter", "Voltmeter", "Metering", "VM", "meter",
+     [circle(0, 0, 5.0), text(0, 1.8, "V", 4.0)],
+     [pin("1", -10, 0, LEFT, 5.0), pin("2", 10, 0, RIGHT, 5.0)],
+     keywords=["voltmeter", "voltage"])
+
+ansi("current-transformer", "Current transformer", "Metering", "CT", "ct",
+     [circle(0, 0, 5.0), line(-9, 0, 9, 0, 0.5)],
+     [pin("H1", -12, 0, LEFT, 3.0), pin("H2", 12, 0, RIGHT, 3.0),
+      pin("X1", -2.5, 10, DOWN, 5.0), pin("X2", 2.5, 10, DOWN, 5.0)],
+     keywords=["CT", "current"], desig=(0.0, -8.0), value=(0.0, 14.0))
+
+# -- distribution et automatisme -------------------------------------------
+
+ansi("battery", "Battery", "Distribution", "BAT", "battery",
+     [line(-4, -2, 4, -2, 0.5), line(-2, 1, 2, 1), line(-4, 4, 4, 4, 0.5),
+      line(-2, 7, 2, 7)],
+     [pin("+", 0, -8, UP, 6.0, ptype="power"), pin("-", 0, 13, DOWN, 6.0, ptype="power")],
+     keywords=["battery"], desig=(-8.0, 2.0), value=(8.0, 2.0))
+
+ansi("generator", "Generator", "Distribution", "G", "generator",
+     [circle(0, 0, 8.0), text(0, 1.0, "G", 5.0), text(0, 6.0, "3~", 3.0)],
+     [pin("L", 0, -13, UP, 5.0), pin("N", 6, 11, DOWN, 3.0)],
+     keywords=["generator", "genset"], desig=(-11.0, 0.0), value=(11.0, 0.0))
+
+ansi("busbar", "Busbar", "Distribution", "BUS", "busbar",
+     [line(-30, 0, 30, 0, 1.2)],
+     [pin("1", -30, 0, LEFT, 0.0), pin("2", 30, 0, RIGHT, 0.0),
+      pin("T1", -20, 0, DOWN, 0.0), pin("T2", 0, 0, DOWN, 0.0),
+      pin("T3", 20, 0, DOWN, 0.0)],
+     keywords=["busbar", "bus"], desig=(-33.0, -3.0), value=(33.0, -3.0))
+
+ansi("surge-arrester", "Surge arrester", "Distribution", "SA", "arrester",
+     [rect(-3.5, -6, 7, 12), poly([(-2, 3), (0, -1), (-1, -1), (1, -5)])],
+     [pin("1", 0, -10, UP, 4.0), pin("2", 0, 10, DOWN, 4.0, ptype="ground")],
+     keywords=["surge", "arrester", "SPD"])
+
+ansi("plc-input", "PLC input", "Automation", "PLC", "plc-io",
+     [rect(-10, -4, 20, 8), text(-6, 1.5, "I", 3.0), line(-2, -4, -2, 4)],
+     [pin("I", -14, 0, LEFT, 4.0, ptype="input"), pin("COM", 14, 0, RIGHT, 4.0)],
+     keywords=["PLC", "input"], desig=(0.0, -7.0), value=(0.0, 9.0))
+
+ansi("plc-output", "PLC output", "Automation", "PLC", "plc-io",
+     [rect(-10, -4, 20, 8), text(-6, 1.5, "Q", 3.0), line(-2, -4, -2, 4)],
+     [pin("Q", -14, 0, LEFT, 4.0, ptype="output"), pin("COM", 14, 0, RIGHT, 4.0)],
+     keywords=["PLC", "output"], desig=(0.0, -7.0), value=(0.0, 9.0))
+
+ansi("chassis", "Chassis ground", "Terminals", "GND", "earth",
+     [line(-4, 0, 4, 0, 0.35), line(-4, 0, -6, 3), line(0, 0, -2, 3), line(4, 0, 2, 3)],
+     [pin("MA", 0, -6, UP, 6.0, ptype="ground")],
+     keywords=["chassis", "ground"], desig=(-8.0, 3.0), value=(8.0, 3.0))
 
 ansi("resistor", "Resistor", "Electronics", "R", "resistor",
      [poly([(-6, 0), (-5, -3), (-3, 3), (-1, -3), (1, 3), (3, -3), (5, 3), (6, 0)])],

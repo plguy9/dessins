@@ -58,6 +58,140 @@
       ]
     },
     {
+      "id": "ansi:coil-timer-off",
+      "logicalId": "coil-timer-off",
+      "norm": "ANSI",
+      "name": "Off-delay timer coil",
+      "category": "Control",
+      "keywords": [
+        "timer",
+        "off-delay"
+      ],
+      "prefix": "TR",
+      "deviceKind": "coil",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.6
+            ]
+          ],
+          "text": "TO",
+          "textHeight": 3.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "A1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "A2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:coil-timer-on",
+      "logicalId": "coil-timer-on",
+      "norm": "ANSI",
+      "name": "On-delay timer coil",
+      "category": "Control",
+      "keywords": [
+        "timer",
+        "on-delay"
+      ],
+      "prefix": "TR",
+      "deviceKind": "coil",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.6
+            ]
+          ],
+          "text": "TR",
+          "textHeight": 3.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "A1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "A2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
       "id": "ansi:contact-nc",
       "logicalId": "contact-nc",
       "norm": "ANSI",
@@ -218,6 +352,192 @@
       ]
     },
     {
+      "id": "ansi:emergency-stop",
+      "logicalId": "emergency-stop",
+      "norm": "ANSI",
+      "name": "Emergency stop, mushroom head",
+      "category": "Control",
+      "keywords": [
+        "emergency",
+        "stop",
+        "mushroom"
+      ],
+      "prefix": "S",
+      "deviceKind": "pushbutton",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              -4
+            ],
+            [
+              -2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              2.0,
+              -4
+            ],
+            [
+              2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.0,
+              4.5
+            ],
+            [
+              4.0,
+              -4.5
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              -4.5
+            ],
+            [
+              0,
+              -8.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              0,
+              -8.0
+            ]
+          ],
+          "radius": 3.5,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        }
+      ],
+      "pins": [
+        {
+          "number": "11",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 8.0
+        },
+        {
+          "number": "12",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 8.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:horn",
+      "logicalId": "horn",
+      "norm": "ANSI",
+      "name": "Horn, audible alarm",
+      "category": "Control",
+      "keywords": [
+        "horn",
+        "alarm",
+        "siren"
+      ],
+      "prefix": "H",
+      "deviceKind": "horn",
+      "graphics": [
+        {
+          "kind": "arc",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 4.0,
+          "startAngle": -90,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              -4
+            ],
+            [
+              0,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -9,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            9,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
       "id": "ansi:indicator-lamp",
       "logicalId": "indicator-lamp",
       "norm": "ANSI",
@@ -288,6 +608,206 @@
           ],
           "dir": 0,
           "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:limit-switch-nc",
+      "logicalId": "limit-switch-nc",
+      "norm": "ANSI",
+      "name": "Limit switch, normally closed",
+      "category": "Control",
+      "keywords": [
+        "limit switch"
+      ],
+      "prefix": "LS",
+      "deviceKind": "switch",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              -4
+            ],
+            [
+              -2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              2.0,
+              -4
+            ],
+            [
+              2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.0,
+              4.5
+            ],
+            [
+              4.0,
+              -4.5
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -6.5,
+              6.0
+            ],
+            [
+              -2.5,
+              6.0
+            ],
+            [
+              -4.5,
+              8.5
+            ],
+            [
+              -6.5,
+              6.0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "11",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 8.0
+        },
+        {
+          "number": "12",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 8.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:limit-switch-no",
+      "logicalId": "limit-switch-no",
+      "norm": "ANSI",
+      "name": "Limit switch, normally open",
+      "category": "Control",
+      "keywords": [
+        "limit switch"
+      ],
+      "prefix": "LS",
+      "deviceKind": "switch",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              -4
+            ],
+            [
+              -2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              2.0,
+              -4
+            ],
+            [
+              2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -6.5,
+              6.0
+            ],
+            [
+              -2.5,
+              6.0
+            ],
+            [
+              -4.5,
+              8.5
+            ],
+            [
+              -6.5,
+              6.0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "13",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 8.0
+        },
+        {
+          "number": "14",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 8.0
         }
       ],
       "defaultFields": {},
@@ -502,6 +1022,256 @@
           ],
           "dir": 0,
           "length": 8.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:relay-coil",
+      "logicalId": "relay-coil",
+      "norm": "ANSI",
+      "name": "Control relay coil",
+      "category": "Control",
+      "keywords": [
+        "relay",
+        "CR"
+      ],
+      "prefix": "CR",
+      "deviceKind": "coil",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -3.5,
+              -3.5
+            ],
+            [
+              3.5,
+              3.5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "A1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "A2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:selector-switch",
+      "logicalId": "selector-switch",
+      "norm": "ANSI",
+      "name": "Selector switch, 2-position",
+      "category": "Control",
+      "keywords": [
+        "selector",
+        "switch"
+      ],
+      "prefix": "SS",
+      "deviceKind": "switch",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              -4
+            ],
+            [
+              -2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              2.0,
+              -4
+            ],
+            [
+              2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              -4.5
+            ],
+            [
+              -3.5,
+              -8.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5.5,
+              -8.0
+            ],
+            [
+              -2.0,
+              -8.0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 8.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 8.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:thermal-contact",
+      "logicalId": "thermal-contact",
+      "norm": "ANSI",
+      "name": "Overload relay contact",
+      "category": "Control",
+      "keywords": [
+        "overload",
+        "OL",
+        "thermal"
+      ],
+      "prefix": "OL",
+      "deviceKind": "contact",
+      "graphics": [
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -3.0,
+              0.0
+            ],
+            [
+              -3.0,
+              -2.6
+            ],
+            [
+              -0.8,
+              -2.6
+            ]
+          ],
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              3.0,
+              0.0
+            ],
+            [
+              3.0,
+              2.6
+            ],
+            [
+              0.8,
+              2.6
+            ]
+          ],
+          "lineWidth": 0.3
+        }
+      ],
+      "pins": [
+        {
+          "number": "95",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 7.0
+        },
+        {
+          "number": "96",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 7.0
         }
       ],
       "defaultFields": {},

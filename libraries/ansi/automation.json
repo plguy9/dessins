@@ -1,0 +1,176 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "ansi:plc-input",
+      "logicalId": "plc-input",
+      "norm": "ANSI",
+      "name": "PLC input",
+      "category": "Automation",
+      "keywords": [
+        "PLC",
+        "input"
+      ],
+      "prefix": "PLC",
+      "deviceKind": "plc-io",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -10,
+              -4
+            ],
+            [
+              10,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              -6,
+              1.5
+            ]
+          ],
+          "text": "I",
+          "textHeight": 3.0,
+          "align": "center"
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2,
+              -4
+            ],
+            [
+              -2,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "I",
+          "at": [
+            -14,
+            0
+          ],
+          "dir": 180,
+          "length": 4.0,
+          "type": "input"
+        },
+        {
+          "number": "COM",
+          "at": [
+            14,
+            0
+          ],
+          "dir": 0,
+          "length": 4.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -7.0
+      ],
+      "valueAnchor": [
+        0.0,
+        9.0
+      ]
+    },
+    {
+      "id": "ansi:plc-output",
+      "logicalId": "plc-output",
+      "norm": "ANSI",
+      "name": "PLC output",
+      "category": "Automation",
+      "keywords": [
+        "PLC",
+        "output"
+      ],
+      "prefix": "PLC",
+      "deviceKind": "plc-io",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -10,
+              -4
+            ],
+            [
+              10,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              -6,
+              1.5
+            ]
+          ],
+          "text": "Q",
+          "textHeight": 3.0,
+          "align": "center"
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2,
+              -4
+            ],
+            [
+              -2,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "Q",
+          "at": [
+            -14,
+            0
+          ],
+          "dir": 180,
+          "length": 4.0,
+          "type": "output"
+        },
+        {
+          "number": "COM",
+          "at": [
+            14,
+            0
+          ],
+          "dir": 0,
+          "length": 4.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -7.0
+      ],
+      "valueAnchor": [
+        0.0,
+        9.0
+      ]
+    }
+  ]
+}

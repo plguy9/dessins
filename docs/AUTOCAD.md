@@ -90,6 +90,14 @@ Les décomptes « déjà en place » de chaque section datent du relevé. Ce qui
 | Insérer une borne | Même mécanisme : la borne coupe le fil en deux réseaux, ce qui est exactement ce qu'elle fait dans l'armoire. |
 | Éditeur de borniers, `AETSE` | `ui/terminalstripdialog.*`, commande `BORNIER` / `BO`. Les bornes d'un bornier rassemblées dans l'ordre de lecture du dossier, avec le fil et l'appareil raccordés, les repères en double signalés, la renumérotation 1, 2, 3… et le double-clic qui va voir la borne sur le folio. |
 
+**Lot 10 — 2026-09-01 — interface**
+
+| Chez AutoCAD | Chez nous |
+|---|---|
+| Ruban à onglets (les barres d'outils ont disparu en 2026) | **Palette de commandes** (Ctrl+Maj+P, F1) : tout le répertoire cherché par son nom, avec le raccourci et le menu d'origine. Plus découvrable qu'un ruban, plus rapide qu'un menu, et elle n'occupe aucune place à l'écran. Les menus restent : la palette est un second accès, pas un remplacement. |
+| Onglet de démarrage | **Écran d'accueil** : projets récents, projet d'exemple, et les quatre gestes qui changent la façon de travailler. |
+| — | **Le folio vide enseigne** au lieu de constater : les quatre premiers gestes avec leurs touches. |
+
 Reste notamment : gestionnaire de projet multi-dossiers, entrées-sorties API.
 
 ## Accrochage aux objets (Object Snap / OSNAP) d'AutoCAD — modes d'accrochage, marqueurs AutoSnap et reglages associes

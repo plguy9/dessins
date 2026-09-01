@@ -56,7 +56,7 @@ public:
         Undo, Redo, Copy, Paste, Delete,
         Select, Wire, Junction, LabelTag, Text, SymbolPlace,
         Rotate, Mirror, Highlight,
-        ZoomIn, ZoomOut, ZoomFit, Grid, Snap,
+        ZoomIn, ZoomOut, ZoomFit, Grid, Snap, Tracking, Palette2,
         Renumber, Check, Info, Palette, Folios, Properties, Reports,
         Plus, Minus, Duplicate, Up, Down, Edit, Theme
     };

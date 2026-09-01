@@ -5,6 +5,8 @@
 #include "io/dsnfile.h"
 #include "io/dxfexport.h"
 #include "commandline.h"
+#include "commandpalette.h"
+#include "startpage.h"
 #include "ladderdialog.h"
 #include "rules/ladder.h"
 #include "draftingsettingsdialog.h"
@@ -496,6 +498,10 @@ void MainWindow::createActions()
     m_zoomPreviousAction = make(viewMenu, false, G::Undo, tr("Vue &précédente"), QKeySequence(),
                                 tr("Revenir à la vue précédente"),
                                 [this] { m_view->zoomPrevious(); });
+    make(viewMenu, true, G::Palette2, tr("Palette de &commandes…"),
+         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P),
+         tr("Chercher n'importe quelle commande par son nom, sans savoir où elle est rangée"),
+         &MainWindow::openCommandPalette);
     make(viewMenu, false, G::Text, tr("Ligne de &commande"),
          QKeySequence(Qt::CTRL | Qt::Key_9), tr("Placer le curseur dans la ligne de commande"),
          [this] {
@@ -661,6 +667,14 @@ void MainWindow::createActions()
 
     // ---- Aide ----------------------------------------------------------
     QMenu *helpMenu = menuBar()->addMenu(tr("&Aide"));
+    make(helpMenu, false, G::Info, tr("Écran d'&accueil…"), QKeySequence(),
+         tr("Projets récents, projet d'exemple et les gestes à connaître"),
+         &MainWindow::showStartPage);
+    make(helpMenu, false, G::Palette2, tr("&Toutes les commandes…"),
+         QKeySequence(Qt::Key_F1),
+         tr("La liste complète de ce que le logiciel sait faire, avec les raccourcis"),
+         &MainWindow::openCommandPalette);
+    helpMenu->addSeparator();
     make(helpMenu, false, G::Info, tr("À &propos"), QKeySequence(), QString(), [this] {
         QMessageBox::about(
                 this, tr("À propos de Dessins"),
@@ -852,7 +866,7 @@ void MainWindow::createDraftingToggles(QMenu *menu)
                                QKeySequence(Qt::Key_F3), engine.objectSnapEnabled(),
                                tr("Accrocher aux extrémités, milieux, centres, broches…"),
                                [this](bool on) { m_view->snapEngine().setObjectSnapEnabled(on); });
-    m_trackingAction = makeToggle(G::Snap, tr("&Repérage d'accrochage"), tr("REPÉRAGE"),
+    m_trackingAction = makeToggle(G::Tracking, tr("&Repérage d'accrochage"), tr("REPOBJ"),
                                   QKeySequence(Qt::Key_F11), engine.trackingEnabled(),
                                   tr("Retenir un point survolé et suivre son alignement"),
                                   [this](bool on) {
@@ -968,6 +982,70 @@ void MainWindow::zoomCommand(const QStringList &arguments)
     }
     m_command->writeError(tr("   Option de zoom inconnue. Attendu : E (étendu), F (fenêtre), "
                              "P (précédent), R (réel) ou un pourcentage."));
+}
+
+void MainWindow::openCommandPalette()
+{
+    if (!m_commandPalette)
+        m_commandPalette = new CommandPalette(this);
+
+    // La palette se remplit a chaque ouverture : les etats — ce qui est
+    // annulable, ce qui est selectionne — changent en permanence, et une
+    // liste figee mentirait.
+    QVector<CommandPalette::Entry> entries;
+
+    // 1. Toutes les actions des menus. Le groupe est le menu qui la porte :
+    // la palette apprend ainsi ou la commande se trouve, au lieu de
+    // remplacer les menus par un trou noir.
+    for (QAction *menuAction : menuBar()->actions()) {
+        QMenu *menu = menuAction->menu();
+        if (!menu)
+            continue;
+        const QString group = menuAction->text().remove(QLatin1Char('&'));
+
+        std::function<void(QMenu *, const QString &)> walk = [&](QMenu *current,
+                                                                 const QString &path) {
+            for (QAction *action : current->actions()) {
+                if (action->isSeparator())
+                    continue;
+                if (QMenu *sub = action->menu()) {
+                    walk(sub, path + QStringLiteral(" › ")
+                                 + action->text().remove(QLatin1Char('&')));
+                    continue;
+                }
+                CommandPalette::Entry entry;
+                entry.title = action->text().remove(QLatin1Char('&'));
+                entry.group = path;
+                entry.shortcut = action->shortcut().toString(QKeySequence::NativeText);
+                entry.detail = action->statusTip();
+                entry.enabled = action->isEnabled();
+                entry.run = [action] { action->trigger(); };
+                entries.append(entry);
+            }
+        };
+        walk(menu, group);
+    }
+
+    // 2. Les commandes de la ligne de commande, avec leurs alias : qui connait
+    // « DC » doit le trouver ici aussi.
+    if (m_command) {
+        for (const CommandDefinition &command : m_command->commands()) {
+            CommandPalette::Entry entry;
+            entry.title = command.description.isEmpty() ? command.name : command.description;
+            entry.group = tr("Commande");
+            entry.detail = command.name + (command.aliases.isEmpty()
+                                                   ? QString()
+                                                   : QStringLiteral("  ·  ")
+                                                           + command.aliases.join(QStringLiteral(", ")));
+            entry.keywords = QStringList{ command.name } + command.aliases;
+            const QString name = command.name;
+            entry.run = [this, name] { m_command->execute(name); };
+            entries.append(entry);
+        }
+    }
+
+    m_commandPalette->setEntries(entries);
+    m_commandPalette->open();
 }
 
 void MainWindow::registerCommands()
@@ -1308,7 +1386,7 @@ void MainWindow::createStatusBar()
     // dans la barre d'etat d'AutoCAD : elles s'allument, se cliquent, et
     // rappellent leur touche de fonction en info-bulle.
     for (QAction *action : { m_gridSnapAction, m_gridAction, m_orthoAction, m_polarAction,
-                             m_osnapAction }) {
+                             m_osnapAction, m_trackingAction }) {
         if (!action)
             continue;
         auto *button = new QToolButton(this);
@@ -1393,6 +1471,39 @@ void MainWindow::applyTheme(bool dark)
 namespace {
 constexpr auto kRecentKey = "files/recent";
 constexpr int kRecentMax = 10;
+}
+
+QString MainWindow::examplePath() const
+{
+    // Le projet d'exemple voyage a cote de l'executable dans le zip Windows,
+    // et dans l'arbre de compilation en developpement : on cherche les deux.
+    const QStringList candidates{
+        QCoreApplication::applicationDirPath() + QStringLiteral("/exemples/demarrage-direct.dsn"),
+        QCoreApplication::applicationDirPath() + QStringLiteral("/examples/demarrage-direct.dsn"),
+        QCoreApplication::applicationDirPath()
+                + QStringLiteral("/../../examples/demarrage-direct.dsn"),
+    };
+    for (const QString &candidate : candidates) {
+        if (QFileInfo::exists(candidate))
+            return QFileInfo(candidate).absoluteFilePath();
+    }
+    return QString();
+}
+
+void MainWindow::showStartPage()
+{
+    QSettings settings;
+    const QStringList recent = settings.value(QLatin1String(kRecentKey)).toStringList();
+
+    StartPage page(recent, examplePath(), this);
+    connect(&page, &StartPage::openRequested, this, [this](const QString &path) {
+        openFile(path);
+    });
+    connect(&page, &StartPage::newProjectRequested, this, &MainWindow::newProject);
+    connect(&page, &StartPage::browseRequested, this, &MainWindow::openProject);
+    page.exec();
+    if (page.dismissed())
+        QSettings().setValue(QStringLiteral("ui/showStartPage"), false);
 }
 
 void MainWindow::addRecentFile(const QString &path)

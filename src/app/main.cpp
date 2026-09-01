@@ -62,6 +62,15 @@ int main(int argc, char *argv[])
         window.openFile(files.first());
     window.show();
 
+    // Ecran d'accueil au demarrage, sauf si un projet est demande en ligne de
+    // commande ou si l'on capture la fenetre : ouvrir sur une feuille blanche
+    // muette ne montre rien de ce que le logiciel sait faire. Une case le
+    // desactive pour de bon.
+    if (files.isEmpty() && !parser.isSet(screenshot)
+        && settings.value(QStringLiteral("ui/showStartPage"), true).toBool()) {
+        QTimer::singleShot(0, &window, [&window] { window.showStartPage(); });
+    }
+
     if (parser.isSet(screenshot)) {
         const QString path = parser.value(screenshot);
         // Un seul aller-retour de la boucle d'evenements suffit a laisser les

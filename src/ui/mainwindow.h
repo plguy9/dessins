@@ -29,9 +29,17 @@ public:
     ~MainWindow() override;
 
     bool openFile(const QString &path);
+    // Appele par le demarrage : l'ecran d'accueil est public parce que c'est
+    // l'application qui decide de le montrer, pas la fenetre.
+    void showStartPage();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+
+private Q_SLOTS:
+    // Invocable : le test de la palette l'ouvre pour verifier qu'elle expose
+    // bien tout ce que les menus offrent.
+    void openCommandPalette();
 
 private:
     void createDocks();
@@ -94,6 +102,9 @@ private:
     bool maybeSave();
     QString suggestedFileName(const QString &extension) const;
 
+    // Chemin du projet d'exemple livre a cote du binaire, s'il existe.
+    QString examplePath() const;
+
     // Fichiers recents
     void addRecentFile(const QString &path);
     void rebuildRecentMenu();
@@ -109,6 +120,7 @@ private:
     FolioNavigator *m_navigator = nullptr;
     ReportPanel *m_reports = nullptr;
     class CommandLine *m_command = nullptr;
+    class CommandPalette *m_commandPalette = nullptr;
     QDockWidget *m_commandDock = nullptr;
 
     QLabel *m_cursorLabel = nullptr;

@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QMouseEvent>
 #include <QPixmap>
+#include <QLineEdit>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTemporaryDir>
@@ -14,11 +15,13 @@
 #include "ui/folioview.h"
 #include "ui/symboleditor.h"
 #include "ui/commandline.h"
+#include "ui/commandpalette.h"
 #include "ui/componentdialog.h"
 #include "ui/mainwindow.h"
 #include "ui/draftingsettingsdialog.h"
 #include "ui/pagesetupdialog.h"
 #include "ui/reportpanel.h"
+#include "ui/startpage.h"
 #include "ui/surferdialog.h"
 #include "ui/terminalstripdialog.h"
 #include "ui/symbolpalette.h"
@@ -1337,7 +1340,7 @@ TEST_CASE("Glisser deplace l'appareil le long de son fil seulement",
     const QPointF pinA = symbol->placement.map(definition->pins.at(0).position);
     const QPointF pinB = symbol->placement.map(definition->pins.at(1).position);
     Wire *up = drawWire(folio, { QPointF(pinA.x(), pinA.y() - 50.0), pinA });
-    Wire *down = drawWire(folio, { pinB, QPointF(pinB.x(), pinB.y() + 50.0) });
+    drawWire(folio, { pinB, QPointF(pinB.x(), pinB.y() + 50.0) });
     const QString upId = up->id();
 
     FolioView view(&document);
@@ -1526,3 +1529,104 @@ TEST_CASE("L'editeur de borniers montre le fil et l'appareil raccordes",
     CHECK_FALSE(strip.first().zone.isEmpty());
 }
 
+
+TEST_CASE("La palette de commandes trouve par lettres non contigues",
+          "[ui][palette]")
+{
+    // C'est ce qui la rend rapide : on tape les lettres qui viennent, sans
+    // se souvenir du libelle exact ni de l'endroit ou la commande est rangee.
+    CHECK(CommandPalette::matches(QStringLiteral("psrap"),
+                                  QStringLiteral("Poser le rapport dans le dessin")));
+    CHECK(CommandPalette::matches(QStringLiteral("bornier"),
+                                  QStringLiteral("Éditeur de borniers")));
+    // Les accents ne doivent pas etre un peage : personne ne doit taper
+    // « Repérage » avec son accent pour trouver la commande.
+    CHECK(CommandPalette::matches(QStringLiteral("reperage"),
+                                  QStringLiteral("Repérage d'accrochage")));
+    CHECK(CommandPalette::matches(QStringLiteral("ÉDIT"), QStringLiteral("éditeur")));
+    CHECK_FALSE(CommandPalette::matches(QStringLiteral("zzz"),
+                                        QStringLiteral("Poser le rapport")));
+}
+
+TEST_CASE("Le classement met devant ce qu'on cherchait", "[ui][palette]")
+{
+    CommandPalette::Entry offset;
+    offset.title = QStringLiteral("Décaler…");
+    offset.keywords = { QStringLiteral("DECALER"), QStringLiteral("DC") };
+
+    CommandPalette::Entry other;
+    other.title = QStringLiteral("Éditeur de borniers");
+    other.detail = QStringLiteral("Rassembler les bornes, dont celles décalées");
+
+    // Un titre qui commence par ce qu'on tape passe devant tout.
+    CHECK(CommandPalette::score(QStringLiteral("déca"), offset)
+          < CommandPalette::score(QStringLiteral("déca"), other));
+    // Un alias exact aussi : qui tape « DC » veut DÉCALER.
+    CHECK(CommandPalette::score(QStringLiteral("DC"), offset) <= 1);
+    // Ce qui ne correspond pas est ecarte, pas classe dernier.
+    CHECK(CommandPalette::score(QStringLiteral("zzzz"), offset) < 0);
+}
+
+TEST_CASE("La palette expose tout ce que les menus offrent", "[ui][palette]")
+{
+    // La promesse : rien ne se cache. Si une commande existe dans un menu,
+    // elle doit se trouver a la palette sans savoir dans quel menu regarder.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+
+    auto *palette = window.findChild<CommandPalette *>();
+    // La palette est construite paresseusement : on l'ouvre pour la remplir.
+    if (!palette) {
+        QMetaObject::invokeMethod(&window, "openCommandPalette");
+        palette = window.findChild<CommandPalette *>();
+    }
+    REQUIRE(palette);
+
+    const auto entries = palette->visibleEntries();
+    CHECK(entries.size() > 60);
+
+    // Quelques commandes qui doivent absolument s'y trouver.
+    auto has = [&](const QString &needle) {
+        for (const auto &entry : entries) {
+            if (entry.title.contains(needle, Qt::CaseInsensitive))
+                return true;
+        }
+        return false;
+    };
+    CHECK(has(QStringLiteral("bornier")));
+    CHECK(has(QStringLiteral("types de fils")));
+    CHECK(has(QStringLiteral("surfer")));
+    CHECK(has(QStringLiteral("étirer")));
+
+    // Chaque entree sait ce qu'elle fait : une entree sans action serait un
+    // mensonge dans la liste.
+    for (const auto &entry : entries)
+        CHECK(entry.run != nullptr);
+
+    palette->close();
+}
+
+TEST_CASE("CAPTURE accueil", "[capture]")
+{
+    StartPage page({ QStringLiteral("/home/user/dessins/examples/demarrage-direct.dsn"),
+                     QStringLiteral("/home/user/projets/armoire-pompage.dsn") },
+                   QStringLiteral("/home/user/dessins/examples/demarrage-direct.dsn"));
+    page.resize(760, 520);
+    page.show();
+    page.grab().save(QStringLiteral("/tmp/claude-0/-home-user-dessins/7ac7db7c-e06c-5c11-9aca-566e8859755c/scratchpad/accueil.png"));
+}
+
+TEST_CASE("CAPTURE palette", "[capture]")
+{
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+    QMetaObject::invokeMethod(&window, "openCommandPalette");
+    auto *palette = window.findChild<CommandPalette *>();
+    REQUIRE(palette);
+    if (auto *search = palette->findChild<QLineEdit *>())
+        search->setText(QStringLiteral("bor"));
+    palette->grab().save(QStringLiteral("/tmp/claude-0/-home-user-dessins/7ac7db7c-e06c-5c11-9aca-566e8859755c/scratchpad/palette.png"));
+    palette->close();
+}

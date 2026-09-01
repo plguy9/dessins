@@ -643,6 +643,35 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         strokeOnly();
         break;
 
+    case Glyph::Tracking: {
+        // Le repere acquis et son alignement : une petite croix pleine, et les
+        // deux traits pointilles qui en partent. C'est exactement ce que le
+        // dessin montre a l'ecran quand le mode est actif.
+        p.drawLine(QPointF(4, 6), QPointF(10, 6));
+        p.drawLine(QPointF(7, 3), QPointF(7, 9));
+        QPen dotted = p.pen();
+        dotted.setStyle(Qt::DotLine);
+        p.setPen(dotted);
+        p.drawLine(QPointF(7, 6), QPointF(7, 18));
+        p.drawLine(QPointF(7, 18), QPointF(20, 18));
+        strokeOnly();
+        fill(stroke);
+        p.drawEllipse(QPointF(18, 18), 2.0, 2.0);
+        strokeOnly();
+        break;
+    }
+
+    case Glyph::Palette2: {
+        // La palette de commandes : un champ de recherche et deux lignes de
+        // resultats. Elle doit se reconnaitre sans legende.
+        p.drawRoundedRect(QRectF(3, 4, 18, 16), 3, 3);
+        p.drawLine(QPointF(3, 10), QPointF(21, 10));
+        p.drawLine(QPointF(6.5, 7), QPointF(13, 7));
+        p.drawLine(QPointF(6.5, 14), QPointF(17, 14));
+        p.drawLine(QPointF(6.5, 17), QPointF(14, 17));
+        break;
+    }
+
     // --- projet -----------------------------------------------------------
     case Glyph::Renumber:
         p.drawLine(QPointF(4, 7), QPointF(20, 7));

@@ -124,8 +124,29 @@ sont délibérés et documentés dans le code :
 - **Un point désigné passe par `FolioView::placeAt`**, que le clic ou la
   frappe l'ait produit : deux chemins finiraient par diverger.
 - **Touches de fonction** : F3 accrochage objets, F7 grille, F8 ortho,
-  F9 résolution, F10 polaire, F11 repérage d'accrochage, F12 paramètres. Portée application, parce
+  F9 résolution, F10 polaire, F11 repérage d'accrochage, F12 paramètres.
+  F1 la palette de commandes, F2 éditer le composant, F4 le Surfer. Portée application, parce
   qu'on lâche une touche de fonction sans regarder où est le curseur.
+
+## Interface — ce qui la distingue d'AutoCAD
+
+AutoCAD 2026 a supprimé ses barres d'outils au profit du ruban : plus
+découvrable, mais lent et encombrant. Sa ligne de commande est l'inverse.
+Nous prenons les deux bouts sans le ruban :
+
+- **`ui/commandpalette.*`** (Ctrl+Maj+P, F1) — tout ce que le logiciel sait
+  faire, cherché en français, avec le raccourci et le menu où la commande
+  se trouve. Elle est **remplie à chaque ouverture** depuis les menus et la
+  ligne de commande : une liste figée mentirait sur ce qui est activé.
+  La recherche est floue mais **groupée** — sans cette contrainte, « bor »
+  remonte « Basculer le mode ortho » et la liste se remplit de bruit.
+- **`ui/startpage.*`** — l'écran d'accueil. Un logiciel de CAO qui ouvre sur
+  une feuille blanche muette ne montre rien de ce qu'il sait faire.
+- **Le folio vide enseigne** : quatre gestes avec leurs touches, pas un
+  simple « c'est vide ».
+- Les icônes sont dessinées à l'exécution (`Icons::Glyph`) : deux commandes
+  différentes ne doivent jamais partager un glyphe, sinon la barre d'outils
+  devient illisible.
 
 ## Invariants à ne pas casser
 

@@ -2385,28 +2385,69 @@ void FolioView::paintEmptyHint(QPainter &painter, const Folio &folio) const
     if (folio.entityCount() > 0 || !m_pendingSymbol.isEmpty())
         return;
 
-    const QRectF area(0, height() * 0.62, width(), height() * 0.3);
     QFont title = font();
-    title.setPointSizeF(font().pointSizeF() * 1.5);
+    title.setPointSizeF(font().pointSizeF() * 1.45);
     title.setWeight(QFont::DemiBold);
+    QFont keys = font();
+    keys.setWeight(QFont::DemiBold);
 
     QColor strong = m_style.text;
-    strong.setAlpha(190);
+    strong.setAlpha(200);
     QColor faint = m_style.text;
-    faint.setAlpha(120);
+    faint.setAlpha(135);
+    QColor keyColor = m_style.tag;
+    keyColor.setAlpha(220);
+
+    // Par ou commencer, avec les touches. Un folio vide est le premier ecran
+    // que voit un nouveau venu : lui dire « c'est vide » sans lui dire quoi
+    // faire laisse tout le logiciel invisible.
+    struct Step {
+        QString key;
+        QString what;
+    };
+    const QVector<Step> steps{
+        { tr("W"), tr("tracer un fil — puis tapez la cote : 50, @10,5") },
+        { tr("clic dans la palette"), tr("poser un symbole") },
+        { tr("Ctrl + Maj + P"), tr("chercher n'importe quelle commande") },
+        { tr("F1"), tr("la liste de tout ce que le logiciel sait faire") },
+    };
+
+    const QFontMetricsF keyMetrics(keys);
+    const QFontMetricsF textMetrics(font());
+    double keyWidth = 0.0;
+    for (const Step &step : steps)
+        keyWidth = std::max(keyWidth, keyMetrics.horizontalAdvance(step.key));
+
+    const double lineHeight = textMetrics.height() + 9.0;
+    // Le bloc se pose au-dessus du cartouche, qui occupe le bas de la feuille :
+    // un conseil qui chevauche le dessin se lit mal et fait desordre.
+    const double top = height() * 0.44;
+    const double gap = 18.0;
+    // Le bloc est centre sur la largeur, les deux colonnes alignees entre
+    // elles : une liste de touches doit se parcourir a la verticale.
+    double widest = 0.0;
+    for (const Step &step : steps)
+        widest = std::max(widest, textMetrics.horizontalAdvance(step.what));
+    const double blockWidth = keyWidth + gap + widest;
+    const double left = (width() - blockWidth) / 2.0;
 
     painter.setFont(title);
     painter.setPen(strong);
-    painter.drawText(QRectF(area.left(), area.top(), area.width(), 30),
-                     Qt::AlignHCenter | Qt::AlignTop, tr("Ce folio est vide"));
+    painter.drawText(QRectF(0, top, width(), 30), Qt::AlignHCenter | Qt::AlignTop,
+                     tr("Ce folio est vide — par où commencer"));
 
-    painter.setFont(font());
-    painter.setPen(faint);
-    painter.drawText(
-            QRectF(area.left(), area.top() + 34, area.width(), 60),
-            Qt::AlignHCenter | Qt::AlignTop,
-            tr("Choisissez un symbole dans la palette pour le poser,\n"
-               "ou appuyez sur W pour tracer un fil."));
+    double y = top + 40.0;
+    for (const Step &step : steps) {
+        painter.setFont(keys);
+        painter.setPen(keyColor);
+        painter.drawText(QRectF(left, y, keyWidth, lineHeight),
+                         Qt::AlignRight | Qt::AlignVCenter, step.key);
+        painter.setFont(font());
+        painter.setPen(faint);
+        painter.drawText(QRectF(left + keyWidth + gap, y, widest, lineHeight),
+                         Qt::AlignLeft | Qt::AlignVCenter, step.what);
+        y += lineHeight;
+    }
 }
 
 } // namespace dsn

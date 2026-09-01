@@ -6,6 +6,15 @@ native, Qt 6 et C++20.
 
 ![L'application avec le projet d'exemple](docs/images/application.png)
 
+## Télécharger
+
+Les versions publiées sont sur la page
+[**Releases**](https://github.com/plguy9/dessins/releases) : un `.zip`
+Windows à décompresser, puis double-cliquer `dessins.exe` — Qt est embarqué,
+rien d'autre à installer. Le binaire n'étant pas signé, Windows affiche un
+avertissement SmartScreen au premier lancement : *Informations
+complémentaires → Exécuter quand même*.
+
 ## Où en est le projet
 
 | Jalon | État | Contenu |

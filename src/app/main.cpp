@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("Dessins"));
     QCoreApplication::setApplicationName(QStringLiteral("Dessins"));
-    QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(DESSINS_VERSION));
     QApplication::setApplicationDisplayName(QStringLiteral("Dessins"));
 
     // Le theme est pose avant la premiere fenetre : sans cela le premier

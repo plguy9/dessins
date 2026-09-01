@@ -1,5 +1,7 @@
 #include "symboleditor.h"
 
+#include <numbers>
+
 #include "render/foliopainter.h"
 #include "theme.h"
 #include "symbols/librarystore.h"
@@ -256,7 +258,7 @@ void SymbolCanvas::commitPending()
             // l'angle exact se regle ensuite dans le panneau.
             const double radius = std::hypot(edge.x() - centre.x(), edge.y() - centre.y());
             const double start = std::atan2(-(edge.y() - centre.y()), edge.x() - centre.x())
-                    * 180.0 / M_PI;
+                    * 180.0 / std::numbers::pi;
             d.graphics.append(Primitive::arc(centre, radius, start, 90.0));
             break;
         }

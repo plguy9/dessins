@@ -66,6 +66,10 @@ public:
 
     // Vide le cache : a appeler au changement de theme.
     static void invalidate();
+
+    // Icone de l'application : la marque du logiciel, dessinee comme le reste
+    // en vectoriel. Sert a la fenetre et a la generation du .ico Windows.
+    static QIcon appIcon();
 };
 
 } // namespace dsn

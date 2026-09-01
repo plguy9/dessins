@@ -1,5 +1,7 @@
 #include "geometry.h"
 
+#include <numbers>
+
 #include <QList>
 
 namespace dsn {
@@ -114,7 +116,9 @@ Transform2D Transform2D::translation(double dx, double dy)
 
 Transform2D Transform2D::rotation(double degrees)
 {
-    const double rad = degrees * M_PI / 180.0;
+    // std::numbers plutot que M_PI : ce dernier n'existe pas sous MSVC
+    // sans macro prealable, et l'empaquetage Windows compile avec MSVC.
+    const double rad = degrees * std::numbers::pi / 180.0;
     // Les quarts de tour doivent tomber juste : std::cos(pi/2) ne vaut pas
     // exactement zero, et une derive de 1e-17 finit par decaler un accrochage.
     double c = std::cos(rad);

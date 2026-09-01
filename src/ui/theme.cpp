@@ -407,6 +407,48 @@ void Theme::apply(QApplication &app, bool dark)
 
 void Icons::invalidate() { g_iconCache.clear(); }
 
+QIcon Icons::appIcon()
+{
+    // La marque : un folio clair sur fond sombre, traverse par un fil bleu
+    // coude avec sa jonction — le geste fondateur du logiciel.
+    QIcon icon;
+    for (const int size : { 16, 32, 48, 64, 128, 256 }) {
+        QPixmap pixmap(size, size);
+        pixmap.fill(Qt::transparent);
+        QPainter p(&pixmap);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        const double s = size / 24.0;
+        p.scale(s, s);
+
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(0x1A, 0x20, 0x23));
+        p.drawRoundedRect(QRectF(0.6, 0.6, 22.8, 22.8), 5.0, 5.0);
+
+        p.setBrush(QColor(0xF2, 0xF4, 0xF3));
+        p.drawRoundedRect(QRectF(4.0, 3.2, 16.0, 17.6), 1.4, 1.4);
+
+        const QColor blue(0x0E, 0x64, 0xA8);
+        QPen wire(blue);
+        wire.setWidthF(1.8);
+        wire.setCapStyle(Qt::RoundCap);
+        wire.setJoinStyle(Qt::RoundJoin);
+        p.setPen(wire);
+        p.setBrush(Qt::NoBrush);
+        p.drawPolyline(QPolygonF({ { 7.0, 7.2 }, { 12.0, 7.2 }, { 12.0, 12.8 },
+                                   { 17.0, 12.8 } }));
+        p.drawLine(QPointF(12.0, 12.8), QPointF(12.0, 17.6));
+
+        p.setPen(Qt::NoPen);
+        p.setBrush(blue);
+        p.drawEllipse(QPointF(12.0, 12.8), 1.6, 1.6);
+        p.drawEllipse(QPointF(7.0, 7.2), 1.25, 1.25);
+        p.drawEllipse(QPointF(17.0, 12.8), 1.25, 1.25);
+        p.end();
+        icon.addPixmap(pixmap);
+    }
+    return icon;
+}
+
 QIcon Icons::icon(Glyph glyph, bool dark)
 {
     return icon(glyph, dark ? QColor(0xE6, 0xEB, 0xE8) : QColor(0x17, 0x1C, 0x1A));

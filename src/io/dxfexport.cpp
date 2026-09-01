@@ -10,6 +10,8 @@
 #include <QSet>
 #include <QTextStream>
 
+#include <iterator>
+
 namespace dsn {
 
 namespace {

@@ -22,7 +22,7 @@ option(DESSINS_BUILD_GUI   "Construire l'application graphique" ON)
 
 find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui)
 if(DESSINS_BUILD_GUI)
-    find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets PrintSupport Svg)
+    find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets PrintSupport)
 endif()
 
 qt_standard_project_setup()

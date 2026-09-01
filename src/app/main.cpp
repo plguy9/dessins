@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
     // affichage clignote au style du systeme avant de basculer.
     QSettings settings;
     dsn::Theme::apply(app, settings.value(QStringLiteral("ui/darkTheme"), true).toBool());
+    app.setWindowIcon(dsn::Icons::appIcon());
 
     QCommandLineParser parser;
     parser.setApplicationDescription(

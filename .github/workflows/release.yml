@@ -1,0 +1,115 @@
+name: Publication
+
+# Declenche par un tag v* — c'est ce qui produit la page de telechargement —
+# et manuellement, pour eprouver la chaine sans consommer de tag.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.2"
+          arch: win64_msvc2022_64
+          cache: true
+
+      - name: Environnement MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configurer
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DDESSINS_BUILD_TESTS=OFF
+
+      - name: Compiler
+        run: cmake --build build
+
+      - name: Assembler le dossier autonome
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/dessins | Out-Null
+          Copy-Item build/bin/dessins.exe dist/dessins/
+          Copy-Item build/bin/dessins_sample.exe dist/dessins/
+          windeployqt --release --compiler-runtime --no-translations dist/dessins/dessins.exe
+          # La plateforme « offscreen » sert a la verification sans ecran
+          # ci-dessous ; windeployqt ne deploie que qwindows.
+          Copy-Item "$env:QT_ROOT_DIR/plugins/platforms/qoffscreen.dll" dist/dessins/platforms/
+          Copy-Item docs/FORMAT.md dist/dessins/
+
+      - name: Générer le projet d'exemple
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          & dist/dessins/dessins_sample.exe dist/dessins/exemples
+          if ($LASTEXITCODE -ne 0) { throw "dessins_sample a echoue" }
+          Remove-Item dist/dessins/dessins_sample.exe
+
+      # Le zip est deroule dans un dossier vierge et le logiciel lance depuis
+      # la : c'est la seule preuve qu'il demarre hors de l'arbre de
+      # compilation, avec toutes ses DLL.
+      - name: Vérifier le binaire hors de l'arbre de compilation
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          Compress-Archive -Path dist/dessins -DestinationPath dessins-windows-x64.zip
+          $verif = Join-Path $env:RUNNER_TEMP verif
+          Expand-Archive dessins-windows-x64.zip -DestinationPath $verif
+          $exe = Join-Path $verif "dessins/dessins.exe"
+          $capture = Join-Path $verif "capture.png"
+          $exemple = Join-Path $verif "dessins/exemples/demarrage-direct.dsn"
+          Start-Process -FilePath $exe -ArgumentList "--screenshot=$capture", $exemple -Wait -NoNewWindow
+          if (!(Test-Path $capture)) { throw "la fenetre ne s'est pas montee hors de l'arbre" }
+          Write-Host "Verification reussie : capture de $((Get-Item $capture).Length) octets"
+
+      - name: Nommer l'archive
+        shell: pwsh
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME }
+                     else { 'dev-' + $env:GITHUB_SHA.Substring(0, 7) }
+          Rename-Item dessins-windows-x64.zip "dessins-$version-windows-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dessins-windows-x64
+          path: dessins-*-windows-x64.zip
+
+      - name: Publier la Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Dessins ${{ github.ref_name }}
+          files: dessins-*-windows-x64.zip
+          body: |
+            ## Installation
+
+            1. Téléchargez `dessins-${{ github.ref_name }}-windows-x64.zip` ci-dessous ;
+            2. décompressez-le où vous voulez ;
+            3. double-cliquez `dessins.exe`. Rien d'autre à installer.
+
+            Un projet d'exemple (démarrage direct d'un moteur, deux folios)
+            est fourni dans le dossier `exemples`.
+
+            ## Avertissement Windows SmartScreen
+
+            Le binaire n'est pas signé numériquement. Au premier lancement,
+            Windows affichera « Windows a protégé votre ordinateur » :
+            cliquez **Informations complémentaires**, puis
+            **Exécuter quand même**. C'est le comportement normal de Windows
+            pour tout logiciel non signé.
+
+            ## Contenu de cette version
+
+            Schémas de commande et de puissance multi-folios, 103 symboles
+            CEI 60617 et ANSI, éditeur de symboles, connectivité et repérage
+            automatiques, nomenclature et bornier, export PDF, DXF et CSV.

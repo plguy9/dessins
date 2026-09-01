@@ -270,7 +270,7 @@ void FolioPainter::paintFrame(QPainter &painter, const Folio &folio) const
         }
         for (int r = 1; r <= folio.frame.rows; ++r) {
             const double y = frame.top() + (r - 0.5) * rowHeight + 1.1;
-            const QString letter(QChar(u'A' + r - 1));
+            const QString letter(QChar(char16_t(u'A' + r - 1)));
             drawTextMm(painter, QPointF(frame.left() - 3.0, y), letter, 2.2,
                        Primitive::Align::Center);
             drawTextMm(painter, QPointF(frame.right() + 3.0, y), letter, 2.2,

@@ -177,7 +177,7 @@ QString Folio::zoneAt(const QPointF &p) const
     const double rh = fr.height() / frame.rows;
     const int r = std::clamp(int((p.y() - fr.top()) / rh) + 1, 1, frame.rows);
     // Lignes lettrees A, B, C... comme sur un plan cote.
-    return QString(QChar(u'A' + r - 1)) + QString::number(c);
+    return QString(QChar(char16_t(u'A' + r - 1))) + QString::number(c);
 }
 
 QRectF Folio::contentBounds() const

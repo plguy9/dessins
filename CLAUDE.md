@@ -86,20 +86,25 @@ section « Questions ouvertes ».
 Tranché : **OS prioritaire = Windows** (décision utilisateur, 2026-09-01).
 La distribution se fait par la page GitHub Releases.
 
+## Publier une version
+
+`v0.1.0` est publiée (2026-09-01). Pour la suivante :
+
+1. monter `VERSION` dans le `project()` du CMakeLists racine — le workflow
+   refuse un tag qui ne lui correspond pas ;
+2. déclencher `release.yml` manuellement avec l'entrée `publier = vX.Y.Z`
+   (le proxy de session ne pousse que la branche de travail : c'est le
+   jeton d'Actions qui crée le tag et la Release), ou pousser un tag `v*`
+   depuis un poste qui en a le droit ;
+3. le workflow compile MSVC + Qt 6.8, déploie avec `windeployqt`, déroule
+   le zip dans un dossier vierge et prouve que `dessins.exe` y démarre,
+   puis publie `dessins-vX.Y.Z-windows-x64.zip` en Release.
+   Sans `publier`, le déclenchement manuel est un essai à blanc.
+
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 
-1. **Empaquetage Windows** — priorité de la prochaine session. Plan :
-   workflow GitHub Actions `release.yml` déclenché sur tag `v*` ;
-   runner `windows-latest`, Qt via `jurplel/install-qt-action`,
-   compilation Ninja + MSVC, `windeployqt` dans un dossier autonome,
-   zip portable `dessins-<version>-windows-x64.zip`, publication en
-   Release. Binaire non signé : documenter le contournement SmartScreen
-   dans les notes de version. Premier tag : `v0.1.0`.
-   Vérification : dérouler le zip dans un job Windows vierge et lancer
-   `dessins.exe --screenshot=...` pour prouver qu'il démarre hors de
-   l'arbre de compilation.
-2. Import DXF (l'export existe : `io/dxfexport.cpp`).
-3. Unifilaires M8 : symboles de distribution + bilan de puissance
+1. Import DXF (l'export existe : `io/dxfexport.cpp`).
+2. Unifilaires M8 : symboles de distribution + bilan de puissance
    (le modèle multi-conducteurs est prêt).
-4. Électronique M9 : export netlist SPICE / KiCad.
-5. AppImage Linux et .dmg macOS, quand le besoin se présentera.
+3. Électronique M9 : export netlist SPICE / KiCad.
+4. AppImage Linux et .dmg macOS, quand le besoin se présentera.

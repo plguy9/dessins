@@ -686,3 +686,161 @@ TEST_CASE("Le zoom precedent remonte la pile des vues", "[ui][zoom]")
     view.zoomPrevious();
     CHECK(view.zoom() == fitted);
 }
+
+TEST_CASE("Le decalage copie le fil du cote clique", "[ui][offset]")
+{
+    // DECALER sert a doubler un depart : la copie doit se poser du cote ou
+    // l'on montre, sinon il faut la reprendre a chaque fois.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    Wire *source = drawWire(folio, { QPointF(40, 100), QPointF(200, 100) });
+    const QString sourceId = source->id();
+    const int before = int(folio->entityCount());
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setSelection({ sourceId });
+    view.beginOffset(10.0);
+    REQUIRE(view.hasPendingGesture());
+
+    // On clique au-dessus du fil : la copie doit s'y trouver, pas en dessous.
+    const QPointF click = view.mapFromScene(QPointF(120, 70));
+    QMouseEvent press(QEvent::MouseButtonPress, click, view.mapToGlobal(click), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+
+    CHECK_FALSE(view.hasPendingGesture());
+    REQUIRE(int(folio->entityCount()) == before + 1);
+
+    const Wire *copy = nullptr;
+    for (const EntityPtr &entity : folio->entities()) {
+        if (entity->id() != sourceId) {
+            if (const auto *wire = dynamic_cast<const Wire *>(entity.get()))
+                copy = wire;
+        }
+    }
+    REQUIRE(copy);
+    CHECK(copy->points.first() == QPointF(40, 90));
+    CHECK(copy->points.last() == QPointF(200, 90));
+    // Le fil d'origine ne bouge pas : decaler copie, il ne deplace pas.
+    const auto *original = dynamic_cast<const Wire *>(folio->entity(sourceId));
+    REQUIRE(original);
+    CHECK(original->points.first() == QPointF(40, 100));
+
+    // Un decalage se defait d'une seule annulation.
+    document.undo();
+    CHECK(int(folio->entityCount()) == before);
+}
+
+TEST_CASE("Le decalage ne recopie pas le repere du fil", "[ui][offset]")
+{
+    // Deux conducteurs distincts portant le meme repere, c'est un schema
+    // faux : le fil decale doit repartir sans repere pour etre renumerote.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    Wire *source = drawWire(folio, { QPointF(40, 100), QPointF(200, 100) });
+    source->number = QStringLiteral("101");
+    source->numberLocked = true;
+    const QString sourceId = source->id();
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setSelection({ sourceId });
+    view.beginOffset(10.0);
+
+    const QPointF click = view.mapFromScene(QPointF(120, 130));
+    QMouseEvent press(QEvent::MouseButtonPress, click, view.mapToGlobal(click), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+
+    for (const EntityPtr &entity : folio->entities()) {
+        if (entity->id() == sourceId)
+            continue;
+        const auto *copy = dynamic_cast<const Wire *>(entity.get());
+        REQUIRE(copy);
+        CHECK(copy->number.isEmpty());
+        CHECK_FALSE(copy->numberLocked);
+    }
+}
+
+TEST_CASE("Le deplacement en deux points suit la distance montree", "[ui][move]")
+{
+    // DEPLACER existe a cote du glisser parce que ses deux points
+    // s'accrochent au dessin : c'est ainsi qu'on deplace d'une distance juste.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    Wire *wire = drawWire(folio, { QPointF(40, 100), QPointF(200, 100) });
+    const QString id = wire->id();
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setSelection({ id });
+    view.beginMoveSelection();
+    REQUIRE(view.hasPendingGesture());
+
+    auto click = [&](const QPointF &scene) {
+        const QPointF at = view.mapFromScene(scene);
+        QMouseEvent press(QEvent::MouseButtonPress, at, view.mapToGlobal(at), Qt::LeftButton,
+                          Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(&view, &press);
+    };
+
+    click(QPointF(40, 100));   // point de base : l'extremite du fil
+    CHECK(view.hasPendingGesture());
+    click(QPointF(40, 60));    // point d'arrivee, 40 mm plus haut
+
+    CHECK_FALSE(view.hasPendingGesture());
+    const auto *moved = dynamic_cast<const Wire *>(folio->entity(id));
+    REQUIRE(moved);
+    CHECK(moved->points.first() == QPointF(40, 60));
+    CHECK(moved->points.last() == QPointF(200, 60));
+
+    document.undo();
+    const auto *back = dynamic_cast<const Wire *>(folio->entity(id));
+    REQUIRE(back);
+    CHECK(back->points.first() == QPointF(40, 100));
+}
+
+TEST_CASE("Un fil neuf recoit le type de fil arme", "[ui][wiretype]")
+{
+    // Le type courant s'arme une fois puis vaut pour la suite du trace :
+    // c'est ce qui evite de rehabiller chaque fil apres coup.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setTool(FolioView::Tool::Wire);
+    view.setCurrentWireType(QStringLiteral("l1"));
+
+    auto click = [&](const QPointF &scene, Qt::MouseButton button) {
+        const QPointF at = view.mapFromScene(scene);
+        QMouseEvent press(QEvent::MouseButtonPress, at, view.mapToGlobal(at), button, button,
+                          Qt::NoModifier);
+        QApplication::sendEvent(&view, &press);
+    };
+
+    click(QPointF(50, 100), Qt::LeftButton);
+    click(QPointF(150, 100), Qt::LeftButton);
+    click(QPointF(150, 100), Qt::RightButton); // le clic droit termine le trace
+
+    const Wire *drawn = nullptr;
+    for (const EntityPtr &entity : folio->entities()) {
+        if (const auto *wire = dynamic_cast<const Wire *>(entity.get()))
+            drawn = wire;
+    }
+    REQUIRE(drawn);
+    CHECK(drawn->wireType == QLatin1String("l1"));
+}

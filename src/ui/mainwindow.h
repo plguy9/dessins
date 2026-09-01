@@ -8,6 +8,7 @@
 #include <QHash>
 #include <QMainWindow>
 
+class QComboBox;
 class QLabel;
 class QToolButton;
 
@@ -72,6 +73,12 @@ private:
     void editDraftingSettings();
     void editPageSetup();
     void insertLadder();
+    void editWireTypes();
+    void rebuildWireTypeSelector();
+
+    // Edition avancee
+    void offsetSelection();
+    void showCanvasContextMenu(const QPoint &globalPos);
 
     bool maybeSave();
     QString suggestedFileName(const QString &extension) const;
@@ -102,6 +109,22 @@ private:
     QAction *m_osnapAction = nullptr;
     QAction *m_orthoAction = nullptr;
     QAction *m_polarAction = nullptr;
+    QComboBox *m_wireTypeSelector = nullptr;
+    // Actions reprises par le menu contextuel du canevas : elles y gardent
+    // leur icone et leur raccourci, au lieu d'etre redecrites.
+    QAction *m_copyAction = nullptr;
+    QAction *m_pasteAction = nullptr;
+    QAction *m_deleteAction = nullptr;
+    QAction *m_selectAllAction = nullptr;
+    QAction *m_rotateAction = nullptr;
+    QAction *m_mirrorAction = nullptr;
+    QAction *m_highlightAction = nullptr;
+    QAction *m_moveAction = nullptr;
+    QAction *m_offsetAction = nullptr;
+    QAction *m_zoomFitAction = nullptr;
+    QAction *m_zoomPreviousAction = nullptr;
+    QAction *m_pageSetupAction = nullptr;
+    QString m_wireTypeSignature;   // evite de reconstruire le combo a chaque commande
     bool m_syncingToggles = false;
     QHash<QToolButton *, QAction *> m_statusToggles;
     QList<QAction *> m_toolActions;

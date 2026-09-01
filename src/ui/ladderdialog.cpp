@@ -1,6 +1,7 @@
 #include "ladderdialog.h"
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
@@ -13,7 +14,7 @@
 
 namespace dsn {
 
-LadderDialog::LadderDialog(const Folio &folio, QWidget *parent)
+LadderDialog::LadderDialog(const Folio &folio, const WireTypeSet &wireTypes, QWidget *parent)
     : QDialog(parent), m_folio(folio)
 {
     setWindowTitle(tr("Insérer une échelle de commande"));
@@ -82,8 +83,20 @@ LadderDialog::LadderDialog(const Folio &folio, QWidget *parent)
     auto *railForm = new QFormLayout(railBox);
     m_leftRail = new QLineEdit(QStringLiteral("L1"), railBox);
     m_rightRail = new QLineEdit(QStringLiteral("N"), railBox);
+    auto makeTypeBox = [&](const QString &preferred) {
+        auto *box = new QComboBox(railBox);
+        for (const WireType &type : wireTypes.all())
+            box->addItem(type.name.isEmpty() ? type.id : type.name, type.id);
+        const int index = box->findData(preferred);
+        box->setCurrentIndex(index >= 0 ? index : 0);
+        return box;
+    };
+    m_leftRailType = makeTypeBox(QStringLiteral("l1"));
+    m_rightRailType = makeTypeBox(QStringLiteral("n"));
     railForm->addRow(tr("Rail gauche"), m_leftRail);
+    railForm->addRow(tr("Type du rail gauche"), m_leftRailType);
     railForm->addRow(tr("Rail droit"), m_rightRail);
+    railForm->addRow(tr("Type du rail droit"), m_rightRailType);
     layout->addWidget(railBox);
 
     m_summary = new QLabel(this);
@@ -116,6 +129,8 @@ LadderSpec LadderDialog::spec() const
     spec.rungNumberStep = m_numberStep->value();
     spec.leftRailName = m_leftRail->text().trimmed();
     spec.rightRailName = m_rightRail->text().trimmed();
+    spec.leftRailType = m_leftRailType->currentData().toString();
+    spec.rightRailType = m_rightRailType->currentData().toString();
     spec.drawRungs = m_drawRungs->isChecked();
     spec.numberRungs = m_numberRungs->isChecked();
     return spec;

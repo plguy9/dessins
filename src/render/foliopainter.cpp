@@ -260,6 +260,22 @@ void FolioPainter::paintDefinition(QPainter &painter, const SymbolDefinition &de
     painter.restore();
 }
 
+QColor FolioPainter::wireTypeColor(const WireType &type)
+{
+    return QColor(QRgb(0xFF000000u | (type.rgb & 0x00FFFFFFu)));
+}
+
+Qt::PenStyle FolioPainter::wireTypePenStyle(const WireType &type)
+{
+    if (type.style == QLatin1String("dashed"))
+        return Qt::DashLine;
+    if (type.style == QLatin1String("dotted"))
+        return Qt::DotLine;
+    if (type.style == QLatin1String("dashdot"))
+        return Qt::DashDotLine;
+    return Qt::SolidLine;
+}
+
 QColor FolioPainter::colorFor(const Entity &entity, const QColor &base) const
 {
     if (m_selection.contains(entity.id()))
@@ -425,19 +441,39 @@ void FolioPainter::paintWire(QPainter &painter, const Wire &wire) const
     if (wire.points.size() < 2)
         return;
 
-    const QColor color = colorFor(wire, m_style.wire);
+    // Le type gouverne la couleur, l'epaisseur et le style du trait ; la
+    // selection et la mise en evidence passent devant, sinon on ne verrait
+    // plus ce qu'on vient de designer.
+    const WireType &type = m_project.wireTypes.resolve(wire.wireType);
+    const bool typed = m_style.useWireTypeColors && !wire.wireType.isEmpty();
+    QColor base = typed ? wireTypeColor(type) : m_style.wire;
+    if (typed && m_style.lightenDarkWires && base.lightnessF() < 0.45) {
+        // On remonte la clarte sans toucher a la teinte : un L2 noir reste
+        // reconnaissable comme gris neutre, un brun reste brun.
+        base = QColor::fromHslF(base.hslHueF() < 0.0 ? 0.0 : base.hslHueF(), base.hslSaturationF(),
+                                0.62);
+    }
+    const QColor color = colorFor(wire, base);
+    const double width = typed && type.width > 0.0 ? type.width : m_style.wireWidth;
+    const Qt::PenStyle dash = wireTypePenStyle(type);
     const int conductors = wire.conductorCount();
+
+    auto wirePen = [&](double w) {
+        QPen p = pen(color, w);
+        p.setStyle(dash);
+        return p;
+    };
 
     painter.save();
     painter.setBrush(Qt::NoBrush);
 
     if (conductors <= 1) {
-        painter.setPen(pen(color, m_style.wireWidth));
+        painter.setPen(wirePen(width));
         painter.drawPolyline(wire.points.constData(), int(wire.points.size()));
     } else {
         // Representation unifilaire : un trait unique, barre d'autant de
         // marques obliques qu'il porte de conducteurs.
-        painter.setPen(pen(color, m_style.wireWidth * 1.4));
+        painter.setPen(wirePen(width * 1.4));
         painter.drawPolyline(wire.points.constData(), int(wire.points.size()));
 
         const QPointF a = wire.points.at(0);
@@ -448,7 +484,7 @@ void FolioPainter::paintWire(QPainter &painter, const Wire &wire) const
             direction /= length;
             const QPointF normal(-direction.y(), direction.x());
             const QPointF anchor = a + direction * (length * 0.5);
-            painter.setPen(pen(color, m_style.wireWidth * 0.8));
+            painter.setPen(pen(color, width * 0.8));
             for (int i = 0; i < conductors; ++i) {
                 const QPointF centre = anchor + direction * (i - (conductors - 1) / 2.0) * 1.6;
                 painter.drawLine(centre - direction * 0.9 - normal * 1.6,

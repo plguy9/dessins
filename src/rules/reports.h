@@ -49,6 +49,10 @@ struct WireLine {
     QString fromPin;
     QString to;
     QString toPin;
+    // Type de fil et section : c'est ce qu'on commande, la liste des fils
+    // serait incomplete sans.
+    QString wireTypeName;
+    QString crossSection;
     int conductorCount = 1;
     double length = 0.0;   // somme des longueurs tracees, en millimetres
     int connectionCount = 0;

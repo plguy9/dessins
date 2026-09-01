@@ -45,7 +45,8 @@ Project::Project() = default;
 Project::~Project() = default;
 
 Project::Project(const Project &other)
-    : info(other.info), profileId(other.profileId), library(other.library)
+    : info(other.info), profileId(other.profileId), wireTypes(other.wireTypes),
+      library(other.library)
 {
     m_folios.reserve(other.m_folios.size());
     for (const auto &f : other.m_folios)
@@ -58,6 +59,7 @@ Project &Project::operator=(const Project &other)
         return *this;
     info = other.info;
     profileId = other.profileId;
+    wireTypes = other.wireTypes;
     library = other.library;
     m_folios.clear();
     m_folios.reserve(other.m_folios.size());
@@ -225,6 +227,7 @@ void Project::clear()
 {
     m_folios.clear();
     library.clear();
+    wireTypes = WireTypeSet::forNorm(profileId);
     info = ProjectInfo();
 }
 
@@ -240,6 +243,7 @@ QJsonObject Project::toJson() const
     o[QStringLiteral("version")] = kFormatVersion;
     o[QStringLiteral("info")] = info.toJson();
     o[QStringLiteral("profile")] = profileId;
+    o[QStringLiteral("wireTypes")] = wireTypes.toJson();
 
     QJsonArray folioArray;
     for (const auto &f : m_folios)
@@ -256,6 +260,12 @@ bool Project::readJson(const QJsonObject &object)
 
     info = ProjectInfo::fromJson(object.value(QStringLiteral("info")));
     profileId = object.value(QStringLiteral("profile")).toString(QStringLiteral("iec"));
+    // Un document anterieur aux types de fils n'a pas la cle : on repart alors
+    // du jeu de la norme, plutot que du seul type par defaut.
+    if (object.contains(QStringLiteral("wireTypes")))
+        wireTypes.readJson(object.value(QStringLiteral("wireTypes")));
+    else
+        wireTypes = WireTypeSet::forNorm(profileId);
 
     m_folios.clear();
     const QJsonArray folioArray = object.value(QStringLiteral("folios")).toArray();

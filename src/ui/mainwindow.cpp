@@ -16,18 +16,21 @@
 #include "rules/numbering.h"
 #include "symboleditor.h"
 #include "symbolpalette.h"
+#include "wiretypedialog.h"
 #include "theme.h"
 #include "symbols/librarystore.h"
 
 #include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QComboBox>
 #include <QDateEdit>
 #include <QDialogButtonBox>
 #include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenuBar>
@@ -145,7 +148,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
             [this](const QString &message) { statusBar()->showMessage(message, 6000); });
     connect(m_view, &FolioView::zoomChanged, this, [this] { updateActions(); });
     connect(m_document, &Document::modifiedChanged, this, &MainWindow::updateTitle);
+    connect(m_view, &FolioView::contextMenuRequested, this, &MainWindow::showCanvasContextMenu);
     connect(m_document, &Document::undoStateChanged, this, &MainWindow::updateActions);
+    connect(m_document, &Document::undoStateChanged, this, &MainWindow::rebuildWireTypeSelector);
     connect(m_document, &Document::currentFolioChanged, this, &MainWindow::updateTitle);
 
     // Le theme est applique en dernier : il redessine les icones et
@@ -230,6 +235,7 @@ void MainWindow::createDocks()
                 tr("Cliquez pour poser le symbole. R fait pivoter, M retourne, Échap annule."),
                 6000);
     });
+    connect(m_navigator, &FolioNavigator::pageSetupRequested, this, &MainWindow::editPageSetup);
     connect(m_navigator, &FolioNavigator::statusMessage, this,
             [this](const QString &message) { statusBar()->showMessage(message, 4000); });
     connect(m_properties, &PropertiesPanel::statusMessage, this,
@@ -306,23 +312,31 @@ void MainWindow::createActions()
     m_redoAction = make(editMenu, true, G::Redo, tr("&Rétablir"), QKeySequence::Redo,
                         tr("Rétablir l'action annulée"), [this] { m_document->redo(); });
     editMenu->addSeparator();
-    make(editMenu, false, G::Copy, tr("&Copier"), QKeySequence::Copy, tr("Copier la sélection"),
-         [this] { m_view->copySelection(); });
-    make(editMenu, false, G::Paste, tr("C&oller"), QKeySequence::Paste,
-         tr("Coller sous le curseur"), [this] { m_view->pasteClipboard(); });
-    make(editMenu, false, G::Delete, tr("&Supprimer"), QKeySequence::Delete,
-         tr("Supprimer la sélection"), [this] { m_view->deleteSelection(); });
-    make(editMenu, false, G::Select, tr("&Tout sélectionner"), QKeySequence::SelectAll,
-         QString(), [this] { m_view->selectAll(); });
+    m_copyAction = make(editMenu, false, G::Copy, tr("&Copier"), QKeySequence::Copy,
+                        tr("Copier la sélection"), [this] { m_view->copySelection(); });
+    m_pasteAction = make(editMenu, false, G::Paste, tr("C&oller"), QKeySequence::Paste,
+                         tr("Coller sous le curseur"), [this] { m_view->pasteClipboard(); });
+    m_deleteAction = make(editMenu, false, G::Delete, tr("&Supprimer"), QKeySequence::Delete,
+                          tr("Supprimer la sélection"), [this] { m_view->deleteSelection(); });
+    m_selectAllAction = make(editMenu, false, G::Select, tr("&Tout sélectionner"),
+                             QKeySequence::SelectAll, QString(), [this] { m_view->selectAll(); });
     editMenu->addSeparator();
-    make(editMenu, true, G::Rotate, tr("&Pivoter"), QKeySequence(Qt::Key_R),
-         tr("Pivoter d'un quart de tour"), [this] { m_view->rotateSelection(true); });
-    make(editMenu, true, G::Mirror, tr("Re&tourner"), QKeySequence(Qt::Key_M),
-         tr("Retourner selon l'axe vertical"), [this] { m_view->mirrorSelection(); });
-    make(editMenu, true, G::Highlight, tr("Mettre le potentiel en évidence"),
-         QKeySequence(Qt::CTRL | Qt::Key_H),
-         tr("Suivre un potentiel à travers le folio"),
-         [this] { m_view->highlightNetOfSelection(); });
+    m_rotateAction = make(editMenu, true, G::Rotate, tr("&Pivoter"), QKeySequence(Qt::Key_R),
+                          tr("Pivoter d'un quart de tour"),
+                          [this] { m_view->rotateSelection(true); });
+    m_mirrorAction = make(editMenu, true, G::Mirror, tr("Re&tourner"), QKeySequence(Qt::Key_M),
+                          tr("Retourner selon l'axe vertical"),
+                          [this] { m_view->mirrorSelection(); });
+    m_highlightAction = make(editMenu, true, G::Highlight, tr("Mettre le potentiel en évidence"),
+                             QKeySequence(Qt::CTRL | Qt::Key_H),
+                             tr("Suivre un potentiel à travers le folio"),
+                             [this] { m_view->highlightNetOfSelection(); });
+    m_moveAction = make(editMenu, false, G::Select, tr("&Déplacer"), QKeySequence(Qt::Key_D),
+                        tr("Déplacer la sélection d'un point de base à un autre"),
+                        [this] { m_view->beginMoveSelection(); });
+    m_offsetAction = make(editMenu, false, G::Duplicate, tr("Déca&ler…"), QKeySequence(Qt::Key_O),
+                          tr("Copier un fil parallèlement, à une distance donnée"),
+                          [this] { offsetSelection(); });
 
     m_toolBar->addSeparator();
 
@@ -389,6 +403,20 @@ void MainWindow::createActions()
         }
     });
 
+    // Type de fil courant, dans la barre d'outils. AutoCAD Electrical arme de
+    // meme le type avant de tracer : c'est le reglage qu'on change le plus
+    // souvent d'un schema a l'autre, il ne peut pas etre enfoui dans un menu.
+    m_wireTypeSelector = new QComboBox(m_toolBar);
+    m_wireTypeSelector->setToolTip(tr("Type des fils à venir"));
+    m_wireTypeSelector->setMinimumWidth(170);
+    m_wireTypeSelector->setSizeAdjustPolicy(QComboBox::AdjustToContentsOnFirstShow);
+    m_toolBar->addWidget(m_wireTypeSelector);
+    connect(m_wireTypeSelector, &QComboBox::currentIndexChanged, this, [this](int index) {
+        if (index >= 0)
+            m_view->setCurrentWireType(m_wireTypeSelector->itemData(index).toString());
+    });
+    rebuildWireTypeSelector();
+
     m_toolBar->addSeparator();
 
     // ---- Affichage -----------------------------------------------------
@@ -397,12 +425,14 @@ void MainWindow::createActions()
          [this] { m_view->zoomIn(); });
     make(viewMenu, true, G::ZoomOut, tr("Zoom a&rrière"), QKeySequence::ZoomOut,
          tr("Zoom arrière"), [this] { m_view->zoomOut(); });
-    make(viewMenu, true, G::ZoomFit, tr("&Ajuster au folio"), QKeySequence(Qt::CTRL | Qt::Key_0),
-         tr("Voir le folio entier"), [this] { m_view->zoomToFit(); });
+    m_zoomFitAction = make(viewMenu, true, G::ZoomFit, tr("&Ajuster au folio"),
+                           QKeySequence(Qt::CTRL | Qt::Key_0), tr("Voir le folio entier"),
+                           [this] { m_view->zoomToFit(); });
     make(viewMenu, false, G::ZoomIn, tr("Zoom &fenêtre"), QKeySequence(),
          tr("Encadrer la zone à agrandir"), [this] { m_view->beginZoomWindow(); });
-    make(viewMenu, false, G::Undo, tr("Vue &précédente"), QKeySequence(),
-         tr("Revenir à la vue précédente"), [this] { m_view->zoomPrevious(); });
+    m_zoomPreviousAction = make(viewMenu, false, G::Undo, tr("Vue &précédente"), QKeySequence(),
+                                tr("Revenir à la vue précédente"),
+                                [this] { m_view->zoomPrevious(); });
     make(viewMenu, false, G::Text, tr("Ligne de &commande"),
          QKeySequence(Qt::CTRL | Qt::Key_9), tr("Placer le curseur dans la ligne de commande"),
          [this] {
@@ -456,15 +486,19 @@ void MainWindow::createActions()
 
     // ---- Projet --------------------------------------------------------
     QMenu *projectMenu = menuBar()->addMenu(tr("&Projet"));
-    make(projectMenu, true, G::Folios, tr("&Mise en page…"), QKeySequence(Qt::CTRL | Qt::Key_P),
-         tr("Format de feuille, cadre, zones de repérage, cartouche"),
-         &MainWindow::editPageSetup);
+    m_pageSetupAction = make(projectMenu, true, G::Folios, tr("&Mise en page…"),
+                             QKeySequence(Qt::CTRL | Qt::Key_P),
+                             tr("Format de feuille, cadre, zones de repérage, cartouche"),
+                             &MainWindow::editPageSetup);
     make(projectMenu, false, G::Info, tr("&Informations du projet…"), QKeySequence(),
          tr("Titre, client, référence — ce que porte le cartouche"),
          &MainWindow::editProjectInfo);
     make(projectMenu, false, G::Grid, tr("Insérer une &échelle de commande…"), QKeySequence(),
          tr("Deux rails d'alimentation et des lignes numérotées"),
          &MainWindow::insertLadder);
+    make(projectMenu, false, G::Wire, tr("&Types de fils…"), QKeySequence(),
+         tr("Couleur, section, calque et style de chaque type de fil"),
+         &MainWindow::editWireTypes);
     make(projectMenu, true, G::Renumber, tr("&Repérage automatique"),
          QKeySequence(Qt::CTRL | Qt::Key_R),
          tr("Désigner les appareils et repérer les fils"), &MainWindow::renumberAll);
@@ -773,6 +807,25 @@ void MainWindow::registerCommands()
            [this] { m_view->beginZoomWindow(); });
     simple(QStringLiteral("ZOOMPRECEDENT"), { QStringLiteral("ZP") }, tr("Vue précédente"),
            [this] { m_view->zoomPrevious(); });
+    simple(QStringLiteral("DEPLACER"), { QStringLiteral("DP"), QStringLiteral("M") },
+           tr("Déplacer d'un point de base à un point d'arrivée"),
+           [this] { m_view->beginMoveSelection(); });
+    // DECALER accepte sa distance en argument, comme OFFSET : « DC 5 » ne
+    // demande plus rien et attend seulement le cote.
+    add(QStringLiteral("DECALER"), { QStringLiteral("DC"), QStringLiteral("O") },
+        tr("Copier un fil parallèlement, à une distance donnée"),
+        [this](const QStringList &args) {
+            bool ok = false;
+            const double distance = args.isEmpty()
+                    ? 0.0
+                    : args.first().toDouble(&ok);
+            if (ok && distance > 0.0)
+                m_view->beginOffset(distance);
+            else
+                offsetSelection();
+        });
+    simple(QStringLiteral("TYPEFIL"), { QStringLiteral("TF") },
+           tr("Gérer les types de fils"), [this] { editWireTypes(); });
     simple(QStringLiteral("POTENTIEL"), { QStringLiteral("PT") },
            tr("Mettre en évidence le potentiel de la sélection"),
            [this] { m_view->highlightNetOfSelection(); });
@@ -857,7 +910,7 @@ void MainWindow::insertLadder()
     if (!folio)
         return;
 
-    LadderDialog dialog(*folio, this);
+    LadderDialog dialog(*folio, m_document->project().wireTypes, this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
@@ -878,6 +931,100 @@ void MainWindow::insertLadder()
 
     m_view->update();
     statusBar()->showMessage(tr("Échelle insérée : %n élément(s).", "", count), 5000);
+}
+
+void MainWindow::editWireTypes()
+{
+    WireTypeDialog dialog(m_document->project().wireTypes, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_document->push(std::make_unique<ChangeWireTypesCommand>(m_document->project(),
+                                                              dialog.result()));
+    rebuildWireTypeSelector();
+    m_view->update();
+    statusBar()->showMessage(tr("Types de fils mis à jour."), 5000);
+}
+
+void MainWindow::rebuildWireTypeSelector()
+{
+    if (!m_wireTypeSelector)
+        return;
+
+    // Le combo se reconstruit a chaque annulation ; la signature evite de le
+    // refaire quand rien n'a bouge, ce qui ferait clignoter la barre d'outils.
+    QString signature;
+    for (const WireType &type : m_document->project().wireTypes.all())
+        signature += type.id + QLatin1Char('\x1f') + type.name + type.colorName();
+    if (signature == m_wireTypeSignature && m_wireTypeSelector->count() > 0)
+        return;
+    m_wireTypeSignature = signature;
+
+    const QString wanted = m_view->currentWireType();
+    QSignalBlocker blocker(m_wireTypeSelector);
+    m_wireTypeSelector->clear();
+    for (const WireType &type : m_document->project().wireTypes.all()) {
+        QPixmap swatch(14, 14);
+        swatch.fill(FolioPainter::wireTypeColor(type));
+        m_wireTypeSelector->addItem(QIcon(swatch), type.name.isEmpty() ? type.id : type.name,
+                                    type.id);
+    }
+    const int index = m_wireTypeSelector->findData(wanted);
+    m_wireTypeSelector->setCurrentIndex(index >= 0 ? index : 0);
+    // Le type arme a pu disparaitre du jeu : la vue doit suivre le combo,
+    // sinon les fils suivants pointeraient vers un type qui n'existe plus.
+    m_view->setCurrentWireType(m_wireTypeSelector->currentData().toString());
+}
+
+void MainWindow::offsetSelection()
+{
+    // La distance par defaut est le pas de la grille : c'est l'ecart auquel
+    // on double un fil neuf fois sur dix.
+    bool ok = false;
+    const double distance = QInputDialog::getDouble(
+            this, tr("Décaler"), tr("Distance de décalage (mm) :"),
+            m_view->gridStep(), 0.01, 1000.0, 2, &ok);
+    if (!ok)
+        return;
+    m_view->beginOffset(distance);
+}
+
+void MainWindow::showCanvasContextMenu(const QPoint &globalPos)
+{
+    QMenu menu(this);
+    const bool hasSelection = m_view->hasSelection();
+
+    // Le menu contextuel d'AutoCAD commence par « Répéter » : la derniere
+    // commande est ce qu'on veut relancer le plus souvent.
+    if (m_document->commands().canUndo())
+        menu.addAction(m_undoAction);
+    if (m_document->commands().canRedo())
+        menu.addAction(m_redoAction);
+    menu.addSeparator();
+
+    if (hasSelection) {
+        menu.addAction(m_copyAction);
+        menu.addAction(m_deleteAction);
+        menu.addSeparator();
+        menu.addAction(m_moveAction);
+        menu.addAction(m_rotateAction);
+        menu.addAction(m_mirrorAction);
+        menu.addAction(m_offsetAction);
+        menu.addSeparator();
+        menu.addAction(m_highlightAction);
+    } else {
+        menu.addAction(m_pasteAction);
+        menu.addAction(m_selectAllAction);
+    }
+
+    menu.addSeparator();
+    menu.addAction(m_zoomFitAction);
+    m_zoomPreviousAction->setEnabled(m_view->canZoomPrevious());
+    menu.addAction(m_zoomPreviousAction);
+    menu.addSeparator();
+    menu.addAction(m_pageSetupAction);
+
+    menu.exec(globalPos);
 }
 
 void MainWindow::createStatusBar()
@@ -1068,6 +1215,7 @@ void MainWindow::newProject()
         return;
     m_document->newProject(m_document->project().library);
     m_navigator->refresh();
+    rebuildWireTypeSelector();
     m_view->zoomToFit();
     updateTitle();
 }
@@ -1095,6 +1243,7 @@ bool MainWindow::openFile(const QString &path)
     m_navigator->refresh();
     m_palette->setNorm(m_document->profile().norm);
     m_view->setGridStep(m_document->profile().gridStep);
+    rebuildWireTypeSelector();
     m_view->zoomToFit();
     updateTitle();
 

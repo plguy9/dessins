@@ -22,6 +22,7 @@ class Netlist;
 class SymbolInstance;
 class Wire;
 class Label;
+struct WireType;
 
 class FolioPainter
 {
@@ -69,6 +70,12 @@ public:
     // qu'un dessinateur reconnait ce a quoi il est en train de s'accrocher.
     static void paintSnapMarker(QPainter &painter, SnapMode mode, const QPointF &point,
                                 double sizeMm, const QColor &color);
+
+    // Traduction d'un type de fil vers QtGui. Le coeur ne connait ni QColor
+    // ni Qt::PenStyle — c'est ici, ou QtGui est deja lie, que la couleur
+    // 0xRRGGBB et le mot-cle de style redeviennent un stylo.
+    static QColor wireTypeColor(const WireType &type);
+    static Qt::PenStyle wireTypePenStyle(const WireType &type);
 
     // Texte d'une hauteur donnee en millimetres, quelle que soit l'echelle du
     // painter : la hauteur de capitale d'un texte cote ne depend pas du zoom.

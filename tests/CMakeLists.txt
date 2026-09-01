@@ -18,6 +18,7 @@ add_executable(dessins_tests
     test_snap.cpp
     test_wiretools.cpp
     test_ladder.cpp
+    test_wiretype.cpp
 )
 
 target_link_libraries(dessins_tests PRIVATE

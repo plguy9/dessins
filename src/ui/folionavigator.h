@@ -27,12 +27,17 @@ public:
 
 Q_SIGNALS:
     void statusMessage(const QString &message);
+    // La mise en page appartient a la fenetre principale : le navigateur se
+    // contente de la demander pour le folio designe.
+    void pageSetupRequested();
 
 private:
     void addFolio();
     void duplicateFolio();
     void removeFolio();
     void moveFolio(int delta);
+    void renameFolio();
+    void showListContextMenu(const QPoint &pos);
     void scheduleThumbnails();
 
     Document *m_document = nullptr;

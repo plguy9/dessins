@@ -1,6 +1,8 @@
 #include "propertiespanel.h"
 
 #include "core/documentcommands.h"
+#include "core/wiretype.h"
+#include "render/foliopainter.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -8,6 +10,7 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPixmap>
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QVBoxLayout>
@@ -336,6 +339,28 @@ void PropertiesPanel::buildWireForm(QFormLayout *form, Wire *wire)
     form->addRow(QString(), locked);
     connect(locked, &QCheckBox::toggled, this, [this, wire](bool on) {
         modify(wire, tr("Verrouiller le repère"), [on](Wire *w) { w->numberLocked = on; });
+    });
+
+    // Type de fil : c'est lui qui porte la couleur, la section et le calque.
+    // Le choix se fait ici, pas fil par fil couleur par couleur.
+    auto *type = new QComboBox(parent);
+    for (const WireType &t : m_document->project().wireTypes.all()) {
+        QPixmap swatch(14, 14);
+        swatch.fill(FolioPainter::wireTypeColor(t));
+        QString label = t.name.isEmpty() ? t.id : t.name;
+        if (!t.crossSection.isEmpty())
+            label += QStringLiteral(" — %1").arg(t.crossSection);
+        type->addItem(QIcon(swatch), label, t.id);
+    }
+    const int typeIndex = type->findData(wire->wireType.isEmpty() ? WireTypeSet::defaultId()
+                                                                 : wire->wireType);
+    type->setCurrentIndex(typeIndex >= 0 ? typeIndex : 0);
+    form->addRow(tr("Type de fil"), type);
+    connect(type, &QComboBox::currentIndexChanged, this, [this, wire, type](int index) {
+        const QString id = type->itemData(index).toString();
+        if (wire->wireType == id)
+            return;
+        modify(wire, tr("Changer le type de fil"), [&](Wire *w) { w->wireType = id; });
     });
 
     auto *conductors = new QLineEdit(wire->conductors.join(QStringLiteral(", ")), parent);

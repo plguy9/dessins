@@ -2,11 +2,13 @@
 #pragma once
 
 #include "core/folio.h"
+#include "core/wiretype.h"
 #include "rules/ladder.h"
 
 #include <QDialog>
 
 class QCheckBox;
+class QComboBox;
 class QDoubleSpinBox;
 class QLabel;
 class QLineEdit;
@@ -19,7 +21,9 @@ class LadderDialog : public QDialog
     Q_OBJECT
 
 public:
-    LadderDialog(const Folio &folio, QWidget *parent = nullptr);
+    // Les types de fils du projet sont necessaires pour habiller les rails :
+    // une echelle se lit d'abord a la couleur de sa phase et de son neutre.
+    LadderDialog(const Folio &folio, const WireTypeSet &wireTypes, QWidget *parent = nullptr);
 
     LadderSpec spec() const;
 
@@ -36,6 +40,8 @@ private:
     QSpinBox *m_numberStep = nullptr;
     QLineEdit *m_leftRail = nullptr;
     QLineEdit *m_rightRail = nullptr;
+    QComboBox *m_leftRailType = nullptr;
+    QComboBox *m_rightRailType = nullptr;
     QCheckBox *m_drawRungs = nullptr;
     QCheckBox *m_numberRungs = nullptr;
     QLabel *m_summary = nullptr;

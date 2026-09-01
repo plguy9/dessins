@@ -37,6 +37,12 @@ ne pas s'ouvrir du tout.
 {
   "version": 1,
   "profile": "iec",
+  "wireTypes": [
+    { "id": "default", "name": "Fil standard", "color": "#0a5c9e",
+      "width": 0.35, "layer": "FILS" },
+    { "id": "l1", "name": "L1 — phase 1", "color": "#7a4a2b", "width": 0.35,
+      "crossSection": "2,5 mm²", "layer": "FILS_L1" }
+  ],
   "info": {
     "title": "Démarrage direct d'un moteur",
     "reference": "2026-014",
@@ -52,6 +58,14 @@ ne pas s'ouvrir du tout.
 `profile` désigne le profil métier — `iec`, `ansi` ou `electronic`. Il porte la
 norme de symboles, le pas de grille, le format de feuille par défaut et les
 règles de repérage.
+
+`wireTypes` est la bibliothèque des types de fils du projet. Un fil ne stocke
+jamais sa couleur : il référence un `id` de type. La couleur s'écrit `#rrggbb`
+et `style` vaut `solid` (défaut), `dashed`, `dotted` ou `dashdot`. Le type
+`default` existe toujours — c'est le repli de tout identifiant inconnu, et il
+est reconstruit à la lecture s'il manquait. Un document **antérieur** aux types
+de fils n'a pas la clé : il reçoit alors le jeu de sa norme, pas une liste
+vide.
 
 ## Un folio
 
@@ -81,7 +95,7 @@ illisible.
 | `type` | Rôle | Champs propres |
 |---|---|---|
 | `symbol` | Instance d'un symbole | `def`, `placement`, `fields`, `group`, `block` |
-| `wire` | Fil, éventuellement multi-conducteurs | `points`, `conductors`, `number` |
+| `wire` | Fil, éventuellement multi-conducteurs | `points`, `conductors`, `number`, `wireType` |
 | `junction` | Point de connexion dessiné | `at`, `diameter` |
 | `text` | Annotation libre | `text`, `placement`, `height`, `align` |
 | `graphic` | Primitive de tracé | `shape` |
@@ -95,6 +109,7 @@ Un fil porte **n conducteurs** dès l'origine, avec n = 1 comme cas courant :
 { "type": "wire",
   "points": [[140, 60], [140, 110]],
   "conductors": ["L1", "L2", "L3", "N", "PE"],
+  "wireType": "l1",
   "number": "W12" }
 ```
 

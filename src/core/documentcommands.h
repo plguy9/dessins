@@ -180,4 +180,40 @@ private:
     ProjectInfo m_after;
 };
 
+// Renomme un folio : son numero et son titre, ce que porte le cartouche.
+class RenameFolioCommand : public Command
+{
+public:
+    RenameFolioCommand(Project &project, QString folioId, QString number, QString title);
+    void redo() override;
+    void undo() override;
+    QString text() const override;
+
+private:
+    void apply(const QString &number, const QString &title);
+
+    Project &m_project;
+    QString m_folioId;
+    QString m_beforeNumber;
+    QString m_beforeTitle;
+    QString m_afterNumber;
+    QString m_afterTitle;
+};
+
+// Remplace le jeu de types de fils du projet. Les fils ne changent pas : ils
+// referencent un identifiant, et c'est ce que l'identifiant designe qui bouge.
+class ChangeWireTypesCommand : public Command
+{
+public:
+    ChangeWireTypesCommand(Project &project, WireTypeSet after);
+    void redo() override;
+    void undo() override;
+    QString text() const override;
+
+private:
+    Project &m_project;
+    WireTypeSet m_before;
+    WireTypeSet m_after;
+};
+
 } // namespace dsn

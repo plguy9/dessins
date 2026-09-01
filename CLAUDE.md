@@ -52,6 +52,16 @@ sont délibérés et documentés dans le code :
   courant (prolonger jusqu'à une borne alignée) — traité à part.
 - **`rules/ladder.*`** — l'échelle de commande d'AutoCAD Electrical.
 - **`ui/commandline.*`** — la ligne de commande et ses alias (L, E, CP, Z…).
+- **`core/wiretype.*`** — le *Wire Type Manager* : couleur, section, calque
+  d'export et style de trait, réglés une fois pour tout le projet. Un fil
+  référence un identifiant de type, jamais une couleur — changer la couleur
+  d'un potentiel se fait alors en un endroit.
+- **DÉCALER (OFFSET) et DÉPLACER (MOVE)** : `FolioView::beginOffset` et
+  `beginMoveSelection`. Ce sont des gestes en deux clics, comme la ligne de
+  commande d'AutoCAD ; l'état vit dans `FolioView::Pending`.
+- **Menu contextuel au clic droit**, sur le canevas et sur la liste des
+  folios. Le clic droit désigne d'abord ce qu'il survole : sans cela la
+  moitié du menu s'appliquerait à une autre sélection.
 - **Sélection fenêtre (bleu plein) vs capture (vert pointillé)**, poignées
   bleues qui rougissent au survol, réticule pleine vue, saisie dynamique.
 - **Touches de fonction** : F3 accrochage objets, F7 grille, F8 ortho,
@@ -73,6 +83,9 @@ sont délibérés et documentés dans le code :
    être enfermée dans son folio (voir `NetlistBuilder::touchesNear`).
 6. **Un fil porte n conducteurs** dès le modèle (`Wire::conductors`), n = 1 par
    défaut. Ne pas l'aplatir : c'est ce qui rend l'unifilaire possible.
+   De même, il porte un **identifiant de type** (`Wire::wireType`), pas une
+   couleur : un identifiant inconnu retombe sur le type par défaut, qui ne
+   peut pas être supprimé — un fil ne doit jamais devenir invisible.
 7. **Le repérage est reproductible** : relancé sur un dessin inchangé, il
    redonne exactement les mêmes repères (test dédié).
 8. Un document d'une version **plus récente est refusé net** ; une entité
@@ -130,6 +143,9 @@ La distribution se fait par la page GitHub Releases.
 
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 
+0. Reste du relevé AutoCAD (`docs/AUTOCAD.md`) : gestionnaire de projet
+   multi-dossiers, rapport de composants, Wire From/To, entrées-sorties API,
+   palette de propriétés Ctrl+1, ÉTIRER (STRETCH).
 1. Import DXF (l'export existe : `io/dxfexport.cpp`).
 2. Unifilaires M8 : symboles de distribution + bilan de puissance
    (le modèle multi-conducteurs est prêt).

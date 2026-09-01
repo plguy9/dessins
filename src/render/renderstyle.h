@@ -59,6 +59,13 @@ struct RenderStyle {
     bool showPinNumbers = false;
     bool showUnconnectedPins = true; // marque les broches libres, aide au cablage
     bool showSheetShadow = true;
+    // Couleur portee par le type de fil. Eteindre revient au trait unique de
+    // la couleur `wire` — ce que veut une sortie monochrome.
+    bool useWireTypeColors = true;
+    // Sur fond sombre, une couleur de type presque noire — le L2 de la CEI —
+    // devient invisible. AutoCAD retourne le noir sur fond noir ; on eclaircit
+    // de meme les teintes trop proches du fond, sans toucher aux autres.
+    bool lightenDarkWires = false;
 
     double gridStep = 2.5;
     int gridMajorEvery = 4;

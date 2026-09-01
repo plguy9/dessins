@@ -28,6 +28,12 @@ struct LadderSpec {
     QString leftRailName = QStringLiteral("L1");
     QString rightRailName = QStringLiteral("N");
 
+    // Types de fils des deux rails. Une echelle de commande se lit d'abord a
+    // ses couleurs : la phase et le neutre ne peuvent pas sortir identiques.
+    QString leftRailType = QStringLiteral("l1");
+    QString rightRailType = QStringLiteral("n");
+    QString rungType;   // vide = type par defaut pour les barreaux
+
     // Les barreaux sont optionnels : beaucoup de dessinateurs posent les
     // rails seuls puis tracent chaque ligne au fur et a mesure.
     bool drawRungs = false;

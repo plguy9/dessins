@@ -249,6 +249,11 @@ QVector<WireLine> Reports::wireList(const Project &project, const Netlist &netli
                 continue;
             if (line.number.isEmpty())
                 line.number = wire->number;
+            if (line.crossSection.isEmpty() && !wire->wireType.isEmpty()) {
+                const WireType &type = project.wireTypes.resolve(wire->wireType);
+                line.wireTypeName = type.name;
+                line.crossSection = type.crossSection;
+            }
             conductors = std::max(conductors, wire->conductorCount());
             // Un fil multi-conducteurs apparait une fois par conducteur dans la
             // netlist : sa longueur ne doit etre comptee qu'une fois.
@@ -311,11 +316,13 @@ ReportTable Reports::toTable(const QVector<WireLine> &lines)
     table.headers = { QStringLiteral("Repère"),  QStringLiteral("Potentiel"),
                       QStringLiteral("Folios"),  QStringLiteral("De"),
                       QStringLiteral("Broche"),  QStringLiteral("Vers"),
-                      QStringLiteral("Broche"),  QStringLiteral("Conducteurs"),
+                      QStringLiteral("Broche"),  QStringLiteral("Type"),
+                      QStringLiteral("Section"),  QStringLiteral("Conducteurs"),
                       QStringLiteral("Longueur (mm)") };
     for (const WireLine &line : lines) {
         table.rows.append({ line.number, line.netName, line.folios.join(QStringLiteral(", ")),
                             line.from, line.fromPin, line.to, line.toPin,
+                            line.wireTypeName, line.crossSection,
                             QString::number(line.conductorCount),
                             QString::number(line.length, 'f', 1) });
     }

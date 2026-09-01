@@ -11,6 +11,7 @@ add_library(dessins_ui STATIC
     pagesetupdialog.h pagesetupdialog.cpp
     commandline.h     commandline.cpp
     ladderdialog.h    ladderdialog.cpp
+    wiretypedialog.h  wiretypedialog.cpp
     mainwindow.h      mainwindow.cpp
 )
 

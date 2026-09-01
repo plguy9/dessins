@@ -598,6 +598,126 @@ void FolioView::nudgeSelection(const QPointF &deltaMm)
                                                            ids, deltaMm));
 }
 
+void FolioView::beginMoveSelection()
+{
+    if (m_selection.isEmpty()) {
+        Q_EMIT statusMessage(tr("Déplacer : sélectionner d'abord ce qu'il faut déplacer."));
+        return;
+    }
+    setTool(Tool::Select);
+    m_pending = Pending::MoveBase;
+    Q_EMIT statusMessage(tr("Déplacer : cliquer le point de base."));
+    update();
+}
+
+void FolioView::beginOffset(double distanceMm)
+{
+    if (m_selection.isEmpty()) {
+        Q_EMIT statusMessage(tr("Décaler : sélectionner d'abord le fil à décaler."));
+        return;
+    }
+    if (distanceMm <= 0.0)
+        return;
+    setTool(Tool::Select);
+    m_offsetDistance = distanceMm;
+    m_pending = Pending::OffsetSide;
+    Q_EMIT statusMessage(tr("Décaler de %1 mm : cliquer du côté voulu.")
+                                 .arg(distanceMm, 0, 'f', 2));
+    update();
+}
+
+bool FolioView::handlePendingClick(const QPointF &scenePoint)
+{
+    switch (m_pending) {
+    case Pending::None:
+        return false;
+    case Pending::MoveBase:
+        m_moveBase = scenePoint;
+        m_pending = Pending::MoveTarget;
+        Q_EMIT statusMessage(tr("Déplacer : cliquer le point d'arrivée."));
+        update();
+        return true;
+    case Pending::MoveTarget: {
+        const QPointF delta = scenePoint - m_moveBase;
+        m_pending = Pending::None;
+        if (!samePoint(delta, QPointF())) {
+            nudgeSelection(delta);
+            Q_EMIT statusMessage(tr("Déplacé de %1 ; %2 mm.")
+                                         .arg(delta.x(), 0, 'f', 2)
+                                         .arg(delta.y(), 0, 'f', 2));
+        }
+        update();
+        return true;
+    }
+    case Pending::OffsetSide:
+        applyOffset(scenePoint);
+        m_pending = Pending::None;
+        update();
+        return true;
+    }
+    return false;
+}
+
+void FolioView::applyOffset(const QPointF &sidePoint)
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return;
+
+    // Seuls les fils se decalent : decaler un symbole n'a pas de sens, c'est
+    // une copie deplacee, et l'outil existe deja pour cela.
+    std::vector<EntityPtr> copies;
+    for (const QString &id : std::as_const(m_selection)) {
+        const auto *wire = dynamic_cast<const Wire *>(folio->entity(id));
+        if (!wire || wire->points.size() < 2)
+            continue;
+
+        // Le cote se decide sur le premier segment : de quel bord de la
+        // droite porteuse se trouve le point clique.
+        const QPointF a = wire->points.first();
+        const QPointF b = wire->points.at(1);
+        QPointF direction = b - a;
+        const double length = std::hypot(direction.x(), direction.y());
+        if (length <= 1e-9)
+            continue;
+        direction /= length;
+        const QPointF normal(-direction.y(), direction.x());
+        const QPointF toClick = sidePoint - a;
+        const double side = toClick.x() * normal.x() + toClick.y() * normal.y();
+        const QPointF shift = normal * (side < 0.0 ? -m_offsetDistance : m_offsetDistance);
+
+        auto copy = std::make_unique<Wire>(*wire);
+        copy->setId(newId());
+        // Le repere ne se recopie pas : le fil decale est un autre conducteur,
+        // et lui laisser le repere de l'original fausserait le reperage.
+        copy->number.clear();
+        copy->numberLocked = false;
+        copy->translate(shift);
+        copies.push_back(std::move(copy));
+    }
+
+    if (copies.empty()) {
+        Q_EMIT statusMessage(tr("Décaler : aucun fil dans la sélection."));
+        return;
+    }
+
+    const int count = int(copies.size());
+    QSet<QString> created;
+    // Un decalage multiple doit se defaire d'une seule annulation.
+    m_document->pushMacro(tr("Décaler"), [&] {
+        for (auto &copy : copies) {
+            created.insert(copy->id());
+            m_document->push(std::make_unique<AddEntityCommand>(m_document->project(),
+                                                                folio->id(), std::move(copy),
+                                                                tr("Décaler")));
+        }
+    });
+    // La selection suit la copie : on enchaine souvent plusieurs decalages.
+    setSelection(created);
+    Q_EMIT statusMessage(tr("%n fil(s) décalé(s) de %1 mm.", "", count)
+                                 .arg(m_offsetDistance, 0, 'f', 2));
+}
+
 void FolioView::copySelection()
 {
     m_clipboard.clear();
@@ -714,6 +834,7 @@ void FolioView::commitWire()
 
     auto wire = std::make_unique<Wire>();
     wire->points = m_wirePoints;
+    wire->wireType = m_currentWireType;
     const Wire snapshot = *wire;
 
     m_document->pushMacro(tr("Tracer un fil"), [&] {
@@ -965,13 +1086,31 @@ void FolioView::mousePressEvent(QMouseEvent *event)
             commitWire();
             return;
         }
+        if (m_pending != Pending::None) {
+            m_pending = Pending::None;
+            Q_EMIT statusMessage(tr("Geste annulé."));
+            update();
+            return;
+        }
         if (m_tool != Tool::Select) {
             setTool(Tool::Select);
             return;
         }
+        // Rien en cours : c'est le menu contextuel. Comme dans AutoCAD, un
+        // clic droit sur une entite non selectionnee la designe d'abord —
+        // sinon la moitie du menu s'appliquerait a une autre selection.
+        if (Entity *entity = entityAt(scenePoint)) {
+            if (!m_selection.contains(entity->id()))
+                setSelection({ entity->id() });
+        }
+        Q_EMIT contextMenuRequested(event->globalPosition().toPoint());
+        return;
     }
 
     if (event->button() != Qt::LeftButton)
+        return;
+
+    if (handlePendingClick(snapped))
         return;
 
     if (m_zoomWindowArmed) {
@@ -1208,6 +1347,12 @@ void FolioView::keyPressEvent(QKeyEvent *event)
             update();
             return;
         }
+        if (m_pending != Pending::None) {
+            m_pending = Pending::None;
+            Q_EMIT statusMessage(tr("Geste annulé."));
+            update();
+            return;
+        }
         if (!m_wirePoints.isEmpty())
             cancelPending();
         else if (m_tool != Tool::Select)
@@ -1320,6 +1465,72 @@ void FolioView::paintPendingWire(QPainter &painter) const
     painter.setPen(pen);
     painter.setBrush(Qt::NoBrush);
     painter.drawPolyline(preview.constData(), int(preview.size()));
+}
+
+void FolioView::paintPendingGesture(QPainter &painter) const
+{
+    const Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return;
+
+    if (m_pending == Pending::MoveTarget) {
+        // Fantome de la selection sous le curseur : sans lui, on choisit le
+        // point d'arrivee a l'aveugle.
+        const QPointF delta = snap(m_cursorMm) - m_moveBase;
+        painter.save();
+        QPen pen(m_style.selection);
+        pen.setWidthF(m_style.wireWidth);
+        pen.setStyle(Qt::DashLine);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        for (const QString &id : m_selection) {
+            const Entity *entity = folio->entity(id);
+            if (!entity)
+                continue;
+            if (const auto *wire = dynamic_cast<const Wire *>(entity)) {
+                QVector<QPointF> ghost = wire->points;
+                for (QPointF &p : ghost)
+                    p += delta;
+                painter.drawPolyline(ghost.constData(), int(ghost.size()));
+            } else {
+                painter.drawRect(entity->boundingBox().translated(delta));
+            }
+        }
+        painter.drawLine(m_moveBase, m_moveBase + delta);
+        painter.restore();
+        return;
+    }
+
+    if (m_pending == Pending::OffsetSide) {
+        // Apercu du fil decale du cote ou pointe le curseur.
+        painter.save();
+        QPen pen(m_style.selection);
+        pen.setWidthF(m_style.wireWidth);
+        pen.setStyle(Qt::DashLine);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        const QPointF side = snap(m_cursorMm);
+        for (const QString &id : m_selection) {
+            const auto *wire = dynamic_cast<const Wire *>(folio->entity(id));
+            if (!wire || wire->points.size() < 2)
+                continue;
+            const QPointF a = wire->points.first();
+            QPointF direction = wire->points.at(1) - a;
+            const double length = std::hypot(direction.x(), direction.y());
+            if (length <= 1e-9)
+                continue;
+            direction /= length;
+            const QPointF normal(-direction.y(), direction.x());
+            const QPointF toCursor = side - a;
+            const double dot = toCursor.x() * normal.x() + toCursor.y() * normal.y();
+            const QPointF shift = normal * (dot < 0.0 ? -m_offsetDistance : m_offsetDistance);
+            QVector<QPointF> ghost = wire->points;
+            for (QPointF &p : ghost)
+                p += shift;
+            painter.drawPolyline(ghost.constData(), int(ghost.size()));
+        }
+        painter.restore();
+    }
 }
 
 void FolioView::paintPendingSymbol(QPainter &painter) const
@@ -1531,6 +1742,7 @@ void FolioView::paintEvent(QPaintEvent *event)
     paintPolarGuide(painter);
     paintPendingWire(painter);
     paintPendingSymbol(painter);
+    paintPendingGesture(painter);
     paintSnapFeedback(painter);
     paintRubberBand(painter);
     painter.resetTransform();

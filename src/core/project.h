@@ -4,6 +4,7 @@
 
 #include "folio.h"
 #include "symbollibrary.h"
+#include "wiretype.h"
 
 #include <QDate>
 #include <QMap>
@@ -42,6 +43,11 @@ public:
 
     // Identifiant du profil metier : "iec", "ansi", "electronic".
     QString profileId = QStringLiteral("iec");
+
+    // Types de fils du projet (couleur, section, calque). Ils voyagent avec
+    // le document : un dossier rouvert ailleurs garde ses couleurs. Un projet
+    // neuf part du jeu de sa norme, pas d'une liste vide.
+    WireTypeSet wireTypes = WireTypeSet::forNorm(QStringLiteral("iec"));
 
     // Definitions embarquees dans le document. Un dossier archive se rouvre
     // ainsi a l'identique, meme si la bibliotheque du poste a change depuis.

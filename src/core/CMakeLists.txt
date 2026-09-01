@@ -14,6 +14,7 @@ add_library(dessins_core STATIC
     netlist.h         netlist.cpp
     snapengine.h      snapengine.cpp
     wiretools.h       wiretools.cpp
+    wiretype.h        wiretype.cpp
     command.h         command.cpp
     documentcommands.h documentcommands.cpp
 )

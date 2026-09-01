@@ -13,9 +13,10 @@ std::vector<EntityPtr> LadderBuilder::build(const LadderSpec &spec)
     const double height = spec.height();
 
     // ---- les deux rails --------------------------------------------------
-    auto makeRail = [&](const QPointF &top, const QString &name) {
+    auto makeRail = [&](const QPointF &top, const QString &name, const QString &type) {
         auto rail = std::make_unique<Wire>();
         rail->points = { top, top + QPointF(0.0, height) };
+        rail->wireType = type;
         // Le nom du rail devient le repere du potentiel : c'est lui qui
         // gouverne tout le rail, et il est verrouille pour que le reperage
         // automatique ne le remplace pas par un numero de colonne.
@@ -32,8 +33,8 @@ std::vector<EntityPtr> LadderBuilder::build(const LadderSpec &spec)
         out.push_back(std::move(label));
     };
 
-    makeRail(spec.origin, spec.leftRailName);
-    makeRail(spec.rightTop(), spec.rightRailName);
+    makeRail(spec.origin, spec.leftRailName, spec.leftRailType);
+    makeRail(spec.rightTop(), spec.rightRailName, spec.rightRailType);
 
     // ---- barreaux et numeros de ligne ------------------------------------
     for (int i = 0; i < spec.rungs; ++i) {
@@ -42,6 +43,7 @@ std::vector<EntityPtr> LadderBuilder::build(const LadderSpec &spec)
         if (spec.drawRungs) {
             auto rung = std::make_unique<Wire>();
             rung->points = { left, left + QPointF(spec.width, 0.0) };
+            rung->wireType = spec.rungType;
             out.push_back(std::move(rung));
         }
 

@@ -42,11 +42,13 @@ SymbolInstance *place(Project &project, Folio *folio, const QString &definitionI
     return raw;
 }
 
-Wire *wire(Folio *folio, const QVector<QPointF> &points, const QStringList &conductors = {})
+Wire *wire(Folio *folio, const QVector<QPointF> &points, const QStringList &conductors = {},
+           const QString &type = QString())
 {
     auto w = std::make_unique<Wire>();
     w->points = points;
     w->conductors = conductors;
+    w->wireType = type;
     auto *raw = w.get();
     folio->addEntity(std::move(w));
     return raw;
@@ -95,13 +97,17 @@ void buildPowerFolio(Project &project, Folio *folio)
     constexpr double x = 140.0;
     const double poles[3] = { x - 7.5, x, x + 7.5 };
     const QStringList phases{ QStringLiteral("L1"), QStringLiteral("L2"), QStringLiteral("L3") };
+    // Chaque phase porte son type : le folio de puissance se lit alors a ses
+    // couleurs, comme sur un vrai schema.
+    const QStringList phaseTypes{ QStringLiteral("l1"), QStringLiteral("l2"),
+                                  QStringLiteral("l3") };
 
     note(folio, QPointF(35, 30), QStringLiteral("Démarrage direct — moteur 1,5 kW"), 4.0);
 
     // Arrivee du reseau.
     for (int i = 0; i < 3; ++i) {
         label(folio, QPointF(poles[i], 42), phases.at(i), Direction::Up);
-        wire(folio, { QPointF(poles[i], 42), QPointF(poles[i], 60) });
+        wire(folio, { QPointF(poles[i], 42), QPointF(poles[i], 60) }, {}, phaseTypes.at(i));
     }
 
     place(project, folio, QStringLiteral("iec:circuit-breaker-3p"), QPointF(x, 70),
@@ -112,8 +118,9 @@ void buildPowerFolio(Project &project, Folio *folio)
           QStringLiteral("F1"));
 
     for (int i = 0; i < 3; ++i) {
-        wire(folio, { QPointF(poles[i], 80), QPointF(poles[i], 110) });  // Q1 -> KM1
-        wire(folio, { QPointF(poles[i], 130), QPointF(poles[i], 160) }); // KM1 -> F1
+        // Q1 -> KM1, puis KM1 -> F1.
+        wire(folio, { QPointF(poles[i], 80), QPointF(poles[i], 110) }, {}, phaseTypes.at(i));
+        wire(folio, { QPointF(poles[i], 130), QPointF(poles[i], 160) }, {}, phaseTypes.at(i));
     }
 
     // Descente vers le moteur : les bornes moteur sont a 5 mm d'entraxe, les
@@ -122,16 +129,18 @@ void buildPowerFolio(Project &project, Folio *folio)
     const double motorPins[3] = { x - 5.0, x, x + 5.0 };
     for (int i = 0; i < 3; ++i) {
         if (i == 1) {
-            wire(folio, { QPointF(poles[i], 180), QPointF(poles[i], 217) });
+            wire(folio, { QPointF(poles[i], 180), QPointF(poles[i], 217) }, {},
+                 phaseTypes.at(i));
         } else {
             wire(folio, { QPointF(poles[i], 180), QPointF(poles[i], 205),
-                          QPointF(motorPins[i], 205), QPointF(motorPins[i], 217) });
+                          QPointF(motorPins[i], 205), QPointF(motorPins[i], 217) }, {},
+                 phaseTypes.at(i));
         }
     }
 
     // Terre.
     place(project, folio, QStringLiteral("iec:earth"), QPointF(x, 255));
-    wire(folio, { QPointF(x, 243), QPointF(x, 249) });
+    wire(folio, { QPointF(x, 243), QPointF(x, 249) }, {}, QStringLiteral("pe"));
 }
 
 // --------------------------------------------------------------------------
@@ -147,22 +156,24 @@ void buildControlFolio(Project &project, Folio *folio)
     constexpr double x = 80.0;
     constexpr double xHold = 110.0; // colonne de l'auto-maintien
     constexpr double xLamp = 145.0;
+    // Tout le folio est en commande 230 V : un seul type suffit a le dire.
+    const QString cmd = QStringLiteral("control");
 
     note(folio, QPointF(35, 30), QStringLiteral("Commande 230 V — marche / arrêt"), 4.0);
 
     label(folio, QPointF(x, 40), QStringLiteral("L1"), Direction::Up);
-    wire(folio, { QPointF(x, 40), QPointF(x, 50) });
+    wire(folio, { QPointF(x, 40), QPointF(x, 50) }, {}, cmd);
 
     place(project, folio, QStringLiteral("iec:fuse"), QPointF(x, 60), QStringLiteral("F2"));
-    wire(folio, { QPointF(x, 70), QPointF(x, 85) });
+    wire(folio, { QPointF(x, 70), QPointF(x, 85) }, {}, cmd);
 
     place(project, folio, QStringLiteral("iec:thermal-contact"), QPointF(x, 95),
           QStringLiteral("F1")); // meme appareil que le relais du folio 1
-    wire(folio, { QPointF(x, 105), QPointF(x, 120) });
+    wire(folio, { QPointF(x, 105), QPointF(x, 120) }, {}, cmd);
 
     place(project, folio, QStringLiteral("iec:pushbutton-nc"), QPointF(x, 130),
           QStringLiteral("S1"));
-    wire(folio, { QPointF(x, 140), QPointF(x, 160) });
+    wire(folio, { QPointF(x, 140), QPointF(x, 160) }, {}, cmd);
 
     place(project, folio, QStringLiteral("iec:pushbutton-no"), QPointF(x, 170),
           QStringLiteral("S2"));
@@ -170,24 +181,24 @@ void buildControlFolio(Project &project, Folio *folio)
     // Auto-maintien : contact KM1 en parallele du bouton de marche.
     place(project, folio, QStringLiteral("iec:contact-no"), QPointF(xHold, 170),
           QStringLiteral("KM1"));
-    wire(folio, { QPointF(x, 160), QPointF(xHold, 160) });
-    wire(folio, { QPointF(x, 180), QPointF(xHold, 180) });
+    wire(folio, { QPointF(x, 160), QPointF(xHold, 160) }, {}, cmd);
+    wire(folio, { QPointF(x, 180), QPointF(xHold, 180) }, {}, cmd);
     junction(folio, QPointF(x, 160));
     junction(folio, QPointF(x, 180));
 
-    wire(folio, { QPointF(x, 180), QPointF(x, 205) });
+    wire(folio, { QPointF(x, 180), QPointF(x, 205) }, {}, cmd);
 
     place(project, folio, QStringLiteral("iec:coil"), QPointF(x, 215), QStringLiteral("KM1"));
 
     // Voyant de marche, en parallele de la bobine.
     place(project, folio, QStringLiteral("iec:indicator-lamp"), QPointF(xLamp, 215),
           QStringLiteral("H1"));
-    wire(folio, { QPointF(x, 205), QPointF(xLamp, 205) });
-    wire(folio, { QPointF(x, 225), QPointF(xLamp, 225) });
+    wire(folio, { QPointF(x, 205), QPointF(xLamp, 205) }, {}, cmd);
+    wire(folio, { QPointF(x, 225), QPointF(xLamp, 225) }, {}, cmd);
     junction(folio, QPointF(x, 205));
     junction(folio, QPointF(x, 225));
 
-    wire(folio, { QPointF(x, 225), QPointF(x, 245) });
+    wire(folio, { QPointF(x, 225), QPointF(x, 245) }, {}, QStringLiteral("n"));
     label(folio, QPointF(x, 245), QStringLiteral("N"), Direction::Down);
 }
 

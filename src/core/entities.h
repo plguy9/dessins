@@ -82,6 +82,10 @@ public:
     bool numberLocked = false;  // repere saisi a la main
     QString style;              // trait, tirets, mixte... resolu par le profil
 
+    // Identifiant du type de fil (voir WireType). Vide = type par defaut :
+    // un fil ancien, ou pose sans choix explicite, reste tracable.
+    QString wireType;
+
     int conductorCount() const { return conductors.isEmpty() ? 1 : int(conductors.size()); }
     QString conductorName(int index) const;
 

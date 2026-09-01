@@ -259,4 +259,40 @@ QString ChangeProjectInfoCommand::text() const
     return QStringLiteral("Modifier les informations du projet");
 }
 
+RenameFolioCommand::RenameFolioCommand(Project &project, QString folioId, QString number,
+                                       QString title)
+    : m_project(project), m_folioId(std::move(folioId)), m_afterNumber(std::move(number)),
+      m_afterTitle(std::move(title))
+{
+    if (const Folio *folio = m_project.folio(m_folioId)) {
+        m_beforeNumber = folio->number;
+        m_beforeTitle = folio->title;
+    }
+}
+
+void RenameFolioCommand::apply(const QString &number, const QString &title)
+{
+    if (Folio *folio = m_project.folio(m_folioId)) {
+        folio->number = number;
+        folio->title = title;
+    }
+}
+
+void RenameFolioCommand::redo() { apply(m_afterNumber, m_afterTitle); }
+
+void RenameFolioCommand::undo() { apply(m_beforeNumber, m_beforeTitle); }
+
+QString RenameFolioCommand::text() const { return QStringLiteral("Renommer un folio"); }
+
+ChangeWireTypesCommand::ChangeWireTypesCommand(Project &project, WireTypeSet after)
+    : m_project(project), m_before(project.wireTypes), m_after(std::move(after))
+{
+}
+
+void ChangeWireTypesCommand::redo() { m_project.wireTypes = m_after; }
+
+void ChangeWireTypesCommand::undo() { m_project.wireTypes = m_before; }
+
+QString ChangeWireTypesCommand::text() const { return QStringLiteral("Modifier les types de fils"); }
+
 } // namespace dsn

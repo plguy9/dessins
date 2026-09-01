@@ -1,6 +1,9 @@
 #include "dxfexport.h"
 
 #include "core/entities.h"
+#include "core/wiretype.h"
+
+#include <QPair>
 
 #include <QDir>
 #include <QFileInfo>
@@ -36,6 +39,46 @@ const LayerDef kLayers[] = {
     { kLayerText, 4 },    // cyan
     { kLayerFrame, 8 },   // gris
 };
+
+// Un calque DXF R12 ne porte pas de couleur vraie : seulement un indice ACI.
+// On projette donc la couleur du type de fil sur l'indice le plus proche.
+// La table ne reprend pas les 255 indices — ceux-ci suffisent a placer une
+// couleur de conducteur (brun, bleu, vert-jaune, rouge, gris) sur une teinte
+// qu'un dessinateur reconnaitra en ouvrant le fichier ailleurs.
+struct AciColor {
+    int index;
+    int r, g, b;
+};
+
+const AciColor kAciPalette[] = {
+    { 1, 255, 0, 0 },     { 2, 255, 255, 0 },   { 3, 0, 255, 0 },
+    { 4, 0, 255, 255 },   { 5, 0, 0, 255 },     { 6, 255, 0, 255 },
+    { 7, 255, 255, 255 }, { 8, 128, 128, 128 }, { 9, 192, 192, 192 },
+    { 14, 127, 0, 0 },    { 30, 255, 127, 0 },  { 34, 127, 63, 0 },
+    { 40, 255, 191, 0 },  { 54, 127, 127, 0 },  { 70, 191, 255, 0 },
+    { 84, 63, 127, 0 },   { 94, 0, 127, 0 },    { 130, 0, 255, 191 },
+    { 150, 0, 191, 255 }, { 154, 0, 95, 127 },  { 170, 0, 0, 255 },
+    { 174, 0, 0, 127 },   { 190, 127, 0, 255 }, { 210, 255, 0, 191 },
+    { 250, 51, 51, 51 },  { 252, 132, 132, 132 }, { 254, 214, 214, 214 },
+};
+
+int aciFromRgb(quint32 rgb)
+{
+    const int r = int((rgb >> 16) & 0xFFu);
+    const int g = int((rgb >> 8) & 0xFFu);
+    const int b = int(rgb & 0xFFu);
+    int best = 7;
+    long long bestDistance = -1;
+    for (const AciColor &c : kAciPalette) {
+        const long long d = 1LL * (c.r - r) * (c.r - r) + 1LL * (c.g - g) * (c.g - g)
+                            + 1LL * (c.b - b) * (c.b - b);
+        if (bestDistance < 0 || d < bestDistance) {
+            bestDistance = d;
+            best = c.index;
+        }
+    }
+    return best;
+}
 
 class DxfWriter
 {
@@ -296,14 +339,40 @@ QByteArray DxfExport::encodeFolio(const Project &project, const Folio &folio,
     w.code(40, 0.0);
     w.code(0, "ENDTAB");
 
+    // Chaque type de fil du projet devient un calque, comme le fait AutoCAD
+    // Electrical : le fichier s'ouvre ailleurs avec ses potentiels deja
+    // separes, et non en un seul paquet de polylignes.
+    QHash<QString, QString> wireLayers; // id de type -> nom de calque
+    QList<QPair<QString, int>> extraLayers;
+    QSet<QString> layerNames;
+    for (const LayerDef &layer : kLayers)
+        layerNames.insert(QString::fromLatin1(layer.name));
+    for (const WireType &type : project.wireTypes.all()) {
+        if (type.layer.isEmpty())
+            continue;
+        const QString name = sanitizeName(type.layer).left(31);
+        wireLayers.insert(type.id, name);
+        if (layerNames.contains(name))
+            continue;
+        layerNames.insert(name);
+        extraLayers.append({ name, aciFromRgb(type.rgb) });
+    }
+
     w.code(0, "TABLE");
     w.code(2, "LAYER");
-    w.code(70, int(std::size(kLayers)));
+    w.code(70, int(std::size(kLayers)) + int(extraLayers.size()));
     for (const LayerDef &layer : kLayers) {
         w.code(0, "LAYER");
         w.code(2, layer.name);
         w.code(70, 0);
         w.code(62, layer.color);
+        w.code(6, "CONTINUOUS");
+    }
+    for (const auto &layer : extraLayers) {
+        w.code(0, "LAYER");
+        w.code(2, layer.first);
+        w.code(70, 0);
+        w.code(62, layer.second);
         w.code(6, "CONTINUOUS");
     }
     w.code(0, "ENDTAB");
@@ -380,7 +449,10 @@ QByteArray DxfExport::encodeFolio(const Project &project, const Folio &folio,
             mapped.reserve(wire->points.size());
             for (const QPointF &p : wire->points)
                 mapped.append(flip(p));
-            writePolyline(w, QLatin1String(kLayerWires), mapped, false);
+            // Un type inconnu ou sans calque retombe sur FILS : un fil ne
+            // doit jamais disparaitre de l'export.
+            const QString layer = wireLayers.value(wire->wireType, QLatin1String(kLayerWires));
+            writePolyline(w, layer, mapped, false);
 
             if (options.includeWireNumbers && !wire->number.isEmpty() && wire->points.size() >= 2) {
                 const QPointF a = wire->points.at(0);

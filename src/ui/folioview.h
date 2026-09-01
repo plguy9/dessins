@@ -10,6 +10,7 @@
 
 #include "core/entities.h"
 #include "core/snapengine.h"
+#include "core/wiretype.h"
 #include "document.h"
 #include "render/renderstyle.h"
 
@@ -37,6 +38,11 @@ public:
 
     void setLabelScope(Label::Scope scope) { m_labelScope = scope; }
     Label::Scope labelScope() const { return m_labelScope; }
+
+    // Type des fils a venir. Comme dans AutoCAD Electrical, le type courant
+    // s'arme une fois puis vaut pour tous les fils qu'on trace ensuite.
+    void setCurrentWireType(const QString &id) { m_currentWireType = id; }
+    QString currentWireType() const { return m_currentWireType; }
 
     const RenderStyle &style() const { return m_style; }
     void setStyle(const RenderStyle &style);
@@ -75,6 +81,17 @@ public:
 
     void deleteSelection();
     void rotateSelection(bool clockwise);
+
+    // DEPLACER : un point de base puis un point d'arrivee, comme MOVE. Le
+    // deplacement au glisser existe deja ; celui-ci sert quand la distance
+    // compte, parce que les deux points s'accrochent au dessin.
+    void beginMoveSelection();
+
+    // DECALER : copie les fils selectionnes parallelement, a la distance
+    // donnee, du cote ou l'on clique. C'est ainsi qu'on double un depart ou
+    // qu'on ajoute un conducteur le long d'un existant.
+    void beginOffset(double distanceMm);
+    bool hasPendingGesture() const { return m_pending != Pending::None; }
     void mirrorSelection();
     void nudgeSelection(const QPointF &deltaMm);
     void copySelection();
@@ -93,6 +110,9 @@ public:
     QPointF mapFromScene(const QPointF &scenePoint) const { return toWidget(scenePoint); }
 
 Q_SIGNALS:
+    // Clic droit sans geste en cours : la fenetre principale compose le menu,
+    // pour qu'il reprenne ses propres actions avec leurs raccourcis.
+    void contextMenuRequested(const QPoint &globalPos);
     void selectionChanged();
     void zoomChanged(double pixelsPerMm);
     void snapSettingsChanged();
@@ -185,6 +205,13 @@ private:
     void dragGripTo(const QPointF &target);
     void paintEmptyHint(QPainter &painter, const Folio &folio) const;
 
+    // Gestes en deux ou trois clics, a la maniere de la ligne de commande
+    // d'AutoCAD : la vue attend un point, puis un autre.
+    enum class Pending { None, MoveBase, MoveTarget, OffsetSide };
+    bool handlePendingClick(const QPointF &scenePoint);
+    void applyOffset(const QPointF &sidePoint);
+    void paintPendingGesture(QPainter &painter) const;
+
     void updateUnconnectedPins();
     void emitCursor();
 
@@ -224,10 +251,15 @@ private:
     QVector<ViewState> m_viewHistory;
     bool m_movedSinceCommit = false;
 
+    Pending m_pending = Pending::None;
+    QPointF m_moveBase;
+    double m_offsetDistance = 2.5;
+
     QVector<QPointF> m_wirePoints;
     QString m_pendingSymbol;
     Placement m_pendingPlacement;
     Label::Scope m_labelScope = Label::Scope::Folio;
+    QString m_currentWireType = WireTypeSet::defaultId();
 
     QPointF m_cursorMm;
     std::optional<SnapHit> m_snapHit;

@@ -40,6 +40,7 @@ RenderStyle RenderStyle::screenDark()
     s.snapMarker = QColor(0xE2, 0xEE, 0x4A);
     s.snapGuide = QColor(0xB4, 0xC4, 0x3A);
     s.crosshair = QColor(0x6E, 0x7C, 0x7A);
+    s.lightenDarkWires = true;
     return s;
 }
 

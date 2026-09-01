@@ -298,6 +298,9 @@ QJsonObject Label::toJson() const
     o[QStringLiteral("scope")] = scope == Scope::Project ? QStringLiteral("project")
                                                          : QStringLiteral("folio");
     o[QStringLiteral("height")] = roundStorage(height);
+    if (role != Role::Plain)
+        o[QStringLiteral("role")] = role == Role::Source ? QStringLiteral("source")
+                                                        : QStringLiteral("destination");
     return o;
 }
 
@@ -311,6 +314,17 @@ bool Label::readJson(const QJsonObject &object)
             ? Scope::Project
             : Scope::Folio;
     height = object.value(QStringLiteral("height")).toDouble(2.0);
+    const QString roleText = object.value(QStringLiteral("role")).toString();
+    if (roleText == QLatin1String("source"))
+        role = Role::Source;
+    else if (roleText == QLatin1String("destination"))
+        role = Role::Destination;
+    else
+        role = Role::Plain;
+    // Une fleche de signal est inter-folios par construction : un fichier qui
+    // dirait le contraire serait muet a la relecture.
+    if (role != Role::Plain)
+        scope = Scope::Project;
     return !name.isEmpty();
 }
 

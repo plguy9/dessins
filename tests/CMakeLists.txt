@@ -19,6 +19,8 @@ add_executable(dessins_tests
     test_wiretools.cpp
     test_ladder.cpp
     test_wiretype.cpp
+    test_crossref.cpp
+    test_reportplacer.cpp
 )
 
 target_link_libraries(dessins_tests PRIVATE

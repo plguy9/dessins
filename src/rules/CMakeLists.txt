@@ -5,6 +5,8 @@ add_library(dessins_rules STATIC
     numbering.h  numbering.cpp
     reports.h    reports.cpp
     ladder.h     ladder.cpp
+    crossref.h   crossref.cpp
+    reportplacer.h reportplacer.cpp
 )
 
 target_link_libraries(dessins_rules PUBLIC dessins_core)

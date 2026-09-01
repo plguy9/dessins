@@ -71,6 +71,19 @@ void FolioPainter::drawTextMm(QPainter &painter, const QPointF &at, const QStrin
     painter.restore();
 }
 
+double FolioPainter::textWidthMm(const QFont &base, const QString &text, double heightMm)
+{
+    if (text.isEmpty() || heightMm <= 0.0)
+        return 0.0;
+    QFont font = base;
+    font.setPixelSize(kFontReferencePixels);
+    const QFontMetricsF metrics(font);
+    const double capHeight = metrics.capHeight() > 0.0 ? metrics.capHeight() : metrics.ascent();
+    if (capHeight <= 0.0)
+        return 0.0;
+    return metrics.horizontalAdvance(text) * (heightMm / capHeight);
+}
+
 QRectF FolioPainter::textBoundsMm(const QPainter &painter, const QPointF &at, const QString &text,
                                   double heightMm, Primitive::Align align)
 {
@@ -601,11 +614,34 @@ void FolioPainter::paintLabel(QPainter &painter, const Label &label) const
     } else {
         outline << tip + normal * h << tail + normal * h << tail - normal * h << tip - normal * h;
     }
+    // Une source est pleine, une destination creuse. Le sens du signal se lit
+    // alors sans lire le texte, ce qui est tout l'interet d'une fleche.
+    if (label.role == Label::Role::Source) {
+        QColor fill = color;
+        fill.setAlpha(48);
+        painter.setBrush(fill);
+    }
     painter.drawPolygon(outline);
+    painter.setBrush(Qt::NoBrush);
 
     painter.setPen(color);
     drawTextMm(painter, (tip + tail) / 2.0 + QPointF(0.0, label.height * 0.35), label.name,
                label.height, Primitive::Align::Center);
+
+    // Le renvoi, sous la fleche : « → 2/A3 ». Sans lui, retrouver l'autre bout
+    // demande de feuilleter tout le dossier.
+    const auto reference = m_crossRefs.constFind(label.id());
+    if (reference != m_crossRefs.constEnd() && !reference.value().isEmpty()) {
+        const double small = label.height * 0.78;
+        // Le renvoi se pose au-dela de la queue, dans le sens de la fleche :
+        // c'est le seul cote ou il ne recouvre ni la fleche ni le fil, quelle
+        // que soit l'orientation.
+        QPointF at = tail + direction * (small * 1.4);
+        if (std::abs(direction.y()) < 0.5)
+            at += QPointF(0.0, small * 0.4); // texte horizontal : centrage vertical
+        painter.setPen(m_style.tag);
+        drawTextMm(painter, at, reference.value(), small, Primitive::Align::Center);
+    }
     painter.restore();
 }
 

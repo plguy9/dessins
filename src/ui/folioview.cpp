@@ -3,6 +3,7 @@
 #include "core/documentcommands.h"
 #include "core/wiretools.h"
 #include "render/foliopainter.h"
+#include "rules/crossref.h"
 
 #include <QInputDialog>
 #include <QKeyEvent>
@@ -38,6 +39,7 @@ FolioView::FolioView(Document *document, QWidget *parent)
 
     connect(m_document, &Document::changed, this, [this] {
         updateUnconnectedPins();
+        updateCrossReferences();
         // Une modification venue d'ailleurs deplace peut-etre ce que les
         // poignees designent : elles doivent suivre.
         if (m_draggedGrip < 0)
@@ -52,6 +54,7 @@ FolioView::FolioView(Document *document, QWidget *parent)
         Q_EMIT selectionChanged();
     });
     updateUnconnectedPins();
+    updateCrossReferences();
 }
 
 // --------------------------------------------------------------------------
@@ -982,26 +985,53 @@ void FolioView::placeJunctionAt(const QPointF &point)
                                                         tr("Poser une jonction")));
 }
 
+void FolioView::setLabelRole(Label::Role role)
+{
+    m_labelRole = role;
+    // Une fleche de signal renvoie a une autre page : lui laisser une portee
+    // locale la rendrait muette.
+    if (role != Label::Role::Plain)
+        m_labelScope = Label::Scope::Project;
+}
+
 void FolioView::placeLabelAt(const QPointF &point)
 {
     Folio *folio = m_document->currentFolio();
     if (!folio)
         return;
+
+    QString title = tr("Étiquette de potentiel");
+    QString prompt = tr("Nom du potentiel :");
+    if (m_labelRole == Label::Role::Source) {
+        title = tr("Flèche de signal — source");
+        prompt = tr("Nom de code du signal :");
+    } else if (m_labelRole == Label::Role::Destination) {
+        title = tr("Flèche de signal — destination");
+        prompt = tr("Nom de code du signal :");
+    } else if (m_labelScope == Label::Scope::Project) {
+        title = tr("Renvoi de folio");
+    }
+
     bool ok = false;
-    const QString name = QInputDialog::getText(
-            this,
-            m_labelScope == Label::Scope::Project ? tr("Renvoi de folio") : tr("Étiquette de potentiel"),
-            tr("Nom du potentiel :"), QLineEdit::Normal, QString(), &ok);
+    const QString name = QInputDialog::getText(this, title, prompt, QLineEdit::Normal,
+                                               QString(), &ok);
     if (!ok || name.trimmed().isEmpty())
         return;
 
     auto label = std::make_unique<Label>();
     label->point = point;
     label->name = name.trimmed();
-    label->scope = m_labelScope;
+    label->role = m_labelRole;
+    label->scope = m_labelRole == Label::Role::Plain ? m_labelScope : Label::Scope::Project;
+    // Une destination pointe vers le dessin, une source s'en eloigne : le
+    // sens de lecture doit correspondre au sens du signal.
+    label->direction = m_labelRole == Label::Role::Destination ? Direction::Left
+                                                               : Direction::Right;
     m_document->push(std::make_unique<AddEntityCommand>(m_document->project(), folio->id(),
                                                         std::move(label),
-                                                        tr("Poser une étiquette")));
+                                                        m_labelRole == Label::Role::Plain
+                                                                ? tr("Poser une étiquette")
+                                                                : tr("Poser une flèche de signal")));
 }
 
 void FolioView::placeTextAt(const QPointF &point)
@@ -1523,6 +1553,13 @@ void FolioView::updateUnconnectedPins()
     }
 }
 
+void FolioView::updateCrossReferences()
+{
+    // Le renvoi se deduit du dessin entier : deplacer une fleche sur un folio
+    // change ce qu'affiche celle de l'autre bout.
+    m_crossRefs = CrossReference::resolve(m_document->project(), m_document->netlist());
+}
+
 // --------------------------------------------------------------------------
 // Trace
 
@@ -1871,6 +1908,7 @@ void FolioView::paintEvent(QPaintEvent *event)
     folioPainter.setSelection(m_selection);
     folioPainter.setHighlightedEntities(m_highlight);
     folioPainter.setUnconnectedPins(m_unconnectedPins);
+    folioPainter.setCrossReferences(m_crossRefs);
     folioPainter.paint(painter, *folio, visibleSceneRect());
 
     painter.setRenderHint(QPainter::Antialiasing, true);

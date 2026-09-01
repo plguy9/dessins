@@ -14,6 +14,7 @@
 #include "document.h"
 #include "render/renderstyle.h"
 
+#include <QHash>
 #include <QSet>
 #include <QWidget>
 
@@ -38,6 +39,11 @@ public:
 
     void setLabelScope(Label::Scope scope) { m_labelScope = scope; }
     Label::Scope labelScope() const { return m_labelScope; }
+
+    // Role des renvois a venir. Une fleche de signal est inter-folios par
+    // construction : choisir un role force la portee projet.
+    void setLabelRole(Label::Role role);
+    Label::Role labelRole() const { return m_labelRole; }
 
     // Type des fils a venir. Comme dans AutoCAD Electrical, le type courant
     // s'arme une fois puis vaut pour tous les fils qu'on trace ensuite.
@@ -220,6 +226,7 @@ private:
     void paintPendingGesture(QPainter &painter) const;
 
     void updateUnconnectedPins();
+    void updateCrossReferences();
     void emitCursor();
 
     Document *m_document = nullptr;
@@ -237,6 +244,7 @@ private:
     QSet<QString> m_selection;
     QSet<QString> m_highlight;
     QVector<QPointF> m_unconnectedPins;
+    QHash<QString, QString> m_crossRefs;
 
     // Geste en cours
     enum class Drag { None, Pan, Move, Rubber, GripEdit, ZoomWindow, StretchWindow };
@@ -268,6 +276,7 @@ private:
     QString m_pendingSymbol;
     Placement m_pendingPlacement;
     Label::Scope m_labelScope = Label::Scope::Folio;
+    Label::Role m_labelRole = Label::Role::Plain;
     QString m_currentWireType = WireTypeSet::defaultId();
 
     QPointF m_cursorMm;

@@ -62,13 +62,15 @@ void junction(Folio *folio, const QPointF &at)
 }
 
 Label *label(Folio *folio, const QPointF &at, const QString &name, Direction direction,
-             Label::Scope scope = Label::Scope::Project)
+             Label::Scope scope = Label::Scope::Project,
+             Label::Role role = Label::Role::Plain)
 {
     auto l = std::make_unique<Label>();
     l->point = at;
     l->name = name;
     l->direction = direction;
     l->scope = scope;
+    l->role = role;
     auto *raw = l.get();
     folio->addEntity(std::move(l));
     return raw;
@@ -106,7 +108,11 @@ void buildPowerFolio(Project &project, Folio *folio)
 
     // Arrivee du reseau.
     for (int i = 0; i < 3; ++i) {
-        label(folio, QPointF(poles[i], 42), phases.at(i), Direction::Up);
+        // L1 alimente aussi le circuit de commande du folio 2 : c'est une
+        // fleche de signal source, elle porte le renvoi vers l'autre page.
+        const Label::Role role = i == 0 ? Label::Role::Source : Label::Role::Plain;
+        label(folio, QPointF(poles[i], 42), phases.at(i), Direction::Up,
+              Label::Scope::Project, role);
         wire(folio, { QPointF(poles[i], 42), QPointF(poles[i], 60) }, {}, phaseTypes.at(i));
     }
 
@@ -161,7 +167,9 @@ void buildControlFolio(Project &project, Folio *folio)
 
     note(folio, QPointF(35, 30), QStringLiteral("Commande 230 V — marche / arrêt"), 4.0);
 
-    label(folio, QPointF(x, 40), QStringLiteral("L1"), Direction::Up);
+    // Reprise du L1 du folio de puissance : fleche de signal destination.
+    label(folio, QPointF(x, 40), QStringLiteral("L1"), Direction::Up, Label::Scope::Project,
+          Label::Role::Destination);
     wire(folio, { QPointF(x, 40), QPointF(x, 50) }, {}, cmd);
 
     place(project, folio, QStringLiteral("iec:fuse"), QPointF(x, 60), QStringLiteral("F2"));

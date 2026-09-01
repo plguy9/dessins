@@ -99,7 +99,7 @@ illisible.
 | `junction` | Point de connexion dessiné | `at`, `diameter` |
 | `text` | Annotation libre | `text`, `placement`, `height`, `align` |
 | `graphic` | Primitive de tracé | `shape` |
-| `label` | Étiquette de potentiel ou renvoi de folio | `at`, `name`, `dir`, `scope` |
+| `label` | Étiquette de potentiel, renvoi de folio ou flèche de signal | `at`, `name`, `dir`, `scope`, `role` |
 
 ### Les liaisons multi-conducteurs
 
@@ -120,6 +120,17 @@ unique représente L1/L2/L3 + N + PE — réalisable sans réécrire le cœur.
 Deux fils qui se rejoignent apparient leurs conducteurs **par nom** quand les
 deux jeux sont nommés, **par rang** sinon : l'ordre de saisie des conducteurs
 d'un câble n'a pas à être le même des deux côtés d'une borne.
+
+### Les flèches de signal
+
+`role` vaut `source` ou `destination` sur une flèche de signal, et est absent
+sur une étiquette ordinaire. Les deux bouts portent le **même nom de code** et
+deviennent un seul potentiel. Une flèche est inter-folios par construction :
+la lecture force `scope` à `project`, un fichier qui dirait le contraire
+rendrait la flèche muette.
+
+Le renvoi affiché — « → 2/A3 », le folio et la zone de l'autre bout — n'est
+jamais écrit dans le fichier : il se déduit du dessin, comme la netlist.
 
 ### Le repérage manuel
 

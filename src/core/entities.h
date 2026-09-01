@@ -169,6 +169,14 @@ public:
         Project // renvoi de folio : fusionne a travers tout le projet
     };
 
+    // Role de renvoi, repris des fleches de signal d'AutoCAD Electrical.
+    // Une source marque l'origine d'un signal qui se poursuit ailleurs ; une
+    // destination marque sa reprise. Les deux portent le meme nom de code et
+    // sont alors le meme potentiel. Un renvoi simple ne dit pas dans quel
+    // sens va le signal — c'est utile pour un potentiel d'alimentation, qui
+    // n'a pas de sens de lecture.
+    enum class Role { Plain, Source, Destination };
+
     EntityType type() const override { return EntityType::Label; }
     QString typeTag() const override { return QStringLiteral("label"); }
     EntityPtr clone() const override;
@@ -182,11 +190,12 @@ public:
     QString name;
     Direction direction = Direction::Right;
     Scope scope = Scope::Folio;
+    Role role = Role::Plain;
     double height = 2.0;
 
-    // Un renvoi affiche la liste des folios ou le meme potentiel apparait.
-    // Rempli par l'extraction de connectivite, jamais serialise.
-    QStringList crossReferences;
+    // Une fleche de signal est par definition inter-folios : lui donner une
+    // portee locale la rendrait muette.
+    bool isSignalArrow() const { return role != Role::Plain; }
 };
 
 } // namespace dsn

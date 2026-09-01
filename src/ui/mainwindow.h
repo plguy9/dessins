@@ -47,6 +47,7 @@ private:
     void exportPdf();
     void exportDxf();
     void exportCurrentReport();
+    void placeCurrentReport();
     void printProject();
 
     // Projet

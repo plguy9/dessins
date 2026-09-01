@@ -13,6 +13,8 @@
 #include "core/snapengine.h"
 #include "renderstyle.h"
 
+#include <QFont>
+#include <QHash>
 #include <QPainter>
 #include <QSet>
 
@@ -42,6 +44,12 @@ public:
 
     // Broches libres, signalees d'une croix. Renseigne depuis la netlist.
     void setUnconnectedPins(const QVector<QPointF> &points) { m_unconnected = points; }
+
+    // Renvois de folio, par identifiant d'etiquette. Calcules hors du peintre
+    // (voir rules/crossref) : le renvoi se deduit du dessin et n'est jamais
+    // stocke, comme la netlist dont il derive.
+    void setCrossReferences(const QHash<QString, QString> &byLabel) { m_crossRefs = byLabel; }
+    void clearCrossReferences() { m_crossRefs.clear(); }
 
     // Peint le folio complet. clipMm limite le trace a une zone du document,
     // ce qui evite de parcourir tout le folio a chaque rafraichissement.
@@ -85,6 +93,11 @@ public:
     static QRectF textBoundsMm(const QPainter &painter, const QPointF &at, const QString &text,
                                double heightMm, Primitive::Align align = Primitive::Align::Left);
 
+    // Largeur reelle d'un texte, sans peintre. Les couches qui composent une
+    // mise en page — la pose d'un rapport, par exemple — vivent hors de QtGui
+    // et n'ont que des estimations ; celle-ci leur donne la vraie mesure.
+    static double textWidthMm(const QFont &base, const QString &text, double heightMm);
+
 private:
     QPen pen(const QColor &color, double width) const;
     void paintSymbol(QPainter &painter, const SymbolInstance &symbol) const;
@@ -97,6 +110,7 @@ private:
     QSet<QString> m_selection;
     QSet<QString> m_highlight;
     QVector<QPointF> m_unconnected;
+    QHash<QString, QString> m_crossRefs;
 };
 
 } // namespace dsn

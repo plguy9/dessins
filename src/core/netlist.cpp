@@ -136,7 +136,10 @@ private:
     struct LabelRecord {
         QString name;
         Label::Scope scope = Label::Scope::Folio;
+        Label::Role role = Label::Role::Plain;
         QString folioId;
+        QString entityId;
+        QPointF position;
         int node = -1;
     };
     QVector<LabelRecord> m_labels;
@@ -298,7 +301,10 @@ void NetlistBuilder::collectFolio(const Folio &folio)
         LabelRecord record;
         record.name = label->name;
         record.scope = label->scope;
+        record.role = label->role;
         record.folioId = folio.id();
+        record.entityId = label->id();
+        record.position = label->point;
         record.node = node;
         m_labels.append(record);
     }
@@ -531,6 +537,42 @@ void NetlistBuilder::assemble(Netlist &out)
             d.entityId = net.wires.first().wireId;
             m_diagnostics.append(d);
         }
+    }
+
+    // Fleches de signal orphelines. Une source sans destination est un signal
+    // qui part et ne revient nulle part : le schema se lit alors comme s'il
+    // etait complet, alors qu'il manque une page. C'est le controle que fait
+    // l'audit electrique d'AutoCAD.
+    QHash<QString, int> sources;
+    QHash<QString, int> destinations;
+    for (const LabelRecord &label : m_labels) {
+        if (label.name.isEmpty())
+            continue;
+        if (label.role == Label::Role::Source)
+            ++sources[label.name];
+        else if (label.role == Label::Role::Destination)
+            ++destinations[label.name];
+    }
+    for (const LabelRecord &label : m_labels) {
+        if (label.role == Label::Role::Plain || label.name.isEmpty())
+            continue;
+        const bool orphan = label.role == Label::Role::Source
+                ? destinations.value(label.name) == 0
+                : sources.value(label.name) == 0;
+        if (!orphan)
+            continue;
+
+        Netlist::Diagnostic d;
+        d.severity = Netlist::Diagnostic::Severity::Warning;
+        d.code = label.role == Label::Role::Source ? QStringLiteral("signal.noDestination")
+                                                   : QStringLiteral("signal.noSource");
+        d.message = label.role == Label::Role::Source
+                ? QStringLiteral("Signal « %1 » : source sans destination").arg(label.name)
+                : QStringLiteral("Signal « %1 » : destination sans source").arg(label.name);
+        d.folioId = label.folioId;
+        d.entityId = label.entityId;
+        d.position = label.position;
+        m_diagnostics.append(d);
     }
 
     out.m_diagnostics = m_diagnostics;

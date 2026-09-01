@@ -62,6 +62,15 @@ sont délibérés et documentés dans le code :
 - **ÉTIRER (STRETCH)** : `StretchEntitiesCommand`. Les sommets pris dans la
   fenêtre de capture sont figés **à la construction** de la commande ; les
   recalculer à l'annulation les chercherait dans la géométrie déjà déplacée.
+- **Flèches de signal** (`Label::Role`) — source et destination portent le
+  même nom de code et deviennent un seul potentiel. Leur renvoi
+  (« → 2/A3 ») est calculé par `rules/crossref.*` et **poussé dans le
+  peintre**, jamais stocké : il se déduit du dessin, comme la netlist.
+- **`rules/reportplacer.*`** — poser un rapport dans le dessin. La table est
+  faite d'entités ordinaires, pas d'un type « table » à part : elle se
+  déplace, se copie et s'annule comme le reste, et le peintre n'apprend rien.
+  Les largeurs de colonnes viennent de `FolioPainter::textWidthMm` quand
+  l'interface les mesure — `rules/` ne sait qu'estimer.
 - **`ReportScope`** — chaque rapport commence par la question d'AutoCAD :
   tout le projet, ou le folio actif. Un seul point de filtrage
   (`foliosInScope`), pour qu'aucun rapport ne puisse l'oublier.
@@ -150,8 +159,8 @@ La distribution se fait par la page GitHub Releases.
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 
 0. Reste du relevé AutoCAD (`docs/AUTOCAD.md`) : gestionnaire de projet
-   multi-dossiers, entrées-sorties API, palette de propriétés Ctrl+1,
-   flèches de signal source/destination, pose d'un rapport dans le dessin.
+   multi-dossiers, entrées-sorties API, éditeur de borniers, boîte
+   « Insérer/Éditer composant », catalogue fabricant.
 1. Import DXF (l'export existe : `io/dxfexport.cpp`).
 2. Unifilaires M8 : symboles de distribution + bilan de puissance
    (le modèle multi-conducteurs est prêt).

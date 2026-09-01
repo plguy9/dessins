@@ -14,6 +14,7 @@
 #include "render/pdfexport.h"
 #include "reportpanel.h"
 #include "rules/numbering.h"
+#include "rules/reportplacer.h"
 #include "symboleditor.h"
 #include "symbolpalette.h"
 #include "wiretypedialog.h"
@@ -26,9 +27,11 @@
 #include <QComboBox>
 #include <QDateEdit>
 #include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFont>
 #include <QFormLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -40,7 +43,9 @@
 #include <QPrintDialog>
 #include <QPrinter>
 #include <QPushButton>
+#include <QVBoxLayout>
 #include <QSettings>
+#include <QSpinBox>
 #include <QStatusBar>
 #include <QToolBar>
 #include <QToolButton>
@@ -390,14 +395,45 @@ void MainWindow::createActions()
     m_toolActions.first()->setChecked(true);
 
     toolMenu->addSeparator();
-    auto *crossReference = new QAction(tr("Étiquette = renvoi de folio"), this);
-    crossReference->setCheckable(true);
-    crossReference->setStatusTip(
-            tr("Un renvoi relie le même potentiel à travers tout le dossier"));
-    toolMenu->addAction(crossReference);
-    connect(crossReference, &QAction::toggled, this, [this](bool on) {
-        m_view->setLabelScope(on ? Label::Scope::Project : Label::Scope::Folio);
-    });
+
+    // Nature de l'etiquette a poser. Les fleches de signal d'AutoCAD
+    // Electrical sont des renvois orientes : la source dit ou part le signal,
+    // la destination d'ou il vient, et les deux portent le meme nom de code.
+    QMenu *labelMenu = toolMenu->addMenu(tr("&Nature de l'étiquette"));
+    auto *labelGroup = new QActionGroup(this);
+    struct LabelKind {
+        const char *label;
+        const char *hint;
+        Label::Scope scope;
+        Label::Role role;
+    };
+    const LabelKind labelKinds[] = {
+        { QT_TR_NOOP("Étiquette de &potentiel"),
+          QT_TR_NOOP("Nomme un potentiel dans son folio seulement"), Label::Scope::Folio,
+          Label::Role::Plain },
+        { QT_TR_NOOP("&Renvoi de folio"),
+          QT_TR_NOOP("Relie le même potentiel à travers tout le dossier"), Label::Scope::Project,
+          Label::Role::Plain },
+        { QT_TR_NOOP("Flèche de signal — &source"),
+          QT_TR_NOOP("Origine d'un signal qui se poursuit sur une autre page"),
+          Label::Scope::Project, Label::Role::Source },
+        { QT_TR_NOOP("Flèche de signal — &destination"),
+          QT_TR_NOOP("Reprise d'un signal venu d'une autre page"), Label::Scope::Project,
+          Label::Role::Destination },
+    };
+    for (const LabelKind &kind : labelKinds) {
+        auto *action = new QAction(tr(kind.label), this);
+        action->setCheckable(true);
+        action->setStatusTip(tr(kind.hint));
+        labelGroup->addAction(action);
+        labelMenu->addAction(action);
+        connect(action, &QAction::triggered, this, [this, kind] {
+            m_view->setLabelScope(kind.scope);
+            m_view->setLabelRole(kind.role);
+            m_view->setTool(FolioView::Tool::Label);
+        });
+    }
+    labelGroup->actions().first()->setChecked(true);
 
     connect(m_view, &FolioView::toolChanged, this, [this](FolioView::Tool tool) {
         for (QAction *action : std::as_const(m_toolActions)) {
@@ -443,9 +479,40 @@ void MainWindow::createActions()
              m_commandDock->raise();
              m_command->focusInput();
          });
-    make(viewMenu, false, G::ZoomFit, tr("&Taille réelle"), QKeySequence(Qt::CTRL | Qt::Key_1),
+    make(viewMenu, false, G::ZoomFit, tr("&Taille réelle"),
+         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_0),
          tr("Un millimètre du dessin pour un millimètre à l'écran"),
          [this] { m_view->zoomActual(); });
+    viewMenu->addSeparator();
+
+    // Raccourcis de palettes d'AutoCAD : Ctrl+1 les proprietes, Ctrl+3 les
+    // palettes d'outils, Ctrl+4 le gestionnaire de jeu de feuilles. Ce sont
+    // les trois que tout dessinateur a dans les doigts.
+    struct PaletteShortcut {
+        const char *label;
+        const char *dock;
+        Qt::Key key;
+        const char *hint;
+    };
+    const PaletteShortcut palettes[] = {
+        { QT_TR_NOOP("&Propriétés"), "dock.properties", Qt::Key_1,
+          QT_TR_NOOP("Ouvrir la palette des propriétés de la sélection") },
+        { QT_TR_NOOP("Palette de &symboles"), "dock.symbols", Qt::Key_3,
+          QT_TR_NOOP("Ouvrir la bibliothèque de symboles") },
+        { QT_TR_NOOP("Navigateur de &folios"), "dock.folios", Qt::Key_4,
+          QT_TR_NOOP("Ouvrir la liste des pages du dossier") },
+    };
+    for (const PaletteShortcut &palette : palettes) {
+        const QString name = QString::fromLatin1(palette.dock);
+        make(viewMenu, false, G::Palette, tr(palette.label),
+             QKeySequence(Qt::CTRL | palette.key), tr(palette.hint), [this, name] {
+                 if (auto *dock = findChild<QDockWidget *>(name)) {
+                     dock->show();
+                     dock->raise();
+                     dock->setFocus();
+                 }
+             });
+    }
     viewMenu->addSeparator();
 
     auto addToggle = [&](QMenu *menu, bool onToolBar, G glyph, const QString &text, bool checked,
@@ -502,6 +569,9 @@ void MainWindow::createActions()
     make(projectMenu, false, G::Wire, tr("&Types de fils…"), QKeySequence(),
          tr("Couleur, section, calque et style de chaque type de fil"),
          &MainWindow::editWireTypes);
+    make(projectMenu, false, G::Reports, tr("&Poser le rapport dans le dessin…"), QKeySequence(),
+         tr("Insère le rapport affiché sous forme de table sur le folio actif"),
+         &MainWindow::placeCurrentReport);
     make(projectMenu, true, G::Renumber, tr("&Repérage automatique"),
          QKeySequence(Qt::CTRL | Qt::Key_R),
          tr("Désigner les appareils et repérer les fils"), &MainWindow::renumberAll);
@@ -773,7 +843,27 @@ void MainWindow::registerCommands()
     simple(QStringLiteral("JONCTION"), { QStringLiteral("J") }, tr("Poser une jonction"),
            [this] { m_view->setTool(FolioView::Tool::Junction); });
     simple(QStringLiteral("ETIQUETTE"), { QStringLiteral("ET") }, tr("Nommer un potentiel"),
-           [this] { m_view->setTool(FolioView::Tool::Label); });
+           [this] {
+               m_view->setLabelScope(Label::Scope::Folio);
+               m_view->setLabelRole(Label::Role::Plain);
+               m_view->setTool(FolioView::Tool::Label);
+           });
+    simple(QStringLiteral("RENVOI"), { QStringLiteral("RV") },
+           tr("Poser un renvoi de folio"), [this] {
+               m_view->setLabelScope(Label::Scope::Project);
+               m_view->setLabelRole(Label::Role::Plain);
+               m_view->setTool(FolioView::Tool::Label);
+           });
+    simple(QStringLiteral("SOURCE"), { QStringLiteral("SO") },
+           tr("Poser une flèche de signal source"), [this] {
+               m_view->setLabelRole(Label::Role::Source);
+               m_view->setTool(FolioView::Tool::Label);
+           });
+    simple(QStringLiteral("DESTINATION"), { QStringLiteral("DE") },
+           tr("Poser une flèche de signal destination"), [this] {
+               m_view->setLabelRole(Label::Role::Destination);
+               m_view->setTool(FolioView::Tool::Label);
+           });
     simple(QStringLiteral("TEXTE"), { QStringLiteral("T"), QStringLiteral("DT") },
            tr("Annoter le folio"), [this] { m_view->setTool(FolioView::Tool::Text); });
     simple(QStringLiteral("INSERER"), { QStringLiteral("I") },
@@ -830,6 +920,9 @@ void MainWindow::registerCommands()
     simple(QStringLiteral("ETIRER"), { QStringLiteral("ETI") },
            tr("Étirer les sommets pris dans une fenêtre de capture"),
            [this] { m_view->beginStretch(); });
+    simple(QStringLiteral("POSERRAPPORT"), { QStringLiteral("PRA") },
+           tr("Poser le rapport affiché dans le dessin"),
+           [this] { placeCurrentReport(); });
     simple(QStringLiteral("TYPEFIL"), { QStringLiteral("TF") },
            tr("Gérer les types de fils"), [this] { editWireTypes(); });
     simple(QStringLiteral("POTENTIEL"), { QStringLiteral("PT") },
@@ -1365,6 +1458,127 @@ void MainWindow::exportCurrentReport()
         return;
     }
     statusBar()->showMessage(tr("Rapport exporté : %1").arg(QFileInfo(path).fileName()), 5000);
+}
+
+void MainWindow::placeCurrentReport()
+{
+    const ReportTable table = m_reports->currentTable();
+    Folio *folio = m_document->currentFolio();
+    if (!folio || table.rows.isEmpty()) {
+        statusBar()->showMessage(tr("Aucun rapport à poser"), 4000);
+        return;
+    }
+
+    // Reglages de la table, comme le « Table Generation Setup » d'AutoCAD.
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Poser le rapport dans le dessin"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout;
+    layout->addLayout(form);
+
+    auto *x = new QDoubleSpinBox(&dialog);
+    auto *y = new QDoubleSpinBox(&dialog);
+    for (QDoubleSpinBox *box : { x, y }) {
+        box->setRange(0.0, 2000.0);
+        box->setDecimals(1);
+        box->setSuffix(tr(" mm"));
+    }
+    const QRectF frame = folio->frameRect();
+    x->setValue(frame.left() + 5.0);
+    y->setValue(frame.top() + 5.0);
+    form->addRow(tr("Coin supérieur gauche — X"), x);
+    form->addRow(tr("Coin supérieur gauche — Y"), y);
+
+    auto *height = new QDoubleSpinBox(&dialog);
+    height->setRange(1.0, 10.0);
+    height->setDecimals(1);
+    height->setValue(2.0);
+    height->setSuffix(tr(" mm"));
+    form->addRow(tr("Hauteur de texte"), height);
+
+    auto *rows = new QSpinBox(&dialog);
+    rows->setRange(0, 500);
+    rows->setValue(0);
+    rows->setSpecialValueText(tr("tout d'un bloc"));
+    rows->setToolTip(tr("Découpe le rapport en sections posées côte à côte, "
+                        "comme le fait AutoCAD quand il ne tient pas en hauteur."));
+    form->addRow(tr("Lignes par section"), rows);
+
+    auto *summary = new QLabel(&dialog);
+    summary->setWordWrap(true);
+    layout->addWidget(summary);
+
+    // Largeurs mesurees avec la police reelle du rendu. Le module des
+    // rapports ne peut qu'estimer la largeur d'un texte ; ici on la connait,
+    // et une colonne trop etroite rendrait la table illisible une fois posee.
+    QFont font;
+    font.setFamily(m_view->style().fontFamily);
+    auto spec = [&] {
+        ReportTableSpec s;
+        s.origin = QPointF(x->value(), y->value());
+        s.textHeight = height->value();
+        s.rowHeight = height->value() * 2.5;
+        s.rowsPerSection = rows->value();
+
+        QVector<double> widths;
+        for (int c = 0; c < table.headers.size(); ++c) {
+            double w = FolioPainter::textWidthMm(font, table.headers.at(c), s.textHeight);
+            for (const QStringList &row : table.rows) {
+                if (c < row.size())
+                    w = std::max(w, FolioPainter::textWidthMm(font, row.at(c), s.textHeight));
+            }
+            widths.append(w + s.padding * 2.0);
+        }
+        s.explicitWidths = widths;
+        return s;
+    };
+    auto refresh = [&] {
+        const QRectF box = ReportPlacer::bounds(table, spec());
+        const bool fits = folio->frameRect().contains(box);
+        summary->setText(fits
+                ? tr("%n ligne(s) — table de %1 × %2 mm.", "", table.rowCount())
+                          .arg(box.width(), 0, 'f', 0)
+                          .arg(box.height(), 0, 'f', 0)
+                : tr("%n ligne(s) — table de %1 × %2 mm : elle déborde du cadre. "
+                     "Réduire la hauteur de texte ou découper en sections.", "",
+                     table.rowCount())
+                          .arg(box.width(), 0, 'f', 0)
+                          .arg(box.height(), 0, 'f', 0));
+    };
+    connect(x, &QDoubleSpinBox::valueChanged, &dialog, refresh);
+    connect(y, &QDoubleSpinBox::valueChanged, &dialog, refresh);
+    connect(height, &QDoubleSpinBox::valueChanged, &dialog, refresh);
+    connect(rows, &QSpinBox::valueChanged, &dialog, refresh);
+    refresh();
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                         &dialog);
+    buttons->button(QDialogButtonBox::Ok)->setText(tr("Poser"));
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    auto entities = ReportPlacer::build(table, spec());
+    if (entities.empty())
+        return;
+    const int count = int(entities.size());
+
+    // Une table pose des centaines d'entites : elle doit se defaire d'une
+    // seule annulation, sinon la retirer devient impraticable.
+    m_document->pushMacro(tr("Poser un rapport"), [&] {
+        for (auto &entity : entities) {
+            m_document->push(std::make_unique<AddEntityCommand>(m_document->project(),
+                                                                folio->id(), std::move(entity),
+                                                                tr("Poser un rapport")));
+        }
+    });
+    m_view->update();
+    statusBar()->showMessage(tr("Rapport posé : %1 (%n élément(s)).", "", count)
+                                     .arg(table.title),
+                             6000);
 }
 
 void MainWindow::printProject()

@@ -3,6 +3,7 @@
 #include "core/documentcommands.h"
 #include "core/wiretype.h"
 #include "render/foliopainter.h"
+#include "rules/crossref.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -442,6 +443,28 @@ void PropertiesPanel::buildLabelForm(QFormLayout *form, Label *label)
                [index](Label *l) { l->scope = Label::Scope(index); });
     });
 
+    // Role de renvoi, repris des fleches de signal d'AutoCAD Electrical.
+    auto *role = new QComboBox(parent);
+    role->addItem(tr("Étiquette ou renvoi simple"), int(Label::Role::Plain));
+    role->addItem(tr("Flèche de signal — source"), int(Label::Role::Source));
+    role->addItem(tr("Flèche de signal — destination"), int(Label::Role::Destination));
+    role->setCurrentIndex(int(label->role));
+    form->addRow(tr("Rôle"), role);
+    connect(role, &QComboBox::currentIndexChanged, this, [this, label, scope](int index) {
+        const auto chosen = Label::Role(index);
+        modify(label, tr("Modifier le rôle"), [chosen](Label *l) {
+            l->role = chosen;
+            // Une fleche de signal renvoie a une autre page : la portee suit,
+            // sinon la fleche pointerait vers rien.
+            if (chosen != Label::Role::Plain)
+                l->scope = Label::Scope::Project;
+        });
+        if (chosen != Label::Role::Plain) {
+            QSignalBlocker blocker(scope);
+            scope->setCurrentIndex(int(Label::Scope::Project));
+        }
+    });
+
     auto *direction = new QComboBox(parent);
     direction->addItem(tr("Droite"), int(Direction::Right));
     direction->addItem(tr("Bas"), int(Direction::Down));
@@ -454,21 +477,13 @@ void PropertiesPanel::buildLabelForm(QFormLayout *form, Label *label)
         modify(label, tr("Modifier le sens"), [value](Label *l) { l->direction = value; });
     });
 
-    const Netlist &netlist = m_document->netlist();
-    QStringList folios;
-    for (const Netlist::Net &net : netlist.nets()) {
-        if (net.labels.contains(label->name))
-            folios = net.folioIds;
-    }
-    if (folios.size() > 1) {
-        QStringList numbers;
-        for (const QString &id : folios) {
-            if (const Folio *f = m_document->project().folio(id))
-                numbers.append(f->number);
-        }
-        numbers.sort();
-        form->addRow(tr("Renvois"), readOnly(numbers.join(QStringLiteral(", ")), parent));
-    }
+    // Le renvoi tel qu'il est dessine : « → 2/A3 ». C'est la meme source que
+    // celle du peintre, donc l'inspecteur ne peut pas contredire le dessin.
+    const QHash<QString, QString> refs =
+            CrossReference::resolve(m_document->project(), m_document->netlist());
+    const QString reference = refs.value(label->id());
+    if (!reference.isEmpty())
+        form->addRow(tr("Renvois"), readOnly(reference, parent));
 }
 
 void PropertiesPanel::buildJunctionForm(QFormLayout *form, Junction *junction)

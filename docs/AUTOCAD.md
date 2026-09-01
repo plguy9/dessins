@@ -37,9 +37,18 @@ Les décomptes « déjà en place » de chaque section datent du relevé. Ce qui
 | Portée d'un rapport, `Report Scope` | `ReportScope` : tout le projet ou le folio actif, appliquée uniformément aux sept rapports. Un potentiel qui traverse la page reste retenu — une liaison qui sort du folio est une liaison de ce folio. |
 | Étirer, `STRETCH` | `StretchEntitiesCommand` + `FolioView::beginStretch`, commande `ETIRER` / `ETI`, touche <kbd>E</kbd>. Fenêtre de capture, point de base, point d'arrivée. Les sommets pris suivent, les autres restent ; une entité entièrement prise se déplace. Les sommets sont figés à la construction de la commande, sinon le rétablissement ne rendrait pas le même dessin. |
 
+**Lot 4 — 2026-09-01**
+
+| Repris d'AutoCAD | Chez nous |
+|---|---|
+| Flèche de signal source / destination, `Source Arrow` / `Destination Arrow` | `Label::Role`, commandes `SOURCE` / `SO` et `DESTINATION` / `DE`. Les deux portent le même nom de code et deviennent un seul potentiel. La source est pleine, la destination creuse : le sens du signal se lit sans lire le texte. |
+| Renvoi automatique porté par la flèche | `rules/crossref.*` : chaque flèche affiche « → 2/A3 » — le folio et la zone de l'autre bout. Jamais stocké, recalculé du dessin comme la netlist dont il dérive, et poussé dans le peintre comme les broches en l'air. |
+| Audit des flèches orphelines (`Electrical Audit`) | Diagnostics `signal.noDestination` et `signal.noSource`. Un signal qui part et ne revient nulle part se lit comme un schéma complet alors qu'il manque une page. |
+| Poser un rapport dans le dessin, `Put on Drawing` / `Table Generation Setup` | `rules/reportplacer.*`, commande `POSERRAPPORT` / `PRA`. La table est faite de traits et de textes ordinaires : elle se déplace, se copie et s'annule comme le reste du dessin. Découpe en sections côte à côte quand elle ne tient pas en hauteur, et prévient si elle déborde du cadre. |
+| Raccourcis de palettes | Ctrl+1 propriétés, Ctrl+3 palette de symboles, Ctrl+4 navigateur de folios, Ctrl+9 ligne de commande. |
+
 Reste notamment : gestionnaire de projet multi-dossiers, entrées-sorties API,
-palette de propriétés (Ctrl+1), flèches de signal source/destination, éditeur
-de borniers, pose d'un rapport dans le dessin.
+éditeur de borniers, boîte « Insérer/Éditer composant », catalogue fabricant.
 
 ## Accrochage aux objets (Object Snap / OSNAP) d'AutoCAD — modes d'accrochage, marqueurs AutoSnap et reglages associes
 31 fonctionnalités relevées — **23 déjà en place**, 8 restantes.

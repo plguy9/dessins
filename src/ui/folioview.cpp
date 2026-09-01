@@ -1,5 +1,7 @@
 #include "folioview.h"
 
+#include "theme.h"
+
 #include "core/componenttools.h"
 #include "core/coordinateentry.h"
 #include "core/documentcommands.h"
@@ -2388,15 +2390,21 @@ void FolioView::paintEmptyHint(QPainter &painter, const Folio &folio) const
     QFont title = font();
     title.setPointSizeF(font().pointSizeF() * 1.45);
     title.setWeight(QFont::DemiBold);
-    QFont keys = font();
-    keys.setWeight(QFont::DemiBold);
+    // Les touches sont dessinees comme des touches — encadrees, a chasse
+    // fixe, comme dans la palette de commandes. Une meme chose se montre
+    // partout de la meme facon, sinon il faut l'apprendre deux fois.
+    const QFont keys = Theme::monoFont(font().pointSizeF() * 0.9);
 
     QColor strong = m_style.text;
     strong.setAlpha(200);
     QColor faint = m_style.text;
     faint.setAlpha(135);
-    QColor keyColor = m_style.tag;
-    keyColor.setAlpha(220);
+    QColor keyColor = m_style.text;
+    keyColor.setAlpha(190);
+    QColor capBorder = m_style.text;
+    capBorder.setAlpha(60);
+    QColor capFill = m_style.pageBackground;
+    capFill.setAlpha(150);
 
     // Par ou commencer, avec les touches. Un folio vide est le premier ecran
     // que voit un nouveau venu : lui dire « c'est vide » sans lui dire quoi
@@ -2405,18 +2413,22 @@ void FolioView::paintEmptyHint(QPainter &painter, const Folio &folio) const
         QString key;
         QString what;
     };
+    // Seulement de vraies touches : une case dessinee comme une touche doit
+    // se taper. Le geste a la souris est dit en toutes lettres au-dessus.
     const QVector<Step> steps{
         { tr("W"), tr("tracer un fil — puis tapez la cote : 50, @10,5") },
-        { tr("clic dans la palette"), tr("poser un symbole") },
-        { tr("Ctrl + Maj + P"), tr("chercher n'importe quelle commande") },
-        { tr("F1"), tr("la liste de tout ce que le logiciel sait faire") },
+        { tr("F11"), tr("retenir un point et suivre son alignement") },
+        { tr("Ctrl + Maj + P"), tr("chercher n'importe quelle commande par son nom") },
+        { tr("F9"), tr("numéroter tous les fils du dossier d'un coup") },
     };
+    const QString lead = tr("Posez un appareil en cliquant dans la palette, à gauche.");
 
     const QFontMetricsF keyMetrics(keys);
     const QFontMetricsF textMetrics(font());
+    constexpr double kCapPadding = 9.0;
     double keyWidth = 0.0;
     for (const Step &step : steps)
-        keyWidth = std::max(keyWidth, keyMetrics.horizontalAdvance(step.key));
+        keyWidth = std::max(keyWidth, keyMetrics.horizontalAdvance(step.key) + 2 * kCapPadding);
 
     const double lineHeight = textMetrics.height() + 9.0;
     // Le bloc se pose au-dessus du cartouche, qui occupe le bas de la feuille :
@@ -2435,13 +2447,23 @@ void FolioView::paintEmptyHint(QPainter &painter, const Folio &folio) const
     painter.setPen(strong);
     painter.drawText(QRectF(0, top, width(), 30), Qt::AlignHCenter | Qt::AlignTop,
                      tr("Ce folio est vide — par où commencer"));
+    painter.setFont(font());
+    painter.setPen(faint);
+    painter.drawText(QRectF(0, top + 32.0, width(), 22), Qt::AlignHCenter | Qt::AlignTop, lead);
 
-    double y = top + 40.0;
+    double y = top + 74.0;
+    painter.setRenderHint(QPainter::Antialiasing, true);
     for (const Step &step : steps) {
         painter.setFont(keys);
+        const double capWidth = keyMetrics.horizontalAdvance(step.key) + 2 * kCapPadding;
+        const QRectF cap(left + keyWidth - capWidth, y + (lineHeight - 21.0) / 2.0,
+                         capWidth, 21.0);
+        painter.setPen(QPen(capBorder, 1.0));
+        painter.setBrush(capFill);
+        painter.drawRoundedRect(cap, 4.0, 4.0);
+        painter.setBrush(Qt::NoBrush);
         painter.setPen(keyColor);
-        painter.drawText(QRectF(left, y, keyWidth, lineHeight),
-                         Qt::AlignRight | Qt::AlignVCenter, step.key);
+        painter.drawText(cap, Qt::AlignCenter, step.key);
         painter.setFont(font());
         painter.setPen(faint);
         painter.drawText(QRectF(left + keyWidth + gap, y, widest, lineHeight),

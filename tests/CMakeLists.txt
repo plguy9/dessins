@@ -6,6 +6,7 @@ if(NOT Catch2_FOUND)
 endif()
 
 add_executable(dessins_tests
+    main.cpp
     test_geometry.cpp
     test_entities.cpp
     test_document.cpp
@@ -13,11 +14,12 @@ add_executable(dessins_tests
     test_commands.cpp
     test_io.cpp
     test_rules.cpp
+    test_render.cpp
 )
 
 target_link_libraries(dessins_tests PRIVATE
-    dessins_core dessins_symbols dessins_rules dessins_io
-    Catch2::Catch2WithMain)
+    dessins_core dessins_symbols dessins_rules dessins_io dessins_render
+    Catch2::Catch2)
 
 include(Catch)
 catch_discover_tests(dessins_tests)

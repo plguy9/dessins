@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QHash>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QSet>
 #include <QTextStream>
@@ -498,8 +499,14 @@ int DxfExport::writeProject(const QString &directory, const QString &baseName,
     for (int i = 0; i < int(folios.size()); ++i) {
         const Folio *folio = folios[std::size_t(i)];
         const QString tag = folio->number.isEmpty() ? QString::number(i + 1) : folio->number;
+        // sanitizeName sert aux noms de bloc DXF, pas aux noms de fichier :
+        // elle prefixerait « 1 » en « B1 ». Ici il suffit d'ecarter les
+        // caracteres interdits par le systeme de fichiers.
+        QString safeTag = tag;
+        safeTag.replace(QRegularExpression(QStringLiteral("[\\\\/:*?\"<>|]")),
+                        QStringLiteral("_"));
         const QString path = QDir(directory).filePath(
-                QStringLiteral("%1-%2.dxf").arg(baseName, sanitizeName(tag)));
+                QStringLiteral("%1-%2.dxf").arg(baseName, safeTag));
         QString error;
         if (writeFolio(path, project, *folio, options, &error))
             ++written;

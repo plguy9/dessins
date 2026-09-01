@@ -291,6 +291,40 @@ TEST_CASE("Un appareil multi-blocs ne compte qu'une fois dans la nomenclature",
     CHECK(bom.first().quantity == 1);
 }
 
+TEST_CASE("Un appareil multi-blocs sans reference ne compte qu'une fois",
+          "[rules][reports]")
+{
+    Project project = makeProject(2);
+
+    // Le contacteur de puissance est sur le folio 1, sa bobine sur le folio 2 :
+    // c'est un seul article a commander, et c'est le bloc principal qui doit
+    // le nommer.
+    SymbolDefinition puissance = twoPinDevice(QStringLiteral("contactor-power"),
+                                              QStringLiteral("K"));
+    puissance.name = QStringLiteral("Contacteur de puissance");
+    project.library.insert(puissance);
+    SymbolDefinition bobine = twoPinDevice(QStringLiteral("coil"), QStringLiteral("K"));
+    bobine.name = QStringLiteral("Bobine");
+    project.library.insert(bobine);
+
+    auto *bloc0 = placeSymbol(project, project.folioAt(0),
+                              QStringLiteral("iec:contactor-power"), QPointF(60, 50));
+    bloc0->deviceGroup = QStringLiteral("KM1");
+    auto *bloc1 = placeSymbol(project, project.folioAt(1), QStringLiteral("iec:coil"),
+                              QPointF(60, 50));
+    bloc1->deviceGroup = QStringLiteral("KM1");
+    bloc1->blockIndex = 1;
+
+    Numbering::designateDevices(project, Profile::iec());
+    const QVector<BomLine> bom = Reports::billOfMaterials(project);
+
+    REQUIRE(bom.size() == 1);
+    CHECK(bom.first().quantity == 1);
+    CHECK(bom.first().name == QStringLiteral("Contacteur de puissance"));
+    // L'appareil doit etre cite sur les deux folios ou il apparait.
+    CHECK(bom.first().folios == QStringList{ QStringLiteral("1"), QStringLiteral("2") });
+}
+
 TEST_CASE("Le tri de la nomenclature est naturel", "[rules][reports]")
 {
     Project project = makeProject();

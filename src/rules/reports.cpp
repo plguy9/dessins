@@ -59,44 +59,98 @@ bool naturalLess(const QString &a, const QString &b)
 
 QVector<BomLine> Reports::billOfMaterials(const Project &project)
 {
-    QHash<QString, BomLine> byArticle;
+    // Un appareil multi-blocs — un contacteur, sa bobine, ses contacts
+    // auxiliaires — est un seul article a commander. Le regroupement se fait
+    // donc par appareil, pas par symbole pose : sans cela un contacteur
+    // apparait trois fois dans la nomenclature.
+    struct Device {
+        const SymbolInstance *representative = nullptr;
+        int representativeBlock = 0;
+        int representativeFolio = 0;
+        QString designation;
+        QString value;
+        QString manufacturer;
+        QString partNumber;
+        QStringList folios;
+    };
 
-    for (const Folio *folio : project.folios()) {
+    QHash<QString, Device> devices;
+    QStringList order;
+
+    const auto folios = project.folios();
+    for (int folioIndex = 0; folioIndex < int(folios.size()); ++folioIndex) {
+        const Folio *folio = folios[std::size_t(folioIndex)];
+        const QString tag = folio->number.isEmpty() ? folio->title : folio->number;
+
         for (const SymbolInstance *symbol : folio->entitiesOfType<SymbolInstance>()) {
-            const SymbolDefinition *definition = project.library.definition(symbol->definitionId);
+            const QString key = symbol->deviceGroup.isEmpty()
+                    ? QStringLiteral("#") + symbol->id()
+                    : QStringLiteral("g:") + symbol->deviceGroup;
 
-            const QString manufacturer = symbol->fields.value(QStringLiteral("manufacturer"));
-            const QString partNumber = symbol->fields.value(QStringLiteral("partNumber"));
-            const QString value = symbol->fields.value(QStringLiteral("value"));
-
-            // L'article est la reference fabricant quand elle existe : c'est
-            // elle qu'on commande. A defaut, le couple symbole + valeur.
-            const QString article = !partNumber.isEmpty()
-                    ? partNumber
-                    : symbol->definitionId + QLatin1Char('|') + value;
-
-            BomLine &line = byArticle[article];
-            if (line.quantity == 0) {
-                line.article = partNumber.isEmpty() ? symbol->definitionId : partNumber;
-                line.name = definition ? definition->name : symbol->definitionId;
-                line.value = value;
-                line.manufacturer = manufacturer;
-                line.partNumber = partNumber;
+            auto it = devices.find(key);
+            if (it == devices.end()) {
+                Device device;
+                device.representative = symbol;
+                device.representativeBlock = symbol->blockIndex;
+                device.representativeFolio = folioIndex;
+                it = devices.insert(key, device);
+                order.append(key);
+            } else if (symbol->blockIndex < it->representativeBlock
+                       || (symbol->blockIndex == it->representativeBlock
+                           && folioIndex < it->representativeFolio)) {
+                // Le bloc principal represente l'appareil : a defaut d'indice
+                // explicite, c'est le premier pose qui fait foi.
+                it->representative = symbol;
+                it->representativeBlock = symbol->blockIndex;
+                it->representativeFolio = folioIndex;
             }
 
-            const QString designation = symbol->designation();
-            // Un appareil multi-blocs ne compte qu'une fois : la bobine et ses
-            // contacts auxiliaires sont un seul article a commander.
-            if (!designation.isEmpty() && line.designations.contains(designation))
-                continue;
-
-            if (!designation.isEmpty())
-                line.designations.append(designation);
-            const QString tag = folio->number.isEmpty() ? folio->title : folio->number;
-            if (!tag.isEmpty() && !line.folios.contains(tag))
-                line.folios.append(tag);
-            ++line.quantity;
+            // Les caracteristiques peuvent etre renseignees sur n'importe quel
+            // bloc de l'appareil.
+            if (it->designation.isEmpty())
+                it->designation = symbol->designation();
+            if (it->partNumber.isEmpty())
+                it->partNumber = symbol->fields.value(QStringLiteral("partNumber"));
+            if (it->manufacturer.isEmpty())
+                it->manufacturer = symbol->fields.value(QStringLiteral("manufacturer"));
+            if (it->value.isEmpty())
+                it->value = symbol->fields.value(QStringLiteral("value"));
+            if (!tag.isEmpty() && !it->folios.contains(tag))
+                it->folios.append(tag);
         }
+    }
+
+    QHash<QString, BomLine> byArticle;
+    for (const QString &key : std::as_const(order)) {
+        const Device &device = devices.value(key);
+        if (!device.representative)
+            continue;
+        const SymbolDefinition *definition =
+                project.library.definition(device.representative->definitionId);
+
+        // L'article est la reference fabricant quand elle existe : c'est elle
+        // qu'on commande. A defaut, le couple symbole principal + valeur.
+        const QString article = !device.partNumber.isEmpty()
+                ? device.partNumber
+                : device.representative->definitionId + QLatin1Char('|') + device.value;
+
+        BomLine &line = byArticle[article];
+        if (line.quantity == 0) {
+            line.article = device.partNumber.isEmpty()
+                    ? device.representative->definitionId
+                    : device.partNumber;
+            line.name = definition ? definition->name : device.representative->definitionId;
+            line.value = device.value;
+            line.manufacturer = device.manufacturer;
+            line.partNumber = device.partNumber;
+        }
+        if (!device.designation.isEmpty() && !line.designations.contains(device.designation))
+            line.designations.append(device.designation);
+        for (const QString &tag : device.folios) {
+            if (!line.folios.contains(tag))
+                line.folios.append(tag);
+        }
+        ++line.quantity;
     }
 
     QVector<BomLine> lines;

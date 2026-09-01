@@ -2,10 +2,20 @@ name: Publication
 
 # Declenche par un tag v* — c'est ce qui produit la page de telechargement —
 # et manuellement, pour eprouver la chaine sans consommer de tag.
+# Deux declencheurs : un tag v* pousse normalement, ou un declenchement
+# manuel avec le nom du tag a publier. Le second existe parce que la session
+# de developpement ne peut pousser que sa branche de travail : c'est alors le
+# jeton du workflow, qui a les droits d'ecriture, qui cree le tag et la
+# Release. Sans nom fourni, le declenchement manuel reste un essai a blanc.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      publier:
+        description: "Nom du tag à publier (ex. v0.1.0) — vide = essai sans publication"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -74,9 +84,19 @@ jobs:
 
       - name: Nommer l'archive
         shell: pwsh
+        env:
+          PUBLIER: ${{ inputs.publier }}
         run: |
           $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME }
+                     elseif ($env:PUBLIER) { $env:PUBLIER }
                      else { 'dev-' + $env:GITHUB_SHA.Substring(0, 7) }
+          # Le tag doit correspondre a project() dans CMakeLists : v0.1.0 pour
+          # 0.1.0. Publier un binaire qui annonce une autre version selle la
+          # confusion pour toujours.
+          if ($version -like 'v*') {
+            $cmake = (Select-String -Path CMakeLists.txt -Pattern 'VERSION (\d+\.\d+\.\d+)').Matches[0].Groups[1].Value
+            if ("v$cmake" -ne $version) { throw "tag $version mais project(VERSION $cmake)" }
+          }
           Rename-Item dessins-windows-x64.zip "dessins-$version-windows-x64.zip"
 
       - uses: actions/upload-artifact@v4
@@ -85,15 +105,17 @@ jobs:
           path: dessins-*-windows-x64.zip
 
       - name: Publier la Release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.publier != '')
         uses: softprops/action-gh-release@v2
         with:
-          name: Dessins ${{ github.ref_name }}
+          name: Dessins ${{ github.ref_type == 'tag' && github.ref_name || inputs.publier }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.publier }}
+          target_commitish: ${{ github.sha }}
           files: dessins-*-windows-x64.zip
           body: |
             ## Installation
 
-            1. Téléchargez `dessins-${{ github.ref_name }}-windows-x64.zip` ci-dessous ;
+            1. Téléchargez `dessins-${{ github.ref_type == 'tag' && github.ref_name || inputs.publier }}-windows-x64.zip` ci-dessous ;
             2. décompressez-le où vous voulez ;
             3. double-cliquez `dessins.exe`. Rien d'autre à installer.
 

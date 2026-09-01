@@ -37,13 +37,13 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          ./build/bin/dessins_sample /tmp/exemple
+          ./build/bin/arcus_sample /tmp/exemple
           test -s /tmp/exemple/demarrage-direct.dsn
           test -s /tmp/exemple/demarrage-direct.pdf
           test -s /tmp/exemple/nomenclature.csv
           test -s /tmp/exemple/demarrage-direct-1.dxf
           # Une fenetre qui ne se monte plus passe inapercue a la compilation.
-          ./build/bin/dessins --screenshot=/tmp/exemple/fenetre.png \
+          ./build/bin/arcus --screenshot=/tmp/exemple/fenetre.png \
                               /tmp/exemple/demarrage-direct.dsn
           test -s /tmp/exemple/fenetre.png
 

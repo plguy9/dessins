@@ -70,7 +70,9 @@ int libraryFromJson(const QJsonObject &object, SymbolLibrary &library)
 
 QString DsnFile::fileFilter()
 {
-    return QStringLiteral("Projet Dessins (*.dsn)");
+    // L'extension de la marque pour ce qu'on ecrit, l'ancienne pour ce qu'on
+    // relit : les dossiers deja enregistres doivent continuer de s'ouvrir.
+    return QStringLiteral("Projet Arcus (*.arcus *.dsn)");
 }
 
 QByteArray DsnFile::toArchive(const Project &project)
@@ -85,7 +87,7 @@ QByteArray DsnFile::toArchive(const Project &project)
     meta[QStringLiteral("container")] = kContainerVersion;
     meta[QStringLiteral("document")] = Project::kFormatVersion;
     meta[QStringLiteral("producer")] =
-            QStringLiteral("Dessins ") + QCoreApplication::applicationVersion();
+            QStringLiteral("Arcus ") + QCoreApplication::applicationVersion();
     meta[QStringLiteral("created")] = QDateTime::currentDateTime().toString(Qt::ISODate);
     writer.addFile(QLatin1String(kMetaEntry), encode(meta));
 
@@ -107,7 +109,7 @@ DsnLoadResult DsnFile::fromArchive(const QByteArray &archive, Project &project)
         const QJsonObject document = decode(archive, &error);
         if (document.isEmpty()) {
             result.error = error.isEmpty()
-                    ? QStringLiteral("Le fichier n'est ni une archive Dessins ni un JSON valide.")
+                    ? QStringLiteral("Le fichier n'est ni une archive Arcus ni un JSON valide.")
                     : error;
             return result;
         }

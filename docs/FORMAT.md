@@ -6,8 +6,8 @@ le document, la version du format est inscrite dedans, et un fichier abîmé
 reste inspectable avec un simple outil d'archivage plutôt que perdu.
 
 ```
-demarrage-direct.dsn
-├── mimetype        application/x-dessins-project
+demarrage-direct.arcus
+├── mimetype        application/x-arcus-project
 ├── meta.json       versions du conteneur et du document, logiciel producteur
 ├── project.json    le projet : informations, profil, folios, entités
 └── library.json    les définitions de symboles utilisées par le projet
@@ -47,7 +47,7 @@ ne pas s'ouvrir du tout.
     "title": "Démarrage direct d'un moteur",
     "reference": "2026-014",
     "client": "Atelier mécanique Beauport",
-    "author": "Dessins",
+    "author": "Arcus",
     "revision": "A",
     "date": "2026-09-01"
   },

@@ -12,8 +12,8 @@ int main(int argc, char *argv[])
 {
     qputenv("QT_QPA_PLATFORM", "offscreen");
     QApplication app(argc, argv);
-    QCoreApplication::setOrganizationName(QStringLiteral("Dessins"));
-    QCoreApplication::setApplicationName(QStringLiteral("DessinsTests"));
+    QCoreApplication::setOrganizationName(QStringLiteral("Arcus"));
+    QCoreApplication::setApplicationName(QStringLiteral("ArcusTests"));
     QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0"));
     return Catch::Session().run(argc, argv);
 }

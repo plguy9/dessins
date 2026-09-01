@@ -429,8 +429,12 @@ void Icons::invalidate() { g_iconCache.clear(); }
 
 QIcon Icons::appIcon()
 {
-    // La marque : un folio clair sur fond sombre, traverse par un fil bleu
-    // coude avec sa jonction — le geste fondateur du logiciel.
+    // La marque Arcus : un arc de courant qui saute entre deux bornes.
+    //
+    // L'arc est ce que le mot dit, et c'est aussi ce qu'un schema decrit —
+    // le chemin que prend le courant d'un point a un autre. Le trace est
+    // blanc a coeur et bleu au halo, comme un vrai arc electrique : c'est la
+    // seule licence prise sur la geometrie, et elle est physique.
     QIcon icon;
     for (const int size : { 16, 32, 48, 64, 128, 256 }) {
         QPixmap pixmap(size, size);
@@ -440,29 +444,48 @@ QIcon Icons::appIcon()
         const double s = size / 24.0;
         p.scale(s, s);
 
+        // Fond sombre : un arc ne se voit que contre la nuit.
         p.setPen(Qt::NoPen);
-        p.setBrush(QColor(0x1A, 0x20, 0x23));
-        p.drawRoundedRect(QRectF(0.6, 0.6, 22.8, 22.8), 5.0, 5.0);
+        p.setBrush(QColor(0x11, 0x17, 0x1C));
+        p.drawRoundedRect(QRectF(0.6, 0.6, 22.8, 22.8), 5.4, 5.4);
 
-        p.setBrush(QColor(0xF2, 0xF4, 0xF3));
-        p.drawRoundedRect(QRectF(4.0, 3.2, 16.0, 17.6), 1.4, 1.4);
+        // L'arc et ses bornes forment un ensemble centre sur le carre : pose
+        // sur l'axe median, il laisserait toute la moitie basse vide.
+        const QPointF left(5.4, 15.2);
+        const QPointF right(18.6, 15.2);
 
-        const QColor blue(0x0E, 0x64, 0xA8);
-        QPen wire(blue);
-        wire.setWidthF(1.8);
-        wire.setCapStyle(Qt::RoundCap);
-        wire.setJoinStyle(Qt::RoundJoin);
-        p.setPen(wire);
-        p.setBrush(Qt::NoBrush);
-        p.drawPolyline(QPolygonF({ { 7.0, 7.2 }, { 12.0, 7.2 }, { 12.0, 12.8 },
-                                   { 17.0, 12.8 } }));
-        p.drawLine(QPointF(12.0, 12.8), QPointF(12.0, 17.6));
+        // Les deux bornes, et leurs amorces de conducteur : sans elles l'arc
+        // flotte, et c'est justement d'un point a un autre qu'il saute.
+        QPen lead(QColor(0x7E, 0x8E, 0x99));
+        lead.setWidthF(1.5);
+        lead.setCapStyle(Qt::RoundCap);
+        p.setPen(lead);
+        p.drawLine(QPointF(2.8, 15.2), left);
+        p.drawLine(right, QPointF(21.2, 15.2));
 
+        // Le halo, puis le coeur : deux passes du meme arc, la seconde plus
+        // fine et plus claire. C'est ce qui lui donne sa chaleur a 16 pixels.
+        QPainterPath arc;
+        arc.moveTo(left);
+        arc.cubicTo(QPointF(8.0, 4.6), QPointF(16.0, 4.6), right);
+
+        QPen halo(QColor(0x18, 0xA0, 0xE0));
+        halo.setWidthF(3.4);
+        halo.setCapStyle(Qt::RoundCap);
+        p.setPen(halo);
+        p.drawPath(arc);
+
+        QPen core(QColor(0xEC, 0xF7, 0xFF));
+        core.setWidthF(1.3);
+        core.setCapStyle(Qt::RoundCap);
+        p.setPen(core);
+        p.drawPath(arc);
+
+        // Les bornes par-dessus : elles ferment le trajet.
         p.setPen(Qt::NoPen);
-        p.setBrush(blue);
-        p.drawEllipse(QPointF(12.0, 12.8), 1.6, 1.6);
-        p.drawEllipse(QPointF(7.0, 7.2), 1.25, 1.25);
-        p.drawEllipse(QPointF(17.0, 12.8), 1.25, 1.25);
+        p.setBrush(QColor(0xEC, 0xF7, 0xFF));
+        p.drawEllipse(left, 1.6, 1.6);
+        p.drawEllipse(right, 1.6, 1.6);
         p.end();
         icon.addPixmap(pixmap);
     }

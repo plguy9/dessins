@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 {
     qputenv("QT_QPA_PLATFORM", "offscreen");
     QGuiApplication app(argc, argv);
-    QCoreApplication::setApplicationName(QStringLiteral("Dessins"));
+    QCoreApplication::setApplicationName(QStringLiteral("Arcus"));
     QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0"));
 
     const QString outputDir = argc > 1 ? QString::fromLocal8Bit(argv[1])
@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
     project.info.title = QStringLiteral("Démarrage direct d'un moteur");
     project.info.client = QStringLiteral("Atelier mécanique Beauport");
     project.info.reference = QStringLiteral("2026-014");
-    project.info.author = QStringLiteral("Dessins");
+    project.info.author = QStringLiteral("Arcus");
     project.info.revision = QStringLiteral("A");
     project.profileId = QStringLiteral("iec");
 
@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
     }
 
     QString error;
-    const QString dsnPath = QDir(outputDir).filePath(QStringLiteral("demarrage-direct.dsn"));
+    const QString dsnPath = QDir(outputDir).filePath(QStringLiteral("demarrage-direct.arcus"));
     if (!DsnFile::save(dsnPath, project, &error)) {
         qWarning() << "ecriture .dsn :" << error;
         return 1;

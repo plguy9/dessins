@@ -14,13 +14,13 @@ if(NOT ZLIB_FOUND)
     add_library(ZLIB::ZLIB ALIAS zlibstatic)
 endif()
 
-add_library(dessins_io STATIC
+add_library(arcus_io STATIC
     zip.h        zip.cpp
     dsnfile.h    dsnfile.cpp
     csvexport.h  csvexport.cpp
     dxfexport.h  dxfexport.cpp
 )
 
-target_link_libraries(dessins_io PUBLIC dessins_core dessins_rules PRIVATE ZLIB::ZLIB)
-set_target_properties(dessins_io PROPERTIES POSITION_INDEPENDENT_CODE ON)
-add_library(Dessins::Io ALIAS dessins_io)
+target_link_libraries(arcus_io PUBLIC arcus_core arcus_rules PRIVATE ZLIB::ZLIB)
+set_target_properties(arcus_io PROPERTIES POSITION_INDEPENDENT_CODE ON)
+add_library(Arcus::Io ALIAS arcus_io)

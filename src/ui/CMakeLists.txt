@@ -1,4 +1,4 @@
-add_library(dessins_ui STATIC
+add_library(arcus_ui STATIC
     theme.h           theme.cpp
     document.h        document.cpp
     folioview.h       folioview.cpp
@@ -20,8 +20,8 @@ add_library(dessins_ui STATIC
     mainwindow.h      mainwindow.cpp
 )
 
-set_target_properties(dessins_ui PROPERTIES AUTOMOC ON POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(dessins_ui PUBLIC
-    dessins_core dessins_symbols dessins_rules dessins_io dessins_render
+set_target_properties(arcus_ui PROPERTIES AUTOMOC ON POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(arcus_ui PUBLIC
+    arcus_core arcus_symbols arcus_rules arcus_io arcus_render
     Qt6::Widgets Qt6::PrintSupport)
-add_library(Dessins::Ui ALIAS dessins_ui)
+add_library(Arcus::Ui ALIAS arcus_ui)

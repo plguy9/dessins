@@ -21,7 +21,7 @@ struct PdfExportOptions {
     QList<int> folioIndices;
     int resolution = 600; // points par pouce
     QString title;
-    QString creator = QStringLiteral("Dessins");
+    QString creator = QStringLiteral("Arcus");
 };
 
 class PdfExport

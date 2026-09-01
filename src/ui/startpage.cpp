@@ -42,7 +42,7 @@ const Tip kTips[] = {
 StartPage::StartPage(const QStringList &recentFiles, const QString &examplePath, QWidget *parent)
     : QDialog(parent)
 {
-    setWindowTitle(tr("Dessins"));
+    setWindowTitle(tr("Arcus"));
     resize(760, 520);
 
     const ThemeColors &c = Theme::colors();
@@ -51,12 +51,24 @@ StartPage::StartPage(const QStringList &recentFiles, const QString &examplePath,
     layout->setContentsMargins(28, 24, 28, 20);
     layout->setSpacing(18);
 
-    auto *title = new QLabel(tr("<h2 style='margin:0'>Dessins</h2>"
-                                "<p style='margin:2px 0 0 0; color:%1'>"
-                                "Schémas électriques — commande, puissance, unifilaires</p>")
+    // La marque : le sigle a cote du mot, comme sur un cartouche. C'est le
+    // seul endroit du logiciel ou elle s'affiche en grand, et c'est le
+    // premier ecran que voit un nouveau venu.
+    auto *header = new QHBoxLayout;
+    header->setSpacing(14);
+    auto *mark = new QLabel(this);
+    mark->setPixmap(Icons::appIcon().pixmap(52, 52));
+    mark->setFixedSize(52, 52);
+    header->addWidget(mark, 0, Qt::AlignTop);
+
+    auto *title = new QLabel(tr("<div style='font-size:26px; font-weight:600; "
+                                "letter-spacing:3px'>ARCUS</div>"
+                                "<div style='margin-top:3px; color:%1'>"
+                                "Schémas électriques — commande, puissance, unifilaires</div>")
                                      .arg(c.textMuted.name()),
                              this);
-    layout->addWidget(title);
+    header->addWidget(title, 1);
+    layout->addLayout(header);
 
     auto *columns = new QGridLayout;
     columns->setHorizontalSpacing(24);

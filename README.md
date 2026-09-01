@@ -1,4 +1,4 @@
-# Dessins
+# Arcus
 
 Logiciel de dessin électrique — schémas de commande et de puissance,
 unifilaires de distribution, circuits électroniques. Application de bureau
@@ -10,7 +10,7 @@ native, Qt 6 et C++20.
 
 Les versions publiées sont sur la page
 [**Releases**](https://github.com/plguy9/dessins/releases) : un `.zip`
-Windows à décompresser, puis double-cliquer `dessins.exe` — Qt est embarqué,
+Windows à décompresser, puis double-cliquer `arcus.exe` — Qt est embarqué,
 rien d'autre à installer. Le binaire n'étant pas signé, Windows affiche un
 avertissement SmartScreen au premier lancement : *Informations
 complémentaires → Exécuter quand même*.
@@ -66,16 +66,16 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure
 
-./build/bin/dessins                       # l'application
-./build/bin/dessins_sample examples       # régénère le projet d'exemple
+./build/bin/arcus                       # l'application
+./build/bin/arcus_sample examples       # régénère le projet d'exemple
 ```
 
-Options : `-DDESSINS_BUILD_GUI=OFF` compile le cœur seul (utile en intégration
-continue sans Qt Widgets), `-DDESSINS_BUILD_TESTS=OFF` retire les tests.
+Options : `-DARCUS_BUILD_GUI=OFF` compile le cœur seul (utile en intégration
+continue sans Qt Widgets), `-DARCUS_BUILD_TESTS=OFF` retire les tests.
 
 ## Le projet d'exemple
 
-`./build/bin/dessins_sample examples` produit un démarrage direct de moteur en
+`./build/bin/arcus_sample examples` produit un démarrage direct de moteur en
 deux folios, puis exporte le tout. C'est aussi une vérification de bout en
 bout : bibliothèque, connectivité, repérage, rapports, rendu et les trois
 formats de sortie en une seule passe.

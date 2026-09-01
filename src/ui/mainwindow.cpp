@@ -677,8 +677,8 @@ void MainWindow::createActions()
     helpMenu->addSeparator();
     make(helpMenu, false, G::Info, tr("À &propos"), QKeySequence(), QString(), [this] {
         QMessageBox::about(
-                this, tr("À propos de Dessins"),
-                tr("<h3>Dessins %1</h3>"
+                this, tr("À propos de Arcus"),
+                tr("<h3>Arcus %1</h3>"
                    "<p>Logiciel de dessin électrique — schémas de commande et de puissance, "
                    "unifilaires de distribution, circuits électroniques.</p>"
                    "<p>Symboles CEI 60617 et ANSI, repérage automatique des fils et des "
@@ -1412,7 +1412,7 @@ void MainWindow::updateTitle()
     const QString folio = m_document->currentFolio()
             ? tr(" — folio %1").arg(m_document->currentFolio()->number)
             : QString();
-    setWindowTitle(QStringLiteral("%1%2%3 — Dessins")
+    setWindowTitle(QStringLiteral("%1%2%3 — Arcus")
                            .arg(name, folio,
                                 m_document->isModified() ? QStringLiteral(" *") : QString()));
 }
@@ -1477,12 +1477,16 @@ QString MainWindow::examplePath() const
 {
     // Le projet d'exemple voyage a cote de l'executable dans le zip Windows,
     // et dans l'arbre de compilation en developpement : on cherche les deux.
-    const QStringList candidates{
-        QCoreApplication::applicationDirPath() + QStringLiteral("/exemples/demarrage-direct.dsn"),
-        QCoreApplication::applicationDirPath() + QStringLiteral("/examples/demarrage-direct.dsn"),
-        QCoreApplication::applicationDirPath()
-                + QStringLiteral("/../../examples/demarrage-direct.dsn"),
-    };
+    QStringList candidates;
+    for (const QString &folder : { QStringLiteral("/exemples/"), QStringLiteral("/examples/"),
+                                   QStringLiteral("/../../examples/") }) {
+        // Les deux extensions : un zip installe avant le changement de nom
+        // pose encore un .dsn a cote du binaire.
+        for (const QString &extension : { QStringLiteral(".arcus"), QStringLiteral(".dsn") }) {
+            candidates.append(QCoreApplication::applicationDirPath() + folder
+                              + QStringLiteral("demarrage-direct") + extension);
+        }
+    }
     for (const QString &candidate : candidates) {
         if (QFileInfo::exists(candidate))
             return QFileInfo(candidate).absoluteFilePath();
@@ -1561,7 +1565,7 @@ bool MainWindow::maybeSave()
     if (!m_document->isModified())
         return true;
     const auto answer = QMessageBox::warning(
-            this, tr("Dessins"),
+            this, tr("Arcus"),
             tr("Le projet « %1 » comporte des modifications non enregistrées.")
                     .arg(m_document->displayName()),
             QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);

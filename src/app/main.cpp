@@ -14,10 +14,10 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    QCoreApplication::setOrganizationName(QStringLiteral("Dessins"));
-    QCoreApplication::setApplicationName(QStringLiteral("Dessins"));
-    QCoreApplication::setApplicationVersion(QStringLiteral(DESSINS_VERSION));
-    QApplication::setApplicationDisplayName(QStringLiteral("Dessins"));
+    QCoreApplication::setOrganizationName(QStringLiteral("Arcus"));
+    QCoreApplication::setApplicationName(QStringLiteral("Arcus"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(ARCUS_VERSION));
+    QApplication::setApplicationDisplayName(QStringLiteral("Arcus"));
 
     // Les boutons standards des boites de dialogue, les boites de fichiers et
     // les messages d'erreur viennent de Qt, pas de nous. Sans ses traductions,

@@ -1,4 +1,4 @@
-# Dessins — guide pour les sessions Claude
+# Arcus — guide pour les sessions Claude
 
 Logiciel de dessin électrique (Qt 6, C++20). Le brief d'architecture est dans
 `docs/BRIEF.md`, le format de fichier dans `docs/FORMAT.md` — les lire avant
@@ -10,13 +10,13 @@ toute décision structurante.
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure        # exige QT_QPA_PLATFORM=offscreen hors CI
-./build/bin/dessins_sample examples               # vérification de bout en bout + projet d'exemple
-QT_QPA_PLATFORM=offscreen ./build/bin/dessins --screenshot=/tmp/fenetre.png examples/demarrage-direct.dsn
+./build/bin/arcus_sample examples               # vérification de bout en bout + projet d'exemple
+QT_QPA_PLATFORM=offscreen ./build/bin/arcus --screenshot=/tmp/fenetre.png examples/demarrage-direct.arcus
 ```
 
 Dépendances Debian/Ubuntu : `qt6-base-dev qt6-svg-dev libgl1-mesa-dev cmake
 ninja-build zlib1g-dev catch2`. Sans Catch2, les tests sont désactivés sans
-erreur. `-DDESSINS_BUILD_GUI=OFF` compile le cœur seul.
+erreur. `-DARCUS_BUILD_GUI=OFF` compile le cœur seul.
 
 ## Architecture — la règle qui gouverne tout
 
@@ -222,8 +222,8 @@ La distribution se fait par la page GitHub Releases.
    jeton d'Actions qui crée le tag et la Release), ou pousser un tag `v*`
    depuis un poste qui en a le droit ;
 3. le workflow compile MSVC + Qt 6.8, déploie avec `windeployqt`, déroule
-   le zip dans un dossier vierge et prouve que `dessins.exe` y démarre,
-   puis publie `dessins-vX.Y.Z-windows-x64.zip` en Release.
+   le zip dans un dossier vierge et prouve que `arcus.exe` y démarre,
+   puis publie `arcus-vX.Y.Z-windows-x64.zip` en Release.
    Sans `publier`, le déclenchement manuel est un essai à blanc.
 
 ## Prochaines étapes envisagées (dans l'ordre de valeur)

@@ -1,7 +1,7 @@
 # Le coeur ne connait que Qt6::Core : ni widgets, ni GUI. C'est ce qui le rend
 # testable sans ecran en integration continue et reutilisable tel quel par un
 # futur outil en ligne de commande.
-add_library(dessins_core STATIC
+add_library(arcus_core STATIC
     geometry.h        geometry.cpp
     primitive.h       primitive.cpp
     jsonutils.h       jsonutils.cpp
@@ -21,8 +21,8 @@ add_library(dessins_core STATIC
     documentcommands.h documentcommands.cpp
 )
 
-target_link_libraries(dessins_core PUBLIC Qt6::Core)
-target_include_directories(dessins_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
-set_target_properties(dessins_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(arcus_core PUBLIC Qt6::Core)
+target_include_directories(arcus_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+set_target_properties(arcus_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-add_library(Dessins::Core ALIAS dessins_core)
+add_library(Arcus::Core ALIAS arcus_core)

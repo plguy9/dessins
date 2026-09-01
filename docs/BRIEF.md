@@ -1,4 +1,4 @@
-# Dessins — brief d'architecture
+# Arcus — brief d'architecture
 
 Logiciel de dessin électrique. Qt 6 / C++20, application de bureau native.
 

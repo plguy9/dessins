@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(Dessins
-    VERSION 0.3.0
+project(Arcus
+    VERSION 0.4.0
     DESCRIPTION "Logiciel de dessin electrique"
     LANGUAGES CXX)
 
@@ -17,11 +17,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-option(DESSINS_BUILD_TESTS "Construire la suite de tests" ON)
-option(DESSINS_BUILD_GUI   "Construire l'application graphique" ON)
+option(ARCUS_BUILD_TESTS "Construire la suite de tests" ON)
+option(ARCUS_BUILD_GUI   "Construire l'application graphique" ON)
 
 find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui)
-if(DESSINS_BUILD_GUI)
+if(ARCUS_BUILD_GUI)
     find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets PrintSupport)
 endif()
 
@@ -38,16 +38,16 @@ add_subdirectory(src/symbols)
 add_subdirectory(src/rules)
 add_subdirectory(src/render)
 add_subdirectory(src/io)
-if(DESSINS_BUILD_GUI)
+if(ARCUS_BUILD_GUI)
     add_subdirectory(src/ui)
     add_subdirectory(src/app)
 endif()
 
 add_subdirectory(tools/sample)
 
-if(DESSINS_BUILD_TESTS)
+if(ARCUS_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
 
-message(STATUS "Dessins ${PROJECT_VERSION} — Qt ${Qt6_VERSION} — ${CMAKE_BUILD_TYPE}")
+message(STATUS "Arcus ${PROJECT_VERSION} — Qt ${Qt6_VERSION} — ${CMAKE_BUILD_TYPE}")

@@ -38,7 +38,7 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configurer
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DDESSINS_BUILD_TESTS=OFF
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DARCUS_BUILD_TESTS=OFF
 
       - name: Compiler
         run: cmake --build build
@@ -46,26 +46,26 @@ jobs:
       - name: Assembler le dossier autonome
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force dist/dessins | Out-Null
-          Copy-Item build/bin/dessins.exe dist/dessins/
-          Copy-Item build/bin/dessins_sample.exe dist/dessins/
+          New-Item -ItemType Directory -Force dist/arcus | Out-Null
+          Copy-Item build/bin/arcus.exe dist/arcus/
+          Copy-Item build/bin/arcus_sample.exe dist/arcus/
           # Les traductions francaises de Qt sont necessaires : sans elles, les
           # boutons standards et les boites de fichiers s'affichent en anglais
           # au milieu d'une interface entierement francaise.
-          windeployqt --release --compiler-runtime --translations fr dist/dessins/dessins.exe
+          windeployqt --release --compiler-runtime --translations fr dist/arcus/arcus.exe
           # La plateforme « offscreen » sert a la verification sans ecran
           # ci-dessous ; windeployqt ne deploie que qwindows.
-          Copy-Item "$env:QT_ROOT_DIR/plugins/platforms/qoffscreen.dll" dist/dessins/platforms/
-          Copy-Item docs/FORMAT.md dist/dessins/
+          Copy-Item "$env:QT_ROOT_DIR/plugins/platforms/qoffscreen.dll" dist/arcus/platforms/
+          Copy-Item docs/FORMAT.md dist/arcus/
 
       - name: Générer le projet d'exemple
         shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          & dist/dessins/dessins_sample.exe dist/dessins/exemples
-          if ($LASTEXITCODE -ne 0) { throw "dessins_sample a echoue" }
-          Remove-Item dist/dessins/dessins_sample.exe
+          & dist/arcus/arcus_sample.exe dist/arcus/exemples
+          if ($LASTEXITCODE -ne 0) { throw "arcus_sample a echoue" }
+          Remove-Item dist/arcus/arcus_sample.exe
 
       # Le zip est deroule dans un dossier vierge et le logiciel lance depuis
       # la : c'est la seule preuve qu'il demarre hors de l'arbre de
@@ -75,12 +75,12 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          Compress-Archive -Path dist/dessins -DestinationPath dessins-windows-x64.zip
+          Compress-Archive -Path dist/arcus -DestinationPath arcus-windows-x64.zip
           $verif = Join-Path $env:RUNNER_TEMP verif
-          Expand-Archive dessins-windows-x64.zip -DestinationPath $verif
-          $exe = Join-Path $verif "dessins/dessins.exe"
+          Expand-Archive arcus-windows-x64.zip -DestinationPath $verif
+          $exe = Join-Path $verif "arcus/arcus.exe"
           $capture = Join-Path $verif "capture.png"
-          $exemple = Join-Path $verif "dessins/exemples/demarrage-direct.dsn"
+          $exemple = Join-Path $verif "arcus/exemples/demarrage-direct.arcus"
           Start-Process -FilePath $exe -ArgumentList "--screenshot=$capture", $exemple -Wait -NoNewWindow
           if (!(Test-Path $capture)) { throw "la fenetre ne s'est pas montee hors de l'arbre" }
           Write-Host "Verification reussie : capture de $((Get-Item $capture).Length) octets"
@@ -100,27 +100,27 @@ jobs:
             $cmake = (Select-String -Path CMakeLists.txt -Pattern 'VERSION (\d+\.\d+\.\d+)').Matches[0].Groups[1].Value
             if ("v$cmake" -ne $version) { throw "tag $version mais project(VERSION $cmake)" }
           }
-          Rename-Item dessins-windows-x64.zip "dessins-$version-windows-x64.zip"
+          Rename-Item arcus-windows-x64.zip "arcus-$version-windows-x64.zip"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dessins-windows-x64
-          path: dessins-*-windows-x64.zip
+          name: arcus-windows-x64
+          path: arcus-*-windows-x64.zip
 
       - name: Publier la Release
         if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.publier != '')
         uses: softprops/action-gh-release@v2
         with:
-          name: Dessins ${{ github.ref_type == 'tag' && github.ref_name || inputs.publier }}
+          name: Arcus ${{ github.ref_type == 'tag' && github.ref_name || inputs.publier }}
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.publier }}
           target_commitish: ${{ github.sha }}
-          files: dessins-*-windows-x64.zip
+          files: arcus-*-windows-x64.zip
           body: |
             ## Installation
 
-            1. Téléchargez `dessins-${{ github.ref_type == 'tag' && github.ref_name || inputs.publier }}-windows-x64.zip` ci-dessous ;
+            1. Téléchargez `arcus-${{ github.ref_type == 'tag' && github.ref_name || inputs.publier }}-windows-x64.zip` ci-dessous ;
             2. décompressez-le où vous voulez ;
-            3. double-cliquez `dessins.exe`. Rien d'autre à installer.
+            3. double-cliquez `arcus.exe`. Rien d'autre à installer.
 
             Un projet d'exemple (démarrage direct d'un moteur, deux folios)
             est fourni dans le dossier `exemples`.

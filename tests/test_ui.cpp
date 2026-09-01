@@ -3,6 +3,7 @@
 
 #include <QApplication>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QPixmap>
 #include <QLineEdit>
 #include <QTabWidget>
@@ -1604,29 +1605,5 @@ TEST_CASE("La palette expose tout ce que les menus offrent", "[ui][palette]")
     for (const auto &entry : entries)
         CHECK(entry.run != nullptr);
 
-    palette->close();
-}
-
-TEST_CASE("CAPTURE accueil", "[capture]")
-{
-    StartPage page({ QStringLiteral("/home/user/dessins/examples/demarrage-direct.dsn"),
-                     QStringLiteral("/home/user/projets/armoire-pompage.dsn") },
-                   QStringLiteral("/home/user/dessins/examples/demarrage-direct.dsn"));
-    page.resize(760, 520);
-    page.show();
-    page.grab().save(QStringLiteral("/tmp/claude-0/-home-user-dessins/7ac7db7c-e06c-5c11-9aca-566e8859755c/scratchpad/accueil.png"));
-}
-
-TEST_CASE("CAPTURE palette", "[capture]")
-{
-    MainWindow window;
-    window.resize(1400, 900);
-    window.show();
-    QMetaObject::invokeMethod(&window, "openCommandPalette");
-    auto *palette = window.findChild<CommandPalette *>();
-    REQUIRE(palette);
-    if (auto *search = palette->findChild<QLineEdit *>())
-        search->setText(QStringLiteral("bor"));
-    palette->grab().save(QStringLiteral("/tmp/claude-0/-home-user-dessins/7ac7db7c-e06c-5c11-9aca-566e8859755c/scratchpad/palette.png"));
     palette->close();
 }

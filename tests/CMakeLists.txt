@@ -15,6 +15,7 @@ add_executable(arcus_tests
     test_io.cpp
     test_rules.cpp
     test_plc.cpp
+    test_audit.cpp
     test_render.cpp
     test_snap.cpp
     test_wiretools.cpp

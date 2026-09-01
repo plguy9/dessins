@@ -120,6 +120,13 @@ sont délibérés et documentés dans le code :
   3. **Un seul compteur de points.** `%B` (octet) et `%b` (bit) sont des
      vues dérivées de `%P`, pas une seconde numérotation : c'est ce qui fait
      que Siemens groupe par 8 et Omron par 16 sans code séparé.
+- **`rules/audit.*`** — l'audit électrique. Deux règles : **tout constat
+  porte un lieu** (folio, entité, zone du cadre) — un message qui dit
+  « repère en double » sans dire lequel ni où coûte plus de temps qu'il n'en
+  fait gagner ; et **rien n'est vérifié deux fois** — les constats que la
+  netlist produit en se construisant sont repris tels quels, jamais
+  recalculés. `humanize()` réaccentue au passage les messages du cœur, qui
+  s'écrivent sans accents par convention.
 - **`ReportScope`** — chaque rapport commence par la question d'AutoCAD :
   tout le projet, ou le folio actif. Un seul point de filtrage
   (`foliosInScope`), pour qu'aucun rapport ne puisse l'oublier.
@@ -286,7 +293,8 @@ La distribution se fait par la page GitHub Releases.
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 
 0. Reste du relevé AutoCAD (`docs/AUTOCAD.md`) : gestionnaire de projet
-   multi-dossiers, audit électrique, configuration des colonnes de rapport.
+   multi-dossiers, configuration des colonnes de rapport, métadonnées de
+   folio (Description 1/2/3) et rapport de liste de dessins.
 1. Import DXF (l'export existe : `io/dxfexport.cpp`).
 2. Unifilaires M8 : symboles de distribution + bilan de puissance
    (le modèle multi-conducteurs est prêt).

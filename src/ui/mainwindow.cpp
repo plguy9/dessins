@@ -21,6 +21,7 @@
 #include "symbolpalette.h"
 #include "componentdialog.h"
 #include "surferdialog.h"
+#include "auditdialog.h"
 #include "plcdialog.h"
 #include "terminalstripdialog.h"
 #include "wiretypedialog.h"
@@ -637,8 +638,8 @@ void MainWindow::createActions()
     make(projectMenu, true, G::Renumber, tr("&Repérage automatique"),
          QKeySequence(Qt::CTRL | Qt::Key_R),
          tr("Désigner les appareils et repérer les fils"), &MainWindow::renumberAll);
-    make(projectMenu, true, G::Check, tr("&Contrôler le schéma"), QKeySequence(Qt::Key_F8),
-         tr("Chercher les fils en l'air et les symboles manquants"),
+    make(projectMenu, true, G::Check, tr("&Audit électrique…"), QKeySequence(Qt::Key_F8),
+         tr("Tous les contrôles de cohérence du dossier, et le saut vers ce qui cloche"),
          &MainWindow::checkSchematic);
     projectMenu->addSeparator();
 
@@ -1305,8 +1306,9 @@ void MainWindow::registerCommands()
     // ---- metier -----------------------------------------------------------
     simple(QStringLiteral("REPERAGE"), { QStringLiteral("RN"), QStringLiteral("RENUM") },
            tr("Repérage automatique des fils et des appareils"), [this] { renumberAll(); });
-    simple(QStringLiteral("CONTROLE"), { QStringLiteral("VERIF"), QStringLiteral("AUDIT") },
-           tr("Contrôler le schéma"), [this] { checkSchematic(); });
+    simple(QStringLiteral("AUDIT"), { QStringLiteral("CONTROLE"), QStringLiteral("VERIF") },
+           tr("Audit électrique : tous les contrôles de cohérence du dossier"),
+           [this] { checkSchematic(); });
     simple(QStringLiteral("RAPPORTS"), { QStringLiteral("NOMENCLATURE"), QStringLiteral("BOM") },
            tr("Afficher les rapports"), [this] {
                if (auto *dock = findChild<QDockWidget *>(QStringLiteral("dock.reports"))) {
@@ -2129,27 +2131,18 @@ void MainWindow::setProfile(const QString &profileId)
 
 void MainWindow::checkSchematic()
 {
-    const Netlist &netlist = m_document->netlist();
+    // Une boite de message tronquee a vingt lignes constatait sans emmener :
+    // on ne corrige pas un schema en lisant une liste, on le corrige en
+    // allant sur le folio. D'ou une vraie fenetre, avec le saut vers le
+    // dessin fautif comme commande principale.
     m_reports->refresh();
-
-    const auto &diagnostics = netlist.diagnostics();
-    if (diagnostics.isEmpty()) {
-        QMessageBox::information(this, tr("Contrôle du schéma"),
-                                 tr("Aucune anomalie détectée sur %n potentiel(s).", "",
-                                    netlist.netCount()));
-        return;
-    }
-
-    QStringList lines;
-    for (const auto &d : diagnostics) {
-        const Folio *folio = m_document->project().folio(d.folioId);
-        lines.append(QStringLiteral("• %1%2")
-                             .arg(d.message,
-                                  folio ? tr(" (folio %1)").arg(folio->number) : QString()));
-    }
-    QMessageBox::warning(this, tr("Contrôle du schéma"),
-                         tr("%n anomalie(s) :\n\n", "", int(diagnostics.size()))
-                                 + lines.mid(0, 20).join(QStringLiteral("\n")));
+    AuditDialog dialog(m_document, m_plc, this);
+    connect(&dialog, &AuditDialog::locateRequested, this, &MainWindow::locate);
+    dialog.exec();
+    statusBar()->showMessage(dialog.findingCount() == 0
+                                     ? tr("Audit : aucune anomalie")
+                                     : tr("Audit : %n constat(s)", "", dialog.findingCount()),
+                             6000);
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)

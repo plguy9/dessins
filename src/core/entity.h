@@ -1,0 +1,55 @@
+// Base commune a tout ce qui vit dans un folio. La hierarchie reste volontairement
+// plate : six types d'entites suffisent a decrire un schema electrique complet.
+#pragma once
+
+#include "geometry.h"
+
+#include <QJsonObject>
+#include <QString>
+
+#include <memory>
+
+namespace dsn {
+
+enum class EntityType { Symbol, Wire, Junction, Text, Graphic, Label };
+
+class Entity
+{
+public:
+    Entity();
+    explicit Entity(QString id);
+    virtual ~Entity();
+
+    Entity(const Entity &) = default;
+    Entity &operator=(const Entity &) = default;
+
+    virtual EntityType type() const = 0;
+    virtual QString typeTag() const = 0;
+    virtual std::unique_ptr<Entity> clone() const = 0;
+    virtual QRectF boundingBox() const = 0;
+    virtual void translate(const QPointF &delta) = 0;
+
+    virtual QJsonObject toJson() const;
+    virtual bool readJson(const QJsonObject &object);
+
+    const QString &id() const noexcept { return m_id; }
+    void setId(QString id) { m_id = std::move(id); }
+
+    bool isLocked() const noexcept { return m_locked; }
+    void setLocked(bool locked) { m_locked = locked; }
+
+protected:
+    QString m_id;
+    bool m_locked = false;
+};
+
+using EntityPtr = std::unique_ptr<Entity>;
+
+// Fabrique utilisee par le chargement de fichier. Renvoie nullptr sur une
+// balise inconnue : un document produit par une version plus recente perd
+// l'entite plutot que de refuser de s'ouvrir.
+EntityPtr createEntity(const QString &typeTag);
+
+QString newId();
+
+} // namespace dsn

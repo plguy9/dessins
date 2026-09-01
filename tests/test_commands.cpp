@@ -1,0 +1,219 @@
+#include <catch2/catch_test_macros.hpp>
+
+#include "core/documentcommands.h"
+#include "testhelpers.h"
+
+using namespace dsn;
+using namespace test;
+
+TEST_CASE("Ajout puis annulation laissent le folio intact", "[command]")
+{
+    Project project;
+    Folio *folio = project.addFolio();
+    CommandStack stack;
+
+    auto wire = std::make_unique<Wire>();
+    wire->points = { QPointF(0, 0), QPointF(10, 0) };
+    const QString id = wire->id();
+
+    stack.push(std::make_unique<AddEntityCommand>(project, folio->id(), std::move(wire)));
+    CHECK(folio->entityCount() == 1);
+
+    stack.undo();
+    CHECK(folio->entityCount() == 0);
+
+    stack.redo();
+    CHECK(folio->entityCount() == 1);
+    CHECK(folio->entity(id) != nullptr);
+}
+
+TEST_CASE("La suppression restaure l'entite a son rang", "[command]")
+{
+    Project project;
+    Folio *folio = project.addFolio();
+    CommandStack stack;
+
+    drawWire(folio, { QPointF(0, 0), QPointF(10, 0) });
+    Wire *middle = drawWire(folio, { QPointF(0, 10), QPointF(10, 10) });
+    drawWire(folio, { QPointF(0, 20), QPointF(10, 20) });
+    const QString id = middle->id();
+
+    stack.push(std::make_unique<RemoveEntityCommand>(project, folio->id(), id));
+    CHECK(folio->entityCount() == 2);
+
+    stack.undo();
+    REQUIRE(folio->entityCount() == 3);
+    // Le rang compte : l'ordre de trace decide de ce qui passe au-dessus.
+    CHECK(folio->indexOfEntity(id) == 1);
+}
+
+TEST_CASE("Les deplacements successifs fusionnent en une seule annulation", "[command]")
+{
+    Project project;
+    Folio *folio = project.addFolio();
+    CommandStack stack;
+
+    Wire *wire = drawWire(folio, { QPointF(0, 0), QPointF(10, 0) });
+    const QStringList ids{ wire->id() };
+
+    // Un glisser a la souris produit une commande par evenement ; l'utilisateur
+    // n'en attend qu'une seule dans l'historique.
+    for (int i = 0; i < 5; ++i)
+        stack.push(std::make_unique<MoveEntitiesCommand>(project, folio->id(), ids, QPointF(2, 0)));
+
+    CHECK(stack.count() == 1);
+    CHECK(wire->start() == QPointF(10, 0));
+
+    stack.undo();
+    CHECK(wire->start() == QPointF(0, 0));
+}
+
+TEST_CASE("La fin d'un geste coupe la chaine de fusion", "[command]")
+{
+    Project project;
+    Folio *folio = project.addFolio();
+    CommandStack stack;
+
+    Wire *wire = drawWire(folio, { QPointF(0, 0), QPointF(10, 0) });
+    const QStringList ids{ wire->id() };
+
+    stack.push(std::make_unique<MoveEntitiesCommand>(project, folio->id(), ids, QPointF(5, 0)));
+    stack.breakMergeChain();
+    stack.push(std::make_unique<MoveEntitiesCommand>(project, folio->id(), ids, QPointF(5, 0)));
+
+    CHECK(stack.count() == 2);
+    stack.undo();
+    CHECK(wire->start() == QPointF(5, 0));
+}
+
+TEST_CASE("Une macro se defait d'un seul coup", "[command]")
+{
+    Project project;
+    Folio *folio = project.addFolio();
+    CommandStack stack;
+
+    stack.beginMacro(QStringLiteral("Coller"));
+    for (int i = 0; i < 3; ++i) {
+        auto wire = std::make_unique<Wire>();
+        wire->points = { QPointF(0, i * 10), QPointF(10, i * 10) };
+        stack.push(std::make_unique<AddEntityCommand>(project, folio->id(), std::move(wire)));
+    }
+    stack.endMacro();
+
+    CHECK(folio->entityCount() == 3);
+    CHECK(stack.count() == 1);
+    CHECK(stack.undoText() == QLatin1String("Coller"));
+
+    stack.undo();
+    CHECK(folio->entityCount() == 0);
+    stack.redo();
+    CHECK(folio->entityCount() == 3);
+}
+
+TEST_CASE("Une macro vide n'encombre pas l'historique", "[command]")
+{
+    Project project;
+    project.addFolio();
+    CommandStack stack;
+
+    stack.beginMacro(QStringLiteral("Rien"));
+    stack.endMacro();
+    CHECK(stack.count() == 0);
+    CHECK_FALSE(stack.canUndo());
+}
+
+TEST_CASE("Une nouvelle commande abandonne la branche defaite", "[command]")
+{
+    Project project;
+    Folio *folio = project.addFolio();
+    CommandStack stack;
+
+    auto first = std::make_unique<Wire>();
+    first->points = { QPointF(0, 0), QPointF(10, 0) };
+    stack.push(std::make_unique<AddEntityCommand>(project, folio->id(), std::move(first)));
+    stack.undo();
+    CHECK(stack.canRedo());
+
+    auto second = std::make_unique<Wire>();
+    second->points = { QPointF(0, 50), QPointF(10, 50) };
+    stack.push(std::make_unique<AddEntityCommand>(project, folio->id(), std::move(second)));
+
+    CHECK_FALSE(stack.canRedo());
+    CHECK(stack.count() == 1);
+    CHECK(folio->entityCount() == 1);
+}
+
+TEST_CASE("L'etat propre suit les enregistrements", "[command]")
+{
+    Project project;
+    Folio *folio = project.addFolio();
+    CommandStack stack;
+
+    CHECK(stack.isClean());
+    auto wire = std::make_unique<Wire>();
+    wire->points = { QPointF(0, 0), QPointF(10, 0) };
+    stack.push(std::make_unique<AddEntityCommand>(project, folio->id(), std::move(wire)));
+    CHECK_FALSE(stack.isClean());
+
+    stack.setClean();
+    CHECK(stack.isClean());
+    stack.undo();
+    CHECK_FALSE(stack.isClean());
+    stack.redo();
+    CHECK(stack.isClean());
+}
+
+TEST_CASE("La modification d'une entite se rejoue par instantane", "[command]")
+{
+    Project project;
+    Folio *folio = project.addFolio();
+    CommandStack stack;
+
+    Wire *wire = drawWire(folio, { QPointF(0, 0), QPointF(10, 0) });
+    auto before = wire->clone();
+    auto after = wire->clone();
+    static_cast<Wire *>(after.get())->number = QStringLiteral("W7");
+
+    stack.push(std::make_unique<ModifyEntityCommand>(project, folio->id(), std::move(before),
+                                                     std::move(after)));
+    CHECK(dynamic_cast<Wire *>(folio->entity(wire->id()))->number == QLatin1String("W7"));
+
+    stack.undo();
+    CHECK(dynamic_cast<Wire *>(folio->entity(wire->id()))->number.isEmpty());
+}
+
+TEST_CASE("Le retrait d'un folio restaure son contenu", "[command]")
+{
+    Project project;
+    project.addFolio(QStringLiteral("Premier"));
+    Folio *second = project.addFolio(QStringLiteral("Second"));
+    drawWire(second, { QPointF(0, 0), QPointF(10, 0) });
+    const QString id = second->id();
+    CommandStack stack;
+
+    stack.push(std::make_unique<RemoveFolioCommand>(project, id));
+    CHECK(project.folioCount() == 1);
+
+    stack.undo();
+    REQUIRE(project.folioCount() == 2);
+    CHECK(project.indexOf(id) == 1);
+    CHECK(project.folio(id)->entityCount() == 1);
+}
+
+TEST_CASE("La pile previent de tout changement", "[command]")
+{
+    Project project;
+    Folio *folio = project.addFolio();
+    CommandStack stack;
+
+    int notifications = 0;
+    stack.setChangedCallback([&] { ++notifications; });
+
+    auto wire = std::make_unique<Wire>();
+    wire->points = { QPointF(0, 0), QPointF(10, 0) };
+    stack.push(std::make_unique<AddEntityCommand>(project, folio->id(), std::move(wire)));
+    stack.undo();
+    stack.redo();
+
+    CHECK(notifications == 3);
+}

@@ -1,0 +1,2 @@
+add_library(dessins_symbols STATIC placeholder.cpp)
+target_link_libraries(dessins_symbols PUBLIC dessins_core)

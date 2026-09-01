@@ -610,3 +610,79 @@ TEST_CASE("La fenetre principale enregistre un repertoire consequent", "[ui][com
     window.resize(1400, 900);
     CHECK(hasVisibleContent(window.grab()));
 }
+
+TEST_CASE("L'outil ajuster coupe un fil au croisement", "[ui][trim]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    drawWire(folio, { QPointF(40, 100), QPointF(240, 100) });
+    drawWire(folio, { QPointF(90, 60), QPointF(90, 140) });
+    drawWire(folio, { QPointF(190, 60), QPointF(190, 140) });
+    const int before = int(folio->entityCount());
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setTool(FolioView::Tool::Trim);
+
+    const QPointF click = view.mapFromScene(QPointF(140, 100));
+    QMouseEvent press(QEvent::MouseButtonPress, click, view.mapToGlobal(click), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+
+    // Le fil coupe devient deux morceaux : une entite de plus au total.
+    CHECK(int(folio->entityCount()) == before + 1);
+
+    // Et l'ajustement s'annule d'un seul coup, malgre ses trois operations.
+    document.undo();
+    CHECK(int(folio->entityCount()) == before);
+}
+
+TEST_CASE("L'outil prolonger allonge jusqu'a l'obstacle", "[ui][extend]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    Wire *stub = drawWire(folio, { QPointF(40, 100), QPointF(120, 100) });
+    drawWire(folio, { QPointF(190, 60), QPointF(190, 140) });
+    const QString id = stub->id();
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setTool(FolioView::Tool::Extend);
+
+    // On vise pres de l'extremite droite : c'est ce bout qui doit s'allonger.
+    const QPointF click = view.mapFromScene(QPointF(115, 100));
+    QMouseEvent press(QEvent::MouseButtonPress, click, view.mapToGlobal(click), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+
+    const auto *extended = dynamic_cast<const Wire *>(folio->entity(id));
+    REQUIRE(extended);
+    CHECK(extended->points.last() == QPointF(190, 100));
+    CHECK(extended->points.first() == QPointF(40, 100));
+}
+
+TEST_CASE("Le zoom precedent remonte la pile des vues", "[ui][zoom]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    const double fitted = view.zoom();
+
+    view.zoomToRect(QRectF(60, 60, 40, 30));
+    CHECK(view.zoom() > fitted);
+    CHECK(view.canZoomPrevious());
+
+    // Le filet de securite : on revient exactement d'ou l'on vient.
+    view.zoomPrevious();
+    CHECK(view.zoom() == fitted);
+}

@@ -16,6 +16,7 @@ add_executable(dessins_tests
     test_rules.cpp
     test_render.cpp
     test_snap.cpp
+    test_wiretools.cpp
 )
 
 target_link_libraries(dessins_tests PRIVATE

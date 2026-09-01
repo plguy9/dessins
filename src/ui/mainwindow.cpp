@@ -347,6 +347,10 @@ void MainWindow::createActions()
           QT_TR_NOOP("Nommer un potentiel") },
         { FolioView::Tool::Text, G::Text, QT_TR_NOOP("&Texte"), Qt::Key_T,
           QT_TR_NOOP("Annoter le folio") },
+        { FolioView::Tool::Trim, G::Delete, QT_TR_NOOP("&Ajuster"), Qt::Key_A,
+          QT_TR_NOOP("Couper un fil entre deux croisements") },
+        { FolioView::Tool::Extend, G::Highlight, QT_TR_NOOP("Pro&longer"), Qt::Key_P,
+          QT_TR_NOOP("Allonger un fil jusqu'au premier obstacle") },
     };
     for (const ToolSpec &spec : tools) {
         auto *action = new QAction(Icons::icon(spec.glyph), tr(spec.label), this);
@@ -393,6 +397,10 @@ void MainWindow::createActions()
          tr("Zoom arrière"), [this] { m_view->zoomOut(); });
     make(viewMenu, true, G::ZoomFit, tr("&Ajuster au folio"), QKeySequence(Qt::CTRL | Qt::Key_0),
          tr("Voir le folio entier"), [this] { m_view->zoomToFit(); });
+    make(viewMenu, false, G::ZoomIn, tr("Zoom &fenêtre"), QKeySequence(),
+         tr("Encadrer la zone à agrandir"), [this] { m_view->beginZoomWindow(); });
+    make(viewMenu, false, G::Undo, tr("Vue &précédente"), QKeySequence(),
+         tr("Revenir à la vue précédente"), [this] { m_view->zoomPrevious(); });
     make(viewMenu, false, G::Text, tr("Ligne de &commande"),
          QKeySequence(Qt::CTRL | Qt::Key_9), tr("Placer le curseur dans la ligne de commande"),
          [this] {
@@ -680,6 +688,15 @@ void MainWindow::zoomCommand(const QStringList &arguments)
         m_command->write(tr("   Zoom à l'échelle réelle."));
         return;
     }
+    if (option.startsWith(QLatin1Char('F')) || option.startsWith(QLatin1Char('W'))) {
+        m_view->beginZoomWindow();
+        return;
+    }
+    if (option.startsWith(QLatin1Char('P'))) {
+        m_view->zoomPrevious();
+        m_command->write(tr("   Vue précédente."));
+        return;
+    }
     bool numeric = false;
     const double percent = option.toDouble(&numeric);
     if (numeric && percent > 0.0) {
@@ -688,8 +705,8 @@ void MainWindow::zoomCommand(const QStringList &arguments)
         m_command->write(tr("   Zoom %1 %.").arg(percent, 0, 'f', 0));
         return;
     }
-    m_command->writeError(tr("   Option de zoom inconnue. Attendu : E (étendu), "
-                             "R (réel) ou un pourcentage."));
+    m_command->writeError(tr("   Option de zoom inconnue. Attendu : E (étendu), F (fenêtre), "
+                             "P (précédent), R (réel) ou un pourcentage."));
 }
 
 void MainWindow::registerCommands()
@@ -741,6 +758,16 @@ void MainWindow::registerCommands()
            [this] { m_document->redo(); });
     simple(QStringLiteral("TOUTSELECT"), { QStringLiteral("SELTOUT") }, tr("Tout sélectionner"),
            [this] { m_view->selectAll(); });
+    simple(QStringLiteral("AJUSTER"), { QStringLiteral("AJ"), QStringLiteral("TR") },
+           tr("Couper un fil entre deux croisements"),
+           [this] { m_view->setTool(FolioView::Tool::Trim); });
+    simple(QStringLiteral("PROLONGER"), { QStringLiteral("PR"), QStringLiteral("ED") },
+           tr("Allonger un fil jusqu'au premier obstacle"),
+           [this] { m_view->setTool(FolioView::Tool::Extend); });
+    simple(QStringLiteral("ZOOMFENETRE"), { QStringLiteral("ZF") }, tr("Zoom fenêtre"),
+           [this] { m_view->beginZoomWindow(); });
+    simple(QStringLiteral("ZOOMPRECEDENT"), { QStringLiteral("ZP") }, tr("Vue précédente"),
+           [this] { m_view->zoomPrevious(); });
     simple(QStringLiteral("POTENTIEL"), { QStringLiteral("PT") },
            tr("Mettre en évidence le potentiel de la sélection"),
            [this] { m_view->highlightNetOfSelection(); });

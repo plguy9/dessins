@@ -1,6 +1,7 @@
 #include "folioview.h"
 
 #include "core/documentcommands.h"
+#include "core/wiretools.h"
 #include "render/foliopainter.h"
 
 #include <QInputDialog>
@@ -434,8 +435,54 @@ void FolioView::setZoom(double pixelsPerMm, const QPointF &anchorPx)
     // molette utilisable sur un grand folio.
     const QPointF anchor = anchorPx.isNull() ? QPointF(width() / 2.0, height() / 2.0) : anchorPx;
     const QPointF sceneAnchor = toScene(anchor);
+    pushViewState();
     m_scale = target;
     m_pan = anchor - sceneAnchor * m_scale;
+    Q_EMIT zoomChanged(m_scale);
+    update();
+}
+
+void FolioView::pushViewState()
+{
+    // Une vingtaine de vues suffit : au-dela, personne ne remonte le fil.
+    m_viewHistory.append({ m_scale, m_pan });
+    if (m_viewHistory.size() > 20)
+        m_viewHistory.removeFirst();
+}
+
+void FolioView::beginZoomWindow()
+{
+    m_zoomWindowArmed = true;
+    setCursor(Qt::CrossCursor);
+    Q_EMIT statusMessage(tr("Zoom fenêtre : encadrez la zone à agrandir, Échap pour annuler."));
+    update();
+}
+
+void FolioView::zoomToRect(const QRectF &sceneRect)
+{
+    const QRectF target = sceneRect.normalized();
+    if (target.width() < 1e-6 || target.height() < 1e-6 || width() < 20 || height() < 20)
+        return;
+
+    pushViewState();
+    m_scale = std::clamp(std::min(width() / target.width(), height() / target.height()),
+                         kMinScale, kMaxScale);
+    m_pan = QPointF(width() / 2.0, height() / 2.0) - target.center() * m_scale;
+    m_fitPending = false;
+    Q_EMIT zoomChanged(m_scale);
+    update();
+}
+
+void FolioView::zoomPrevious()
+{
+    if (m_viewHistory.isEmpty()) {
+        Q_EMIT statusMessage(tr("Aucune vue précédente."));
+        return;
+    }
+    const ViewState state = m_viewHistory.takeLast();
+    m_scale = state.scale;
+    m_pan = state.pan;
+    m_fitPending = false;
     Q_EMIT zoomChanged(m_scale);
     update();
 }
@@ -454,6 +501,7 @@ void FolioView::zoomToFit()
         return;
     }
     m_fitPending = false;
+    pushViewState();
     const QRectF sheet = folio->sheetRect().adjusted(-8, -8, 8, 8);
     const double sx = width() / sheet.width();
     const double sy = height() / sheet.height();
@@ -810,6 +858,89 @@ void FolioView::placeTextAt(const QPointF &point)
                                                         std::move(text), tr("Ajouter un texte")));
 }
 
+void FolioView::trimAt(const QPointF &point)
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return;
+    const auto *wire = dynamic_cast<const Wire *>(entityAt(point));
+    if (!wire) {
+        Q_EMIT statusMessage(tr("Ajuster : visez le fil à couper."));
+        return;
+    }
+
+    const auto result = WireTools::trim(*folio, m_document->project().library, wire->id(), point);
+    if (!result)
+        return;
+
+    // Les morceaux heritent des caracteristiques du fil d'origine : repere,
+    // conducteurs, verrouillage. Ajuster un fil ne doit pas lui faire perdre
+    // son identite electrique.
+    const Wire model = *wire;
+    const QString removedId = wire->id();
+    const QVector<QVector<QPointF>> pieces = result->pieces;
+
+    m_document->pushMacro(tr("Ajuster un fil"), [&] {
+        m_document->push(std::make_unique<RemoveEntityCommand>(m_document->project(),
+                                                               folio->id(), removedId,
+                                                               tr("Ajuster un fil")));
+        for (const QVector<QPointF> &piece : pieces) {
+            auto replacement = std::make_unique<Wire>(model);
+            replacement->setId(newId());
+            replacement->points = piece;
+            m_document->push(std::make_unique<AddEntityCommand>(m_document->project(),
+                                                                folio->id(),
+                                                                std::move(replacement),
+                                                                tr("Ajuster un fil")));
+        }
+    });
+
+    clearSelection();
+    Q_EMIT statusMessage(pieces.isEmpty()
+                                 ? tr("Fil supprimé : aucun croisement pour le couper.")
+                                 : tr("Fil ajusté en %n morceau(x).", "", int(pieces.size())));
+}
+
+void FolioView::extendAt(const QPointF &point)
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return;
+    auto *wire = dynamic_cast<Wire *>(entityAt(point));
+    if (!wire || wire->points.size() < 2) {
+        Q_EMIT statusMessage(tr("Prolonger : visez le fil, près de l'extrémité à allonger."));
+        return;
+    }
+
+    // L'extremite visee est la plus proche du clic : on prolonge le bout
+    // qu'on montre, pas l'autre.
+    const double toFirst = std::hypot(point.x() - wire->points.first().x(),
+                                      point.y() - wire->points.first().y());
+    const double toLast = std::hypot(point.x() - wire->points.last().x(),
+                                     point.y() - wire->points.last().y());
+    const bool lastEnd = toLast <= toFirst;
+
+    const auto target = WireTools::extend(*folio, m_document->project().library, wire->id(),
+                                          lastEnd);
+    if (!target) {
+        Q_EMIT statusMessage(tr("Rien à atteindre dans l'axe de ce fil."));
+        return;
+    }
+
+    auto before = wire->clone();
+    auto after = wire->clone();
+    auto *edited = static_cast<Wire *>(after.get());
+    if (lastEnd)
+        edited->points.last() = *target;
+    else
+        edited->points.first() = *target;
+
+    m_document->push(std::make_unique<ModifyEntityCommand>(m_document->project(), folio->id(),
+                                                           std::move(before), std::move(after),
+                                                           tr("Prolonger un fil")));
+    Q_EMIT statusMessage(tr("Fil prolongé."));
+}
+
 // --------------------------------------------------------------------------
 // Evenements souris
 
@@ -843,6 +974,13 @@ void FolioView::mousePressEvent(QMouseEvent *event)
     if (event->button() != Qt::LeftButton)
         return;
 
+    if (m_zoomWindowArmed) {
+        m_drag = Drag::ZoomWindow;
+        m_dragStartScene = scenePoint;
+        m_rubber = QRectF(scenePoint, scenePoint);
+        return;
+    }
+
     switch (m_tool) {
     case Tool::Wire:
         if (m_wirePoints.isEmpty()) {
@@ -871,6 +1009,16 @@ void FolioView::mousePressEvent(QMouseEvent *event)
 
     case Tool::Text:
         placeTextAt(snapped);
+        return;
+
+    case Tool::Trim:
+        // L'ajustement vise le trait, pas un point accroche : c'est la
+        // position brute qui designe le fil a couper.
+        trimAt(scenePoint);
+        return;
+
+    case Tool::Extend:
+        extendAt(scenePoint);
         return;
 
     case Tool::Select:
@@ -956,6 +1104,11 @@ void FolioView::mouseMoveEvent(QMouseEvent *event)
         return;
     }
 
+    case Drag::ZoomWindow:
+        m_rubber = normalized(m_dragStartScene, scenePoint);
+        update();
+        return;
+
     case Drag::Rubber:
         m_rubber = normalized(m_dragStartScene, scenePoint);
         // Le sens du geste decide du mode : vers la gauche, c'est une capture.
@@ -996,6 +1149,18 @@ void FolioView::mouseReleaseEvent(QMouseEvent *event)
         m_draggedGrip = -1;
         rebuildGrips();
         break;
+    case Drag::ZoomWindow: {
+        const QRectF target = m_rubber;
+        m_rubber = QRectF();
+        m_zoomWindowArmed = false;
+        setCursor(Qt::BlankCursor);
+        // Un simple clic sans glisser n'est pas une fenetre : on annule
+        // plutot que de zoomer sur un point et de perdre l'utilisateur.
+        if (target.width() > 1e-3 && target.height() > 1e-3)
+            zoomToRect(target);
+        break;
+    }
+
     case Drag::Rubber: {
         QSet<QString> found = entitiesIn(m_rubber, m_rubberCrossing);
         if (event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier))
@@ -1036,6 +1201,13 @@ void FolioView::keyPressEvent(QKeyEvent *event)
                                                                : m_style.gridStep;
     switch (event->key()) {
     case Qt::Key_Escape:
+        if (m_zoomWindowArmed) {
+            m_zoomWindowArmed = false;
+            m_rubber = QRectF();
+            setCursor(Qt::BlankCursor);
+            update();
+            return;
+        }
         if (!m_wirePoints.isEmpty())
             cancelPending();
         else if (m_tool != Tool::Select)
@@ -1236,6 +1408,17 @@ void FolioView::paintSnapFeedback(QPainter &painter) const
 
 void FolioView::paintRubberBand(QPainter &painter) const
 {
+    if (m_drag == Drag::ZoomWindow && !m_rubber.isNull()) {
+        // Le cadre de zoom ne selectionne rien : il se distingue donc des
+        // cadres de selection, bleu et vert, par sa couleur d'accent.
+        QPen pen(m_style.selection);
+        pen.setWidthF(0.25);
+        pen.setStyle(Qt::DashDotLine);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRect(m_rubber);
+        return;
+    }
     if (m_drag != Drag::Rubber || m_rubber.isNull())
         return;
 

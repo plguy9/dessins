@@ -23,7 +23,7 @@ class FolioView : public QWidget
     Q_OBJECT
 
 public:
-    enum class Tool { Select, Wire, Symbol, Junction, Label, Text };
+    enum class Tool { Select, Wire, Symbol, Junction, Label, Text, Trim, Extend };
     Q_ENUM(Tool)
 
     explicit FolioView(Document *document, QWidget *parent = nullptr);
@@ -58,6 +58,14 @@ public:
     void zoomOut();
     void zoomToFit();
     void zoomActual();
+
+    // Zoom fenetre et zoom precedent, comme ZOOM W et ZOOM P d'AutoCAD.
+    // Le zoom precedent depile les vues successives : c'est le filet de
+    // securite quand on s'est perdu dans un folio dense.
+    void beginZoomWindow();
+    void zoomToRect(const QRectF &sceneRect);
+    void zoomPrevious();
+    bool canZoomPrevious() const { return !m_viewHistory.isEmpty(); }
 
     const QSet<QString> &selection() const { return m_selection; }
     void setSelection(const QSet<QString> &ids);
@@ -152,6 +160,8 @@ private:
     void placeJunctionAt(const QPointF &point);
     void placeLabelAt(const QPointF &point);
     void placeTextAt(const QPointF &point);
+    void trimAt(const QPointF &point);
+    void extendAt(const QPointF &point);
 
     // Ajoute un point de jonction la ou une extremite de fil vient se poser au
     // milieu d'un autre fil : la connexion existe deja electriquement, le point
@@ -169,6 +179,7 @@ private:
     void paintCrosshair(QPainter &painter) const;
     void paintDynamicInput(QPainter &painter) const;
 
+    void pushViewState();
     void rebuildGrips();
     int gripAt(const QPointF &scenePoint) const;
     void dragGripTo(const QPointF &target);
@@ -194,7 +205,7 @@ private:
     QVector<QPointF> m_unconnectedPins;
 
     // Geste en cours
-    enum class Drag { None, Pan, Move, Rubber, GripEdit };
+    enum class Drag { None, Pan, Move, Rubber, GripEdit, ZoomWindow };
     Drag m_drag = Drag::None;
     QPointF m_dragStartWidget;
     QPointF m_dragStartScene;
@@ -207,6 +218,10 @@ private:
     int m_draggedGrip = -1;  // poignee tiree
     bool m_spaceHeld = false;
     bool m_cursorInside = false;
+    bool m_zoomWindowArmed = false;
+
+    struct ViewState { double scale; QPointF pan; };
+    QVector<ViewState> m_viewHistory;
     bool m_movedSinceCommit = false;
 
     QVector<QPointF> m_wirePoints;

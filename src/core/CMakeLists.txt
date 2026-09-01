@@ -12,6 +12,7 @@ add_library(dessins_core STATIC
     folio.h           folio.cpp
     project.h         project.cpp
     netlist.h         netlist.cpp
+    snapengine.h      snapengine.cpp
     command.h         command.cpp
     documentcommands.h documentcommands.cpp
 )

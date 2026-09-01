@@ -339,6 +339,26 @@ QStatusBar {
 QStatusBar::item { border: none; }
 QStatusBar QLabel { color: %MUTED%; padding: 2px 10px; }
 
+/* Bascules d'aide au dessin, facon barre d'etat AutoCAD : eteintes elles
+   s'effacent, allumees elles portent l'accent. */
+QToolButton[statusToggle="true"] {
+    color: %MUTED%;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 3px 9px;
+    margin: 0 1px;
+    font-size: 8.5pt;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+}
+QToolButton[statusToggle="true"]:hover { background: %HOVER%; color: %TEXT%; }
+QToolButton[statusToggle="true"]:checked {
+    background: %ACCENTSOFT%;
+    border-color: %ACCENTBORDER%;
+    color: %ACCENT%;
+}
+
 QSplitter::handle { background: %WINDOW%; }
 QSplitter::handle:hover { background: %ACCENTSOFT%; }
 

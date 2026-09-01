@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <QApplication>
+#include <QMouseEvent>
 #include <QPixmap>
 #include <QTemporaryDir>
 
@@ -9,6 +10,8 @@
 #include "ui/document.h"
 #include "ui/folioview.h"
 #include "ui/symboleditor.h"
+#include "ui/draftingsettingsdialog.h"
+#include "ui/pagesetupdialog.h"
 #include "ui/symbolpalette.h"
 #include "ui/theme.h"
 #include "testhelpers.h"
@@ -306,4 +309,110 @@ TEST_CASE("Le theme couvre les deux modes", "[ui][theme]")
     CHECK_FALSE(Theme::colors().window.isValid() == false);
 
     Theme::apply(*app, true);
+}
+
+TEST_CASE("Le canevas expose son moteur d'accrochage", "[ui][snap]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    drawWire(folio, { QPointF(40, 60), QPointF(160, 60) });
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.zoomToFit();
+
+    // Les bascules de la barre d'etat agissent sur ce moteur : si la vue ne
+    // l'exposait plus, les touches de fonction deviendraient muettes sans
+    // qu'aucune compilation n'echoue.
+    CHECK(view.snapEngine().objectSnapEnabled());
+    view.snapEngine().setOrthoEnabled(true);
+    CHECK(view.snapEngine().orthoEnabled());
+    view.snapSettingsTouched();
+}
+
+TEST_CASE("Le survol d'un milieu de fil est rendu visible", "[ui][snap]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    drawWire(folio, { QPointF(40, 60), QPointF(160, 60) });
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+
+    // Sans survol, aucun marqueur ; apres survol du milieu, le rendu change.
+    const QPixmap before = view.grab();
+
+    const QPointF target = view.mapFromScene(QPointF(100.4, 60.3));
+    QMouseEvent move(QEvent::MouseMove, target, view.mapToGlobal(target), Qt::NoButton,
+                     Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &move);
+    const QPixmap after = view.grab();
+
+    CHECK(before.toImage() != after.toImage());
+}
+
+TEST_CASE("La boite de parametres de dessin rend les reglages", "[ui][snap]")
+{
+    SnapEngine engine;
+    engine.setMode(SnapMode::Nearest, true);
+    engine.setOrthoEnabled(true);
+    engine.setPolarIncrement(30.0);
+
+    DraftingSettingsDialog dialog(engine, 2.5, true);
+    dialog.resize(560, 520);
+    CHECK(hasVisibleContent(dialog.grab()));
+
+    // Les reglages ressortent tels qu'ils sont entres : la boite ne doit rien
+    // perdre en route, sinon l'utilisateur croit avoir regle et n'a rien fait.
+    const SnapEngine out = dialog.engine();
+    CHECK(out.hasMode(SnapMode::Nearest));
+    CHECK(out.orthoEnabled());
+    CHECK(out.polarIncrement() == 30.0);
+    CHECK(dialog.gridStep() == 2.5);
+    CHECK(dialog.gridVisible());
+}
+
+TEST_CASE("La mise en page change le format sans toucher au contenu", "[ui][page]")
+{
+    Project project;
+    project.library = builtinLibrary();
+    Folio *folio = project.addFolio(QStringLiteral("Essai"));
+    folio->sheet = sheetFormatById(QStringLiteral("A3"));
+    drawWire(folio, { QPointF(40, 60), QPointF(160, 60) });
+
+    PageSetupDialog dialog(project, *folio);
+    dialog.resize(940, 640);
+    CHECK(hasVisibleContent(dialog.grab()));
+
+    const Folio configured = dialog.result();
+    // Le folio ressort avec la meme identite et le meme contenu : seule la
+    // mise en page est en jeu.
+    CHECK(configured.id() == folio->id());
+    CHECK(configured.entityCount() == folio->entityCount());
+    CHECK(configured.sheet.width == folio->sheet.width);
+    CHECK_FALSE(dialog.applyToAllFolios());
+}
+
+TEST_CASE("La mise en page s'annule comme toute modification", "[ui][page]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    const double before = folio->sheet.width;
+
+    SheetFormat a4 = sheetFormatById(QStringLiteral("A4"));
+    SheetFrame frame = folio->frame;
+    frame.columns = 6;
+
+    document.push(std::make_unique<ChangeFolioLayoutCommand>(document.project(), folio->id(),
+                                                             a4, frame));
+    CHECK(folio->sheet.width == a4.width);
+    CHECK(folio->frame.columns == 6);
+
+    document.undo();
+    CHECK(folio->sheet.width == before);
 }

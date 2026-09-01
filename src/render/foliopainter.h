@@ -10,6 +10,7 @@
 #pragma once
 
 #include "core/project.h"
+#include "core/snapengine.h"
 #include "renderstyle.h"
 
 #include <QPainter>
@@ -61,6 +62,13 @@ public:
     // Trace une primitive. Un seul chemin pour les annotations et pour le
     // graphisme des symboles.
     static void paintPrimitive(QPainter &painter, const Primitive &primitive);
+
+    // Marqueur d'accrochage. Les formes reprennent celles d'AutoCAD : carre
+    // pour une extremite, triangle pour un milieu, cercle pour un centre.
+    // Elles sont aussi normatives que les symboles — c'est a leur silhouette
+    // qu'un dessinateur reconnait ce a quoi il est en train de s'accrocher.
+    static void paintSnapMarker(QPainter &painter, SnapMode mode, const QPointF &point,
+                                double sizeMm, const QColor &color);
 
     // Texte d'une hauteur donnee en millimetres, quelle que soit l'echelle du
     // painter : la hauteur de capitale d'un texte cote ne depend pas du zoom.

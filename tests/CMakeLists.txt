@@ -15,6 +15,7 @@ add_executable(dessins_tests
     test_io.cpp
     test_rules.cpp
     test_render.cpp
+    test_snap.cpp
 )
 
 target_link_libraries(dessins_tests PRIVATE

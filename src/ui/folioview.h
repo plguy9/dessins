@@ -9,6 +9,7 @@
 #pragma once
 
 #include "core/entities.h"
+#include "core/snapengine.h"
 #include "document.h"
 #include "render/renderstyle.h"
 
@@ -42,9 +43,14 @@ public:
 
     double gridStep() const { return m_style.gridStep; }
     void setGridStep(double step);
-    bool snapEnabled() const { return m_snap; }
-    void setSnapEnabled(bool enabled);
     void setGridVisible(bool visible);
+
+    // Le moteur d'accrochage est expose : la barre d'etat et la boite de
+    // reglages agissent dessus directement, sans que la vue ait a relayer
+    // une bascule par methode.
+    SnapEngine &snapEngine() { return m_snapEngine; }
+    const SnapEngine &snapEngine() const { return m_snapEngine; }
+    void snapSettingsTouched();   // a appeler apres modification du moteur
 
     double zoom() const { return m_scale; }
     void setZoom(double pixelsPerMm, const QPointF &anchorPx = QPointF());
@@ -73,9 +79,15 @@ public:
 
     QPointF cursorMm() const { return m_cursorMm; }
 
+    // Conversions entre le folio et le widget. Publiques : les tests et les
+    // outils de capture en ont besoin pour viser un point du dessin.
+    QPointF mapToScene(const QPointF &widgetPoint) const { return toScene(widgetPoint); }
+    QPointF mapFromScene(const QPointF &scenePoint) const { return toWidget(scenePoint); }
+
 Q_SIGNALS:
     void selectionChanged();
     void zoomChanged(double pixelsPerMm);
+    void snapSettingsChanged();
     void cursorMoved(const QPointF &positionMm, const QString &zone);
     void toolChanged(FolioView::Tool tool);
     void statusMessage(const QString &message);
@@ -97,12 +109,22 @@ private:
     QPointF toScene(const QPointF &widgetPoint) const;
     QPointF toWidget(const QPointF &scenePoint) const;
     QRectF visibleSceneRect() const;
+    // Rayon d'accrochage, defini a l'ecran : il doit rester confortable a
+    // tous les niveaux de zoom, comme la fenetre d'accrochage d'AutoCAD.
+    double aperture() const;
+
+    // Resout l'accrochage sous un point. `from` alimente les modes qui ont
+    // besoin d'une origine (perpendiculaire) ; l'entite en cours de trace
+    // est ecartee pour qu'elle ne s'accroche pas a elle-meme.
+    std::optional<SnapHit> resolveSnap(const QPointF &scenePoint) const;
+
+    // Point retenu : l'accrochage s'il y en a un, sinon la contrainte de
+    // direction, sinon le curseur brut.
     QPointF snap(const QPointF &scenePoint) const;
 
-    // Accrochage prioritaire aux broches et aux extremites de fil : sans lui,
-    // un fil pose a un dixieme de millimetre d'une broche est visuellement
-    // raccorde mais electriquement en l'air.
-    std::optional<QPointF> snapToConnection(const QPointF &scenePoint) const;
+    // Origine du geste en cours, s'il y en a une.
+    const QPointF *gestureOrigin() const;
+    QString gestureExclusion() const;
 
     Entity *entityAt(const QPointF &scenePoint) const;
     QSet<QString> entitiesIn(const QRectF &sceneRect) const;
@@ -122,7 +144,8 @@ private:
 
     void paintPendingWire(QPainter &painter) const;
     void paintPendingSymbol(QPainter &painter) const;
-    void paintSnapMarker(QPainter &painter) const;
+    void paintSnapFeedback(QPainter &painter) const;
+    void paintPolarGuide(QPainter &painter) const;
     void paintRubberBand(QPainter &painter) const;
     void paintEmptyHint(QPainter &painter, const Folio &folio) const;
 
@@ -135,7 +158,7 @@ private:
 
     double m_scale = 3.0;   // pixels par millimetre
     QPointF m_pan{ 20.0, 20.0 };
-    bool m_snap = true;
+    SnapEngine m_snapEngine;
     // L'ajustement au folio a besoin de la taille reelle du widget, que l'on
     // ne connait qu'apres la premiere mise en page : la demande est donc mise
     // en attente jusqu'au premier redimensionnement utile.
@@ -161,7 +184,7 @@ private:
     Label::Scope m_labelScope = Label::Scope::Folio;
 
     QPointF m_cursorMm;
-    std::optional<QPointF> m_snapPoint;
+    std::optional<SnapHit> m_snapHit;
     // QVector exige un type copiable, ce que EntityPtr n'est pas.
     std::vector<EntityPtr> m_clipboard;
 };

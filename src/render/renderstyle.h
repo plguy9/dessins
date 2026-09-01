@@ -27,6 +27,12 @@ struct RenderStyle {
     QColor selection{ 0xE8, 0x8B, 0x0B };
     QColor highlight{ 0xE8, 0x40, 0x40 }; // potentiel mis en evidence
     QColor pinMarker{ 0xC0, 0x50, 0x20 };
+    // Retour d'accrochage. Le jaune-vert est la couleur d'AutoSnap
+    // d'AutoCAD : elle ne ressemble a aucune couleur de conducteur, donc un
+    // marqueur ne peut jamais etre pris pour un element du dessin.
+    QColor snapMarker{ 0xC8, 0xD8, 0x1E };
+    QColor snapGuide{ 0x9A, 0xA8, 0x22 };
+    double snapMarkerSize = 3.2;   // cote du marqueur, en millimetres
 
     // Epaisseurs, en millimetres
     double wireWidth = 0.35;

@@ -145,6 +145,93 @@ void FolioPainter::paintPrimitive(QPainter &painter, const Primitive &primitive)
     }
 }
 
+
+void FolioPainter::paintSnapMarker(QPainter &painter, SnapMode mode, const QPointF &point,
+                                   double sizeMm, const QColor &color)
+{
+    const double h = sizeMm / 2.0;
+
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    QPen pen(color);
+    // Le marqueur est un peu plus epais que le dessin : il doit se lire
+    // par-dessus un trait, pas se confondre avec lui.
+    pen.setWidthF(sizeMm * 0.11);
+    pen.setJoinStyle(Qt::MiterJoin);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+
+    switch (mode) {
+    case SnapMode::Endpoint:
+        painter.drawRect(QRectF(point.x() - h, point.y() - h, sizeMm, sizeMm));
+        break;
+
+    case SnapMode::Midpoint:
+        // Triangle pointe en haut.
+        painter.drawPolygon(QPolygonF({ QPointF(point.x(), point.y() - h),
+                                        QPointF(point.x() + h, point.y() + h),
+                                        QPointF(point.x() - h, point.y() + h) }));
+        break;
+
+    case SnapMode::Center:
+        painter.drawEllipse(point, h, h);
+        break;
+
+    case SnapMode::Node:
+        // Cercle barre d'une croix : le point de raccordement electrique.
+        painter.drawEllipse(point, h, h);
+        painter.drawLine(point + QPointF(-h, -h) * 0.72, point + QPointF(h, h) * 0.72);
+        painter.drawLine(point + QPointF(-h, h) * 0.72, point + QPointF(h, -h) * 0.72);
+        break;
+
+    case SnapMode::Quadrant:
+        painter.drawPolygon(QPolygonF({ QPointF(point.x(), point.y() - h),
+                                        QPointF(point.x() + h, point.y()),
+                                        QPointF(point.x(), point.y() + h),
+                                        QPointF(point.x() - h, point.y()) }));
+        break;
+
+    case SnapMode::Intersection:
+        painter.drawLine(point + QPointF(-h, -h), point + QPointF(h, h));
+        painter.drawLine(point + QPointF(-h, h), point + QPointF(h, -h));
+        break;
+
+    case SnapMode::Perpendicular: {
+        // L'equerre : deux cotes et le petit trait du coin droit.
+        painter.drawLine(point + QPointF(-h, -h), point + QPointF(-h, h));
+        painter.drawLine(point + QPointF(-h, h), point + QPointF(h, h));
+        painter.drawLine(point + QPointF(-h, 0), point + QPointF(0, 0));
+        painter.drawLine(point + QPointF(0, 0), point + QPointF(0, h));
+        break;
+    }
+
+    case SnapMode::Nearest:
+        // Le sablier d'AutoCAD : deux triangles opposes par la pointe.
+        painter.drawPolygon(QPolygonF({ point + QPointF(-h, -h), point + QPointF(h, -h),
+                                        point + QPointF(-h, h), point + QPointF(h, h) }));
+        break;
+
+    case SnapMode::Insertion:
+        // Deux carres decales, comme le point d'insertion d'un bloc.
+        painter.drawRect(QRectF(point.x() - h, point.y() - h, sizeMm * 0.78, sizeMm * 0.78));
+        painter.drawRect(QRectF(point.x() - h + sizeMm * 0.22, point.y() - h + sizeMm * 0.22,
+                                sizeMm * 0.78, sizeMm * 0.78));
+        break;
+
+    case SnapMode::Extension:
+        // Une croix en plus, comme la marque de prolongement.
+        painter.drawLine(point + QPointF(-h, 0), point + QPointF(h, 0));
+        painter.drawLine(point + QPointF(0, -h), point + QPointF(0, h));
+        break;
+
+    case SnapMode::Grid:
+        // La grille n'affiche pas de marqueur : elle accroche en permanence,
+        // et un marqueur constant sous le curseur deviendrait du bruit.
+        break;
+    }
+    painter.restore();
+}
+
 void FolioPainter::paintDefinition(QPainter &painter, const SymbolDefinition &definition,
                                    const RenderStyle &style, bool withPins)
 {

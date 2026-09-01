@@ -143,6 +143,29 @@ private:
     int m_to = 0;
 };
 
+// Mise en page d'un folio : format de feuille et cadre. Le contenu n'est pas
+// touche — un dessin qui depassait depassera encore, et c'est a l'utilisateur
+// de le voir dans l'apercu avant d'appliquer.
+class ChangeFolioLayoutCommand : public Command
+{
+public:
+    ChangeFolioLayoutCommand(Project &project, QString folioId, SheetFormat sheet,
+                             SheetFrame frame);
+    void redo() override;
+    void undo() override;
+    QString text() const override;
+
+private:
+    void apply(const SheetFormat &sheet, const SheetFrame &frame);
+
+    Project &m_project;
+    QString m_folioId;
+    SheetFormat m_beforeSheet;
+    SheetFrame m_beforeFrame;
+    SheetFormat m_afterSheet;
+    SheetFrame m_afterFrame;
+};
+
 class ChangeProjectInfoCommand : public Command
 {
 public:

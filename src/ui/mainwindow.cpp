@@ -4,6 +4,8 @@
 #include "io/csvexport.h"
 #include "io/dsnfile.h"
 #include "io/dxfexport.h"
+#include "draftingsettingsdialog.h"
+#include "pagesetupdialog.h"
 #include "propertiespanel.h"
 #include "render/foliopainter.h"
 #include "render/pdfexport.h"
@@ -35,6 +37,7 @@
 #include <QSettings>
 #include <QStatusBar>
 #include <QToolBar>
+#include <QToolButton>
 
 namespace dsn {
 
@@ -151,6 +154,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     m_darkAction->blockSignals(false);
     applyTheme(dark);
 
+    syncDraftingToggles();
     resize(1560, 980);
     updateTitle();
     updateActions();
@@ -393,11 +397,7 @@ void MainWindow::createActions()
         return action;
     };
 
-    addToggle(viewMenu, true, G::Grid, tr("&Grille"), true, tr("Afficher la grille"),
-              [this](bool on) { m_view->setGridVisible(on); });
-    addToggle(viewMenu, true, G::Snap, tr("&Magnétisme"), true,
-              tr("Accrocher à la grille et aux broches"),
-              [this](bool on) { m_view->setSnapEnabled(on); });
+    createDraftingToggles(viewMenu);
     addToggle(viewMenu, false, G::SymbolPlace, tr("&Numéros de broches"), false, QString(),
               [this](bool on) {
                   RenderStyle style = m_view->style();
@@ -421,6 +421,9 @@ void MainWindow::createActions()
 
     // ---- Projet --------------------------------------------------------
     QMenu *projectMenu = menuBar()->addMenu(tr("&Projet"));
+    make(projectMenu, true, G::Folios, tr("&Mise en page…"), QKeySequence(Qt::CTRL | Qt::Key_P),
+         tr("Format de feuille, cadre, zones de repérage, cartouche"),
+         &MainWindow::editPageSetup);
     make(projectMenu, false, G::Info, tr("&Informations du projet…"), QKeySequence(),
          tr("Titre, client, référence — ce que porte le cartouche"),
          &MainWindow::editProjectInfo);
@@ -508,6 +511,137 @@ void MainWindow::editCurrentSymbol(bool asCopy)
     }
 }
 
+void MainWindow::createDraftingToggles(QMenu *menu)
+{
+    using G = Icons::Glyph;
+    SnapEngine &engine = m_view->snapEngine();
+
+    // Une action, deux presentations : le menu Affichage et la barre d'etat.
+    // Les touches de fonction reprennent celles d'AutoCAD, que tout
+    // dessinateur venant de la connait par coeur.
+    auto makeToggle = [&](G glyph, const QString &text, const QString &shortText,
+                          const QKeySequence &key, bool checked, const QString &tip, auto slot) {
+        auto *action = new QAction(Icons::icon(glyph), text, this);
+        action->setCheckable(true);
+        action->setChecked(checked);
+        action->setShortcut(key);
+        // Le raccourci doit agir meme quand le focus est dans un panneau :
+        // on lache une touche de fonction sans regarder ou est le curseur.
+        action->setShortcutContext(Qt::ApplicationShortcut);
+        action->setToolTip(QStringLiteral("%1  ·  %2").arg(tip, key.toString()));
+        action->setStatusTip(tip);
+        action->setData(shortText);
+        connect(action, &QAction::toggled, this, [this, slot](bool on) {
+            if (m_syncingToggles)
+                return;
+            slot(on);
+            m_view->snapSettingsTouched();
+            statusBar()->showMessage(QString(), 0);
+        });
+        menu->addAction(action);
+        m_actionGlyphs.insert(action, int(glyph));
+        return action;
+    };
+
+    m_gridSnapAction = makeToggle(G::Snap, tr("Résolution — accrochage à la grille"),
+                                  tr("RESOL"), QKeySequence(Qt::Key_F9),
+                                  engine.gridSnapEnabled(),
+                                  tr("Accrocher le curseur aux points de la grille"),
+                                  [this](bool on) {
+                                      m_view->snapEngine().setGridSnapEnabled(on);
+                                      m_view->snapEngine().setMode(SnapMode::Grid, on);
+                                  });
+    m_gridAction = makeToggle(G::Grid, tr("Afficher la &grille"), tr("GRILLE"),
+                              QKeySequence(Qt::Key_F7), true, tr("Afficher la grille"),
+                              [this](bool on) { m_view->setGridVisible(on); });
+    m_orthoAction = makeToggle(G::Wire, tr("Mode &ortho"), tr("ORTHO"),
+                               QKeySequence(Qt::Key_F8), engine.orthoEnabled(),
+                               tr("Contraindre le tracé à l'horizontale et à la verticale"),
+                               [this](bool on) { m_view->snapEngine().setOrthoEnabled(on); });
+    m_polarAction = makeToggle(G::Rotate, tr("Repérage &polaire"), tr("POLAIRE"),
+                               QKeySequence(Qt::Key_F10), engine.polarEnabled(),
+                               tr("Contraindre le tracé aux angles multiples de l'incrément"),
+                               [this](bool on) { m_view->snapEngine().setPolarEnabled(on); });
+    m_osnapAction = makeToggle(G::Junction, tr("Accrochage aux o&bjets"), tr("ACCROBJ"),
+                               QKeySequence(Qt::Key_F3), engine.objectSnapEnabled(),
+                               tr("Accrocher aux extrémités, milieux, centres, broches…"),
+                               [this](bool on) { m_view->snapEngine().setObjectSnapEnabled(on); });
+
+    for (QAction *action : { m_gridSnapAction, m_gridAction, m_orthoAction, m_polarAction,
+                             m_osnapAction })
+        m_toolBar->addAction(action);
+
+    auto *settings = new QAction(Icons::icon(G::Properties), tr("&Paramètres de dessin…"), this);
+    settings->setShortcut(QKeySequence(Qt::Key_F12));
+    settings->setStatusTip(tr("Modes d'accrochage, grille, repérage polaire"));
+    connect(settings, &QAction::triggered, this, &MainWindow::editDraftingSettings);
+    menu->addAction(settings);
+    m_actionGlyphs.insert(settings, int(G::Properties));
+}
+
+void MainWindow::syncDraftingToggles()
+{
+    const SnapEngine &engine = m_view->snapEngine();
+    m_syncingToggles = true;
+    m_gridSnapAction->setChecked(engine.gridSnapEnabled());
+    m_orthoAction->setChecked(engine.orthoEnabled());
+    m_polarAction->setChecked(engine.polarEnabled());
+    m_osnapAction->setChecked(engine.objectSnapEnabled());
+    m_gridAction->setChecked(m_view->style().showGrid);
+    m_syncingToggles = false;
+
+    for (auto it = m_statusToggles.cbegin(); it != m_statusToggles.cend(); ++it)
+        it.key()->setChecked(it.value()->isChecked());
+}
+
+void MainWindow::editDraftingSettings()
+{
+    DraftingSettingsDialog dialog(m_view->snapEngine(), m_view->gridStep(),
+                                  m_view->style().showGrid, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_view->snapEngine() = dialog.engine();
+    m_view->setGridStep(dialog.gridStep());
+    m_view->setGridVisible(dialog.gridVisible());
+    m_view->snapSettingsTouched();
+    syncDraftingToggles();
+    statusBar()->showMessage(tr("Paramètres de dessin appliqués"), 4000);
+}
+
+void MainWindow::editPageSetup()
+{
+    const Folio *current = m_document->currentFolio();
+    if (!current)
+        return;
+
+    PageSetupDialog dialog(m_document->project(), *current, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    const Folio configured = dialog.result();
+    const bool all = dialog.applyToAllFolios();
+
+    // La mise en page passe par une commande : c'est une modification du
+    // document comme une autre, et elle doit s'annuler.
+    m_document->pushMacro(all ? tr("Mise en page du projet") : tr("Mise en page du folio"), [&] {
+        const auto folios = m_document->project().folios();
+        for (Folio *folio : folios) {
+            if (!all && folio->id() != configured.id())
+                continue;
+            m_document->push(std::make_unique<ChangeFolioLayoutCommand>(
+                    m_document->project(), folio->id(), configured.sheet, configured.frame));
+        }
+    });
+
+    m_view->zoomToFit();
+    m_navigator->refresh();
+    statusBar()->showMessage(all ? tr("Mise en page appliquée à %n folio(s)", "",
+                                      m_document->folioCount())
+                                 : tr("Mise en page du folio appliquée"),
+                             5000);
+}
+
 void MainWindow::createStatusBar()
 {
     m_cursorLabel = new QLabel(this);
@@ -515,10 +649,31 @@ void MainWindow::createStatusBar()
     m_zoomLabel = new QLabel(this);
     m_selectionLabel = new QLabel(this);
     for (QLabel *label : { m_cursorLabel, m_zoneLabel, m_zoomLabel, m_selectionLabel }) {
-        label->setMinimumWidth(120);
+        label->setMinimumWidth(110);
         statusBar()->addPermanentWidget(label);
     }
     m_cursorLabel->setText(QStringLiteral("X 0,0   Y 0,0 mm"));
+
+    // Les bascules d'aide au dessin, sous forme d'etiquettes courtes comme
+    // dans la barre d'etat d'AutoCAD : elles s'allument, se cliquent, et
+    // rappellent leur touche de fonction en info-bulle.
+    for (QAction *action : { m_gridSnapAction, m_gridAction, m_orthoAction, m_polarAction,
+                             m_osnapAction }) {
+        if (!action)
+            continue;
+        auto *button = new QToolButton(this);
+        button->setText(action->data().toString());
+        button->setToolTip(action->toolTip());
+        button->setCheckable(true);
+        button->setChecked(action->isChecked());
+        button->setAutoRaise(true);
+        button->setFocusPolicy(Qt::NoFocus);
+        button->setProperty("statusToggle", true);
+        connect(button, &QToolButton::clicked, action, &QAction::trigger);
+        connect(action, &QAction::toggled, button, &QToolButton::setChecked);
+        statusBar()->addPermanentWidget(button);
+        m_statusToggles.insert(button, action);
+    }
 }
 
 // --------------------------------------------------------------------------

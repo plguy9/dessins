@@ -10,6 +10,9 @@
 #include <QPainterPath>
 #include <QWheelEvent>
 
+#include <numbers>
+#include <QWheelEvent>
+
 #include <algorithm>
 
 namespace dsn {
@@ -62,56 +65,67 @@ QRectF FolioView::visibleSceneRect() const
     return QRectF(toScene(QPointF(0, 0)), toScene(QPointF(width(), height())));
 }
 
-QPointF FolioView::snap(const QPointF &scenePoint) const
+double FolioView::aperture() const
 {
-    if (const auto connection = snapToConnection(scenePoint))
-        return *connection;
-    if (!m_snap)
-        return scenePoint;
-    return snapToGrid(scenePoint, m_style.gridStep);
+    // Dix pixels a l'ecran, comme la fenetre d'accrochage d'AutoCAD, avec un
+    // plancher lie a la grille pour rester utilisable en zoom arriere.
+    return std::max(m_style.gridStep * 0.5, 12.0 / m_scale);
 }
 
-std::optional<QPointF> FolioView::snapToConnection(const QPointF &scenePoint) const
+const QPointF *FolioView::gestureOrigin() const
+{
+    // Le trace de fil fournit une origine : c'est elle qui donne son sens a
+    // l'accrochage perpendiculaire et aux contraintes de direction.
+    return m_wirePoints.isEmpty() ? nullptr : &m_wirePoints.last();
+}
+
+QString FolioView::gestureExclusion() const
+{
+    // Rien a exclure aujourd'hui : le fil en cours n'existe pas encore comme
+    // entite. La fonction existe pour le jour ou l'edition d'un fil pose
+    // permettra de deplacer un de ses sommets.
+    return QString();
+}
+
+std::optional<SnapHit> FolioView::resolveSnap(const QPointF &scenePoint) const
 {
     const Folio *folio = m_document->currentFolio();
     if (!folio)
         return std::nullopt;
 
-    // Le rayon d'accrochage est defini a l'ecran, pas dans le dessin : il doit
-    // rester confortable a tous les niveaux de zoom.
-    const double radius = std::max(m_style.gridStep * 0.45, 8.0 / m_scale);
-    double best = radius;
-    std::optional<QPointF> found;
+    // La grille est ecartee de la resolution visuelle : elle accroche
+    // partout, et son marqueur permanent sous le curseur serait du bruit.
+    SnapEngine engine = m_snapEngine;
+    engine.setMode(SnapMode::Grid, false);
 
-    auto consider = [&](const QPointF &candidate) {
-        const double distance = std::hypot(candidate.x() - scenePoint.x(),
-                                           candidate.y() - scenePoint.y());
-        if (distance < best) {
-            best = distance;
-            found = candidate;
-        }
-    };
+    return engine.snap(*folio, m_document->project().library, scenePoint, aperture(),
+                       gestureOrigin(), gestureExclusion());
+}
 
-    for (const EntityPtr &entity : folio->entities()) {
-        if (const auto *symbol = dynamic_cast<const SymbolInstance *>(entity.get())) {
-            const SymbolDefinition *definition =
-                    m_document->project().library.definition(symbol->definitionId);
-            if (!definition)
-                continue;
-            for (const Pin &pin : definition->pins) {
-                if (pin.type != PinType::NotConnected)
-                    consider(symbol->placement.map(pin.position));
-            }
-        } else if (const auto *wire = dynamic_cast<const Wire *>(entity.get())) {
-            for (const QPointF &p : wire->points)
-                consider(p);
-        } else if (const auto *junction = dynamic_cast<const Junction *>(entity.get())) {
-            consider(junction->point);
-        } else if (const auto *label = dynamic_cast<const Label *>(entity.get())) {
-            consider(label->point);
-        }
+QPointF FolioView::snap(const QPointF &scenePoint) const
+{
+    if (const auto hit = resolveSnap(scenePoint))
+        return hit->point;
+
+    // Sans accrochage a un objet, la contrainte de direction prend la main,
+    // puis la grille. L'ordre compte : un point du dessin vaut toujours mieux
+    // qu'un point calcule.
+    if (const QPointF *from = gestureOrigin()) {
+        const QPointF constrained = m_snapEngine.constrain(*from, scenePoint);
+        if (m_snapEngine.gridSnapEnabled())
+            return m_snapEngine.snapToGridPoint(constrained);
+        return constrained;
     }
-    return found;
+    if (m_snapEngine.gridSnapEnabled())
+        return m_snapEngine.snapToGridPoint(scenePoint);
+    return scenePoint;
+}
+
+void FolioView::snapSettingsTouched()
+{
+    m_snapHit.reset();
+    Q_EMIT snapSettingsChanged();
+    update();
 }
 
 // --------------------------------------------------------------------------
@@ -230,12 +244,7 @@ void FolioView::setGridStep(double step)
     if (step <= 0.0)
         return;
     m_style.gridStep = step;
-    update();
-}
-
-void FolioView::setSnapEnabled(bool enabled)
-{
-    m_snap = enabled;
+    m_snapEngine.setGridStep(step);
     update();
 }
 
@@ -669,9 +678,8 @@ void FolioView::mousePressEvent(QMouseEvent *event)
             beginWireAt(snapped);
         } else {
             const QPointF previous = m_wirePoints.last();
-            const QPointF next = m_snapPoint ? *m_snapPoint : orthogonalize(previous, snapped);
-            if (!samePoint(next, previous))
-                m_wirePoints.append(next);
+            if (!samePoint(snapped, previous))
+                m_wirePoints.append(snapped);
         }
         update();
         return;
@@ -731,7 +739,7 @@ void FolioView::mouseMoveEvent(QMouseEvent *event)
     const QPointF widgetPoint = event->position();
     const QPointF scenePoint = toScene(widgetPoint);
     m_cursorMm = scenePoint;
-    m_snapPoint = snapToConnection(scenePoint);
+    m_snapHit = resolveSnap(scenePoint);
     emitCursor();
 
     switch (m_drag) {
@@ -768,10 +776,10 @@ void FolioView::mouseMoveEvent(QMouseEvent *event)
         break;
     }
 
-    if (m_tool != Tool::Select || !m_wirePoints.isEmpty() || !m_pendingSymbol.isEmpty())
-        update();
-    else if (m_snapPoint)
-        update();
+    // Le retour d'accrochage change a chaque deplacement : la vue doit se
+    // repeindre meme au repos, sinon le marqueur reste colle a sa position
+    // precedente.
+    update();
 }
 
 void FolioView::mouseReleaseEvent(QMouseEvent *event)
@@ -896,7 +904,7 @@ void FolioView::resizeEvent(QResizeEvent *event)
 
 void FolioView::leaveEvent(QEvent *event)
 {
-    m_snapPoint.reset();
+    m_snapHit.reset();
     update();
     QWidget::leaveEvent(event);
 }
@@ -928,9 +936,7 @@ void FolioView::paintPendingWire(QPainter &painter) const
         return;
 
     QVector<QPointF> preview = m_wirePoints;
-    const QPointF last = preview.last();
-    const QPointF target = m_snapPoint ? *m_snapPoint : orthogonalize(last, snap(m_cursorMm));
-    preview.append(target);
+    preview.append(snap(m_cursorMm));
 
     QPen pen(m_style.wire);
     pen.setWidthF(m_style.wireWidth);
@@ -962,18 +968,61 @@ void FolioView::paintPendingSymbol(QPainter &painter) const
     painter.restore();
 }
 
-void FolioView::paintSnapMarker(QPainter &painter) const
+void FolioView::paintPolarGuide(QPainter &painter) const
 {
-    if (!m_snapPoint)
+    const QPointF *from = gestureOrigin();
+    if (!from)
         return;
-    // Marque d'accrochage : sans elle, on ne sait pas si le point suivant
-    // tombera sur la broche ou a cote.
-    const double r = 5.0 / m_scale;
-    QPen pen(m_style.pinMarker);
-    pen.setWidthF(0.3);
+    const auto angle = m_snapEngine.constrainedAngle(*from, m_cursorMm);
+    if (!angle)
+        return;
+
+    // Le rayon d'alignement d'AutoCAD : un trait fin qui traverse la feuille
+    // et montre le cap suivi. Sans lui, la contrainte agit sans s'expliquer.
+    const double radians = *angle * std::numbers::pi / 180.0;
+    const QPointF direction(std::cos(radians), std::sin(radians));
+    const QRectF view = visibleSceneRect();
+    const double reach = std::hypot(view.width(), view.height());
+
+    painter.save();
+    QPen pen(m_style.snapGuide);
+    pen.setWidthF(0.18);
+    pen.setStyle(Qt::DashLine);
     painter.setPen(pen);
-    painter.setBrush(Qt::NoBrush);
-    painter.drawRect(QRectF(m_snapPoint->x() - r, m_snapPoint->y() - r, r * 2, r * 2));
+    painter.drawLine(*from - direction * reach, *from + direction * reach);
+    painter.restore();
+}
+
+void FolioView::paintSnapFeedback(QPainter &painter) const
+{
+    if (!m_snapHit)
+        return;
+
+    // Le prolongement s'explique par un trait pointille jusqu'a l'extremite
+    // dont il part : sans lui, le marqueur flotte sans raison apparente.
+    if (m_snapHit->hasOrigin) {
+        painter.save();
+        QPen pen(m_style.snapGuide);
+        pen.setWidthF(0.18);
+        pen.setStyle(Qt::DashLine);
+        painter.setPen(pen);
+        painter.drawLine(m_snapHit->origin, m_snapHit->point);
+        painter.restore();
+    }
+
+    // La taille du marqueur est fixee a l'ecran, pas dans le dessin : il doit
+    // garder le meme encombrement quel que soit le zoom.
+    const double size = std::max(m_style.snapMarkerSize, 13.0 / m_scale);
+    FolioPainter::paintSnapMarker(painter, m_snapHit->mode, m_snapHit->point, size,
+                                  m_style.snapMarker);
+
+    // L'etiquette nomme le mode, comme l'info-bulle AutoSnap : c'est elle qui
+    // apprend les modes a qui ne les connait pas encore.
+    painter.save();
+    painter.setPen(m_style.snapMarker);
+    FolioPainter::drawTextMm(painter, m_snapHit->point + QPointF(size * 0.85, size * 1.5),
+                             m_snapHit->label(), std::max(2.0, 11.0 / m_scale));
+    painter.restore();
 }
 
 void FolioView::paintRubberBand(QPainter &painter) const
@@ -1012,9 +1061,10 @@ void FolioView::paintEvent(QPaintEvent *event)
     folioPainter.paint(painter, *folio, visibleSceneRect());
 
     painter.setRenderHint(QPainter::Antialiasing, true);
+    paintPolarGuide(painter);
     paintPendingWire(painter);
     paintPendingSymbol(painter);
-    paintSnapMarker(painter);
+    paintSnapFeedback(painter);
     paintRubberBand(painter);
     painter.resetTransform();
     paintEmptyHint(painter, *folio);

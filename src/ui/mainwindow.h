@@ -8,6 +8,7 @@
 #include <QMainWindow>
 
 class QLabel;
+class QToolButton;
 
 namespace dsn {
 
@@ -60,6 +61,12 @@ private:
     void applyTheme(bool dark);
     void refreshIcons();
 
+    // Aides au dessin
+    void createDraftingToggles(QMenu *menu);
+    void syncDraftingToggles();
+    void editDraftingSettings();
+    void editPageSetup();
+
     bool maybeSave();
     QString suggestedFileName(const QString &extension) const;
 
@@ -82,6 +89,13 @@ private:
     QAction *m_undoAction = nullptr;
     QAction *m_redoAction = nullptr;
     QAction *m_darkAction = nullptr;
+    QAction *m_gridAction = nullptr;
+    QAction *m_gridSnapAction = nullptr;
+    QAction *m_osnapAction = nullptr;
+    QAction *m_orthoAction = nullptr;
+    QAction *m_polarAction = nullptr;
+    bool m_syncingToggles = false;
+    QHash<QToolButton *, QAction *> m_statusToggles;
     QList<QAction *> m_toolActions;
     QHash<QAction *, int> m_actionGlyphs; // action -> Icons::Glyph, pour le rehabillage
     class QToolBar *m_toolBar = nullptr;

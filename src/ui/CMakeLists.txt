@@ -7,6 +7,8 @@ add_library(dessins_ui STATIC
     folionavigator.h  folionavigator.cpp
     reportpanel.h     reportpanel.cpp
     symboleditor.h    symboleditor.cpp
+    draftingsettingsdialog.h draftingsettingsdialog.cpp
+    pagesetupdialog.h pagesetupdialog.cpp
     mainwindow.h      mainwindow.cpp
 )
 

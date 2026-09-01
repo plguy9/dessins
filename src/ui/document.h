@@ -31,7 +31,10 @@ public:
     const Project &project() const { return m_project; }
     CommandStack &commands() { return m_commands; }
 
-    Profile profile() const { return Profile::byId(m_project.profileId); }
+    // Profil du projet, avec les reglages de reperage que le projet impose.
+    // Le profil seul dirait la norme ; c'est le projet qui dit la convention
+    // de la maison.
+    Profile profile() const;
     void setProfileId(const QString &id);
 
     const Netlist &netlist() const;

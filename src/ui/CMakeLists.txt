@@ -12,6 +12,7 @@ add_library(dessins_ui STATIC
     commandline.h     commandline.cpp
     ladderdialog.h    ladderdialog.cpp
     wiretypedialog.h  wiretypedialog.cpp
+    componentdialog.h componentdialog.cpp
     mainwindow.h      mainwindow.cpp
 )
 

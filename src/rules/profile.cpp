@@ -27,12 +27,64 @@ WireNumberingRule::Strategy WireNumberingRule::strategyFromTag(const QString &ta
     return Strategy::FolioColumn;
 }
 
-QString DesignationRule::format(const QString &prefix, int index) const
+QString DesignationRule::effectiveFormat() const
 {
-    QString number = QString::number(index);
+    if (!tagFormat.isEmpty())
+        return tagFormat;
+    // Les deux defauts d'AutoCAD : %F%N en sequentiel, la reference devant la
+    // famille sinon — 104K se lit « folio 1, colonne 4, contacteur ».
+    return mode == Mode::LineReference ? QStringLiteral("%X%F") : QStringLiteral("%F%N");
+}
+
+QString DesignationRule::format(const DesignationContext &context) const
+{
+    QString number = QString::number(context.number);
     if (padding > 0)
         number = number.rightJustified(padding, QLatin1Char('0'));
-    return (leadingDash ? QStringLiteral("-") : QString()) + prefix + number;
+
+    const QString pattern = effectiveFormat();
+    QString out;
+    out.reserve(pattern.size() + 8);
+    for (int i = 0; i < pattern.size(); ++i) {
+        if (pattern.at(i) != QLatin1Char('%') || i + 1 >= pattern.size()) {
+            out.append(pattern.at(i));
+            continue;
+        }
+        const QChar token = pattern.at(++i);
+        switch (token.unicode()) {
+        case u'F': out += context.family; break;
+        case u'N': out += number; break;
+        case u'S': out += context.sheet; break;
+        case u'X': out += context.lineReference; break;
+        case u'I': out += context.installation; break;
+        case u'L': out += context.location; break;
+        case u'%': out += QLatin1Char('%'); break;
+        // Un jeton inconnu est recopie tel quel : un format mal saisi doit
+        // rester lisible, pas disparaitre silencieusement du repere.
+        default: out += QLatin1Char('%'); out += token; break;
+        }
+    }
+    out += context.suffix;
+    return (leadingDash ? QStringLiteral("-") : QString()) + out;
+}
+
+QString DesignationRule::format(const QString &prefix, int index) const
+{
+    DesignationContext context;
+    context.family = prefix;
+    context.number = index;
+    return format(context);
+}
+
+QString DesignationRule::modeTag(Mode m)
+{
+    return m == Mode::LineReference ? QStringLiteral("lineReference")
+                                    : QStringLiteral("sequential");
+}
+
+DesignationRule::Mode DesignationRule::modeFromTag(const QString &tag)
+{
+    return tag == QLatin1String("lineReference") ? Mode::LineReference : Mode::Sequential;
 }
 
 Profile Profile::iec()

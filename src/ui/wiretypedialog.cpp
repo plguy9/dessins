@@ -73,6 +73,7 @@ WireTypeDialog::WireTypeDialog(const WireTypeSet &types, QWidget *parent)
     layout->addLayout(buttons);
 
     auto *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    box->button(QDialogButtonBox::Cancel)->setText(tr("Annuler"));
     layout->addWidget(box);
 
     connect(add, &QPushButton::clicked, this, &WireTypeDialog::addType);

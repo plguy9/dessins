@@ -967,6 +967,7 @@ void FolioView::placeSymbolAt(const QPointF &point)
                                                         std::move(instance),
                                                         tr("Poser un symbole")));
     setSelection({ id });
+    Q_EMIT componentPlaced(id);
 }
 
 void FolioView::placeJunctionAt(const QPointF &point)

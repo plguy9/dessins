@@ -11,6 +11,33 @@ namespace dsn {
 
 namespace {
 
+// Reference de ligne d'un point : folio + colonne du cadre, sur deux
+// chiffres. C'est la convention « X-Zones » d'AutoCAD, et c'est deja celle
+// que suivent les reperes de fil : un appareil et le fil qui le touche
+// doivent citer le meme endroit.
+QString lineReferenceOf(const Folio &folio, const QString &sheetTag, const QPointF &at)
+{
+    const int column = folio.columnAt(at);
+    if (column <= 0)
+        return sheetTag;
+    return sheetTag + QString::number(column).rightJustified(2, QLatin1Char('0'));
+}
+
+// Lettre de departage : A, B, ... Z, puis AA. Deux appareils sur la meme
+// ligne sont frequents (un contact et sa bobine cote a cote) et doivent
+// rester distinguables.
+QString suffixLetter(int index)
+{
+    QString out;
+    ++index;
+    while (index > 0) {
+        const int rest = (index - 1) % 26;
+        out.prepend(QChar(char16_t(u'A' + rest)));
+        index = (index - 1) / 26;
+    }
+    return out;
+}
+
 // Ordre de lecture d'un schema : de haut en bas, puis de gauche a droite.
 // C'est l'ordre dans lequel un electricien parcourt un folio, donc l'ordre
 // dans lequel il s'attend a voir les reperes progresser.
@@ -221,6 +248,7 @@ NumberingResult Numbering::designateDevices(Project &project, const Profile &pro
         QString key;
         QVector<SymbolInstance *> members;
         int folioIndex = 0;
+        const Folio *folio = nullptr;
         QPointF anchor;
         QString prefix;
         bool locked = false;
@@ -253,6 +281,7 @@ NumberingResult Numbering::designateDevices(Project &project, const Profile &pro
                 Group group;
                 group.key = key;
                 group.folioIndex = folioIndex;
+                group.folio = folio;
                 group.anchor = symbol->placement.position;
                 group.prefix = prefix;
                 it = groups.insert(key, group);
@@ -261,6 +290,7 @@ NumberingResult Numbering::designateDevices(Project &project, const Profile &pro
                        || (folioIndex == it->folioIndex
                            && readingOrder(symbol->placement.position, it->anchor))) {
                 it->folioIndex = folioIndex;
+                it->folio = folio;
                 it->anchor = symbol->placement.position;
             }
 
@@ -297,16 +327,47 @@ NumberingResult Numbering::designateDevices(Project &project, const Profile &pro
             continue;
         }
 
-        const QString counterKey = rule.perFolio
-                ? QString::number(group.folioIndex) + QLatin1Char('/') + group.prefix
-                : group.prefix;
-        int &counter = counters[counterKey];
+        DesignationContext context;
+        context.family = group.prefix;
+        if (group.folio) {
+            context.sheet = group.folio->number.isEmpty()
+                    ? QString::number(group.folioIndex + 1)
+                    : group.folio->number;
+            context.lineReference = lineReferenceOf(*group.folio, context.sheet, group.anchor);
+        }
+        // Les codes d'installation et d'emplacement viennent de l'appareil :
+        // ils identifient l'armoire, pas la famille.
+        for (const SymbolInstance *member : group.members) {
+            if (context.installation.isEmpty())
+                context.installation = member->fields.value(QStringLiteral("installation"));
+            if (context.location.isEmpty())
+                context.location = member->fields.value(QStringLiteral("location"));
+        }
 
         QString designation;
-        do {
-            ++counter;
-            designation = rule.format(group.prefix, counter);
-        } while (taken.contains(designation));
+        if (rule.mode == DesignationRule::Mode::LineReference) {
+            // La reference de ligne place l'appareil ; deux appareils au meme
+            // endroit se departagent par une lettre, comme la liste de
+            // suffixes d'AutoCAD.
+            context.number = 1;
+            designation = rule.format(context);
+            int suffix = 0;
+            while (taken.contains(designation)) {
+                context.suffix = suffixLetter(suffix++);
+                context.number = suffix + 1;
+                designation = rule.format(context);
+            }
+        } else {
+            const QString counterKey = rule.perFolio
+                    ? QString::number(group.folioIndex) + QLatin1Char('/') + group.prefix
+                    : group.prefix;
+            int &counter = counters[counterKey];
+            do {
+                ++counter;
+                context.number = counter;
+                designation = rule.format(context);
+            } while (taken.contains(designation));
+        }
 
         taken.insert(designation);
         for (SymbolInstance *symbol : group.members)

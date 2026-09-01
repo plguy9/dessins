@@ -71,6 +71,18 @@ sont délibérés et documentés dans le code :
   déplace, se copie et s'annule comme le reste, et le peintre n'apprend rien.
   Les largeurs de colonnes viennent de `FolioPainter::textWidthMm` quand
   l'interface les mesure — `rules/` ne sait qu'estimer.
+- **`ui/componentdialog.*`** — la boîte « Insérer/Éditer composant », la plus
+  utilisée d'AutoCAD Electrical. Elle s'ouvre à la pose **et** au double-clic.
+  Annuler à l'insertion défait la pose : c'est pour cela qu'elle est ouverte
+  juste après le `AddEntityCommand`, jamais avant.
+- **`DesignationRule::tagFormat`** — `%F%N` et ses variantes. Deux modes :
+  séquentiel, ou basé sur la référence de ligne (`104K` = folio 1, colonne 4),
+  où deux appareils au même endroit se départagent par une lettre. Le format
+  vit dans le **projet** (`Project::designationFormat`), pas dans le profil :
+  c'est une convention de bureau d'études, pas une norme. Il y est stocké en
+  texte, parce que `core/` ne dépend pas de `rules/`.
+- **`rules/catalog.*`** — le catalogue fabricant, embarqué par ressource
+  comme les symboles et complété par les fichiers du poste.
 - **`ReportScope`** — chaque rapport commence par la question d'AutoCAD :
   tout le projet, ou le folio actif. Un seul point de filtrage
   (`foliosInScope`), pour qu'aucun rapport ne puisse l'oublier.
@@ -126,6 +138,11 @@ sont délibérés et documentés dans le code :
 
 - Code et commentaires en français (sans accents dans les .cpp/.h du cœur,
   chaînes `tr()` accentuées côté interface). Messages de commit en français.
+- L'interface n'existe **qu'en français** : `main.cpp` impose la locale
+  française aux traductions de Qt, sans quoi un « Cancel » apparaît à côté
+  d'un « Appliquer ». Le workflow de release déploie `--translations fr`.
+- Ne jamais déclarer une classe Qt en avant **dans** `namespace dsn` : cela
+  crée un type distinct et incomplet. La déclaration va hors du namespace.
 - Tests Catch2 : noms de test en français décrivant le comportement, avec un
   commentaire disant *pourquoi* l'exigence existe.
 - `clang-format` n'est pas encore configuré : imiter le style en place
@@ -159,8 +176,7 @@ La distribution se fait par la page GitHub Releases.
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 
 0. Reste du relevé AutoCAD (`docs/AUTOCAD.md`) : gestionnaire de projet
-   multi-dossiers, entrées-sorties API, éditeur de borniers, boîte
-   « Insérer/Éditer composant », catalogue fabricant.
+   multi-dossiers, entrées-sorties API, éditeur de borniers, Scoot, Surfer.
 1. Import DXF (l'export existe : `io/dxfexport.cpp`).
 2. Unifilaires M8 : symboles de distribution + bilan de puissance
    (le modèle multi-conducteurs est prêt).

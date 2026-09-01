@@ -49,7 +49,10 @@ jobs:
           New-Item -ItemType Directory -Force dist/dessins | Out-Null
           Copy-Item build/bin/dessins.exe dist/dessins/
           Copy-Item build/bin/dessins_sample.exe dist/dessins/
-          windeployqt --release --compiler-runtime --no-translations dist/dessins/dessins.exe
+          # Les traductions francaises de Qt sont necessaires : sans elles, les
+          # boutons standards et les boites de fichiers s'affichent en anglais
+          # au milieu d'une interface entierement francaise.
+          windeployqt --release --compiler-runtime --translations fr dist/dessins/dessins.exe
           # La plateforme « offscreen » sert a la verification sans ecran
           # ci-dessous ; windeployqt ne deploie que qwindows.
           Copy-Item "$env:QT_ROOT_DIR/plugins/platforms/qoffscreen.dll" dist/dessins/platforms/

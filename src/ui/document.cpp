@@ -26,6 +26,21 @@ void Document::onStackChanged()
     }
 }
 
+Profile Document::profile() const
+{
+    Profile profile = Profile::byId(m_project.profileId);
+    if (!m_project.designationFormat.isEmpty())
+        profile.designation.tagFormat = m_project.designationFormat;
+    if (!m_project.designationMode.isEmpty()) {
+        profile.designation.mode = DesignationRule::modeFromTag(m_project.designationMode);
+        // Le mode par reference de ligne repart de son propre format par
+        // defaut : garder %F%N le rendrait identique au sequentiel.
+        if (m_project.designationFormat.isEmpty())
+            profile.designation.tagFormat.clear();
+    }
+    return profile;
+}
+
 const Netlist &Document::netlist() const
 {
     if (!m_netlistValid) {

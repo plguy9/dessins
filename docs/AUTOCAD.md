@@ -47,8 +47,19 @@ Les décomptes « déjà en place » de chaque section datent du relevé. Ce qui
 | Poser un rapport dans le dessin, `Put on Drawing` / `Table Generation Setup` | `rules/reportplacer.*`, commande `POSERRAPPORT` / `PRA`. La table est faite de traits et de textes ordinaires : elle se déplace, se copie et s'annule comme le reste du dessin. Découpe en sections côte à côte quand elle ne tient pas en hauteur, et prévient si elle déborde du cadre. |
 | Raccourcis de palettes | Ctrl+1 propriétés, Ctrl+3 palette de symboles, Ctrl+4 navigateur de folios, Ctrl+9 ligne de commande. |
 
+**Lot 5 — 2026-09-01**
+
+| Repris d'AutoCAD | Chez nous |
+|---|---|
+| Boîte « Insérer/Éditer composant », `AEEDITCOMPONENT` | `ui/componentdialog.*`. S'ouvre juste après la pose d'un symbole et au double-clic sur un appareil, comme chez AutoCAD. Repère et case « figé », description, valeur, codes installation et emplacement, données catalogue, rattachement à un appareil parent, autres blocs et broches. Annuler à l'insertion annule vraiment la pose. Touche <kbd>F2</kbd>, commande `COMPOSANT` / `EDC`. |
+| Format de repère à paramètres, `Component TAG Format` | `DesignationRule::tagFormat` : `%F` famille, `%N` numéro, `%S` folio, `%X` référence de ligne, `%I` installation, `%L` emplacement, `%%` littéral. Un jeton inconnu est recopié tel quel — un format mal saisi doit rester lisible. Réglé par projet (menu Projet ▸ Format des repères), avec aperçu. |
+| Repérage basé sur la référence de ligne, `Line Reference` | `DesignationRule::Mode::LineReference`. Le repère dit où trouver l'appareil : `104K` pour un contacteur en colonne 4 du folio 1. Deux appareils au même endroit se départagent par une lettre, comme la liste de suffixes d'AutoCAD. Reste reproductible, comme le mode séquentiel. |
+| Relation parent/enfant (bobine et contacts) | Le rattachement se fait dans la boîte du composant : la liste des appareils déjà posés, avec leur folio. La boîte affiche les autres blocs de l'appareil en « folio/zone ». |
+| Base catalogue fabricant, `default_cat.mdb` / `AECATALOG` | `rules/catalog.*` + `catalog/catalogue.json`, embarqué par ressource comme la bibliothèque de symboles, complété par les fichiers du poste. 41 articles de départ (Schneider, Siemens, ABB, Phoenix Contact, Legrand…). |
+| Recherche catalogue depuis le composant, `Catalog Lookup` | `CatalogDialog`, ouverte par le bouton « Chercher… ». Part de la famille du symbole mais laisse en sortir — un catalogue réel ne colle jamais parfaitement à nos familles. La description saisie à la main n'est jamais écrasée. |
+
 Reste notamment : gestionnaire de projet multi-dossiers, entrées-sorties API,
-éditeur de borniers, boîte « Insérer/Éditer composant », catalogue fabricant.
+éditeur de borniers, Scoot, Surfer.
 
 ## Accrochage aux objets (Object Snap / OSNAP) d'AutoCAD — modes d'accrochage, marqueurs AutoSnap et reglages associes
 31 fonctionnalités relevées — **23 déjà en place**, 8 restantes.

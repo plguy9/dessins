@@ -45,8 +45,9 @@ Project::Project() = default;
 Project::~Project() = default;
 
 Project::Project(const Project &other)
-    : info(other.info), profileId(other.profileId), wireTypes(other.wireTypes),
-      library(other.library)
+    : info(other.info), profileId(other.profileId),
+      designationFormat(other.designationFormat), designationMode(other.designationMode),
+      wireTypes(other.wireTypes), library(other.library)
 {
     m_folios.reserve(other.m_folios.size());
     for (const auto &f : other.m_folios)
@@ -59,6 +60,8 @@ Project &Project::operator=(const Project &other)
         return *this;
     info = other.info;
     profileId = other.profileId;
+    designationFormat = other.designationFormat;
+    designationMode = other.designationMode;
     wireTypes = other.wireTypes;
     library = other.library;
     m_folios.clear();
@@ -228,6 +231,8 @@ void Project::clear()
     m_folios.clear();
     library.clear();
     wireTypes = WireTypeSet::forNorm(profileId);
+    designationFormat.clear();
+    designationMode.clear();
     info = ProjectInfo();
 }
 
@@ -244,6 +249,10 @@ QJsonObject Project::toJson() const
     o[QStringLiteral("info")] = info.toJson();
     o[QStringLiteral("profile")] = profileId;
     o[QStringLiteral("wireTypes")] = wireTypes.toJson();
+    if (!designationFormat.isEmpty())
+        o[QStringLiteral("designationFormat")] = designationFormat;
+    if (!designationMode.isEmpty())
+        o[QStringLiteral("designationMode")] = designationMode;
 
     QJsonArray folioArray;
     for (const auto &f : m_folios)
@@ -260,6 +269,8 @@ bool Project::readJson(const QJsonObject &object)
 
     info = ProjectInfo::fromJson(object.value(QStringLiteral("info")));
     profileId = object.value(QStringLiteral("profile")).toString(QStringLiteral("iec"));
+    designationFormat = object.value(QStringLiteral("designationFormat")).toString();
+    designationMode = object.value(QStringLiteral("designationMode")).toString();
     // Un document anterieur aux types de fils n'a pas la cle : on repart alors
     // du jeu de la norme, plutot que du seul type par defaut.
     if (object.contains(QStringLiteral("wireTypes")))

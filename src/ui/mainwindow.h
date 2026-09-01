@@ -3,6 +3,7 @@
 
 #include "document.h"
 #include "folioview.h"
+#include "rules/catalog.h"
 
 #include <QDockWidget>
 #include <QHash>
@@ -56,6 +57,10 @@ private:
     void setProfile(const QString &profileId);
     void checkSchematic();
 
+    // Composants
+    void editComponent(const QString &entityId, bool insertion);
+    void editSelectedComponent();
+
     // Symboles
     void newSymbol();
     void editCurrentSymbol(bool asCopy);
@@ -75,6 +80,7 @@ private:
     void editPageSetup();
     void insertLadder();
     void editWireTypes();
+    void editTagFormat();
     void rebuildWireTypeSelector();
 
     // Edition avancee
@@ -87,6 +93,10 @@ private:
     // Fichiers recents
     void addRecentFile(const QString &path);
     void rebuildRecentMenu();
+
+    // Catalogue fabricant, charge une fois : le logiciel doit proposer des
+    // references des le premier lancement, sans installation.
+    Catalog m_catalog;
 
     Document *m_document = nullptr;
     FolioView *m_view = nullptr;
@@ -123,6 +133,8 @@ private:
     QAction *m_moveAction = nullptr;
     QAction *m_offsetAction = nullptr;
     QAction *m_stretchAction = nullptr;
+    QAction *m_editComponentAction = nullptr;
+    QAction *m_editOnInsertAction = nullptr;
     QAction *m_zoomFitAction = nullptr;
     QAction *m_zoomPreviousAction = nullptr;
     QAction *m_pageSetupAction = nullptr;

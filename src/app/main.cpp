@@ -4,7 +4,9 @@
 #include <QApplication>
 #include <QCommandLineOption>
 #include <QCommandLineParser>
+#include <QLibraryInfo>
 #include <QLocale>
+#include <QTranslator>
 #include <QPixmap>
 #include <QSettings>
 #include <QTimer>
@@ -16,6 +18,18 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("Dessins"));
     QCoreApplication::setApplicationVersion(QStringLiteral(DESSINS_VERSION));
     QApplication::setApplicationDisplayName(QStringLiteral("Dessins"));
+
+    // Les boutons standards des boites de dialogue, les boites de fichiers et
+    // les messages d'erreur viennent de Qt, pas de nous. Sans ses traductions,
+    // une fenetre entierement francaise affiche « Cancel » a cote
+    // d'« Appliquer ». L'interface n'existe qu'en francais : on impose donc la
+    // locale plutot que de suivre celle du systeme.
+    static QTranslator qtTranslator;
+    if (qtTranslator.load(QLocale(QLocale::French), QStringLiteral("qtbase"),
+                          QStringLiteral("_"),
+                          QLibraryInfo::path(QLibraryInfo::TranslationsPath))) {
+        app.installTranslator(&qtTranslator);
+    }
 
     // Le theme est pose avant la premiere fenetre : sans cela le premier
     // affichage clignote au style du systeme avant de basculer.

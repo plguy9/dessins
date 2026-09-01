@@ -33,16 +33,50 @@ struct WireNumberingRule {
     static Strategy strategyFromTag(const QString &tag);
 };
 
+// Ce que le format de repere a sa disposition pour un appareil donne.
+struct DesignationContext {
+    QString family;          // %F — prefixe de famille : K, Q, X...
+    int number = 1;          // %N — compteur sequentiel
+    QString suffix;          // lettre de departage, en mode reference de ligne
+    QString sheet;           // %S — numero de folio
+    QString lineReference;   // %X — reference de ligne, ex. 104
+    QString installation;    // %I — code d'installation
+    QString location;        // %L — code d'emplacement
+};
+
 // Attribution des designations d'appareil.
 struct DesignationRule {
+    // Les deux modes d'AutoCAD Electrical. En sequentiel, le numero vient
+    // d'un compteur par famille : KM1, KM2. Base sur la reference, il vient
+    // de l'endroit ou l'appareil est pose : 104K pour un appareil en colonne
+    // 4 du folio 1. Le second se lit sur le schema sans chercher la
+    // nomenclature — c'est pour cela qu'il existe.
+    enum class Mode { Sequential, LineReference };
+
     // La CEI 81346 prefixe d'un tiret : -K1, -Q2. L'usage nord-americain non.
     bool leadingDash = true;
     bool perFolio = false;
     int padding = 0;
+    Mode mode = Mode::Sequential;
+
+    // Format a parametres remplacables, comme le « Component TAG Format »
+    // d'AutoCAD. Vide = le format par defaut du mode. Jetons reconnus :
+    // %F famille, %N numero, %S folio, %X reference de ligne,
+    // %I installation, %L emplacement, %% un pour cent litteral.
+    QString tagFormat;
+
     // Prefixe impose par famille d'appareil, prioritaire sur celui du symbole.
     QMap<QString, QString> prefixByDeviceKind;
 
+    // Format effectif : celui qui est regle, ou celui du mode.
+    QString effectiveFormat() const;
+
+    QString format(const DesignationContext &context) const;
+    // Confort : repere sequentiel simple, sans contexte de position.
     QString format(const QString &prefix, int index) const;
+
+    static QString modeTag(Mode m);
+    static Mode modeFromTag(const QString &tag);
 };
 
 class Profile

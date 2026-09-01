@@ -4,6 +4,7 @@
 #include <QMouseEvent>
 #include <QPixmap>
 #include <QTabWidget>
+#include <QTableWidget>
 #include <QTemporaryDir>
 
 #include "core/documentcommands.h"
@@ -12,6 +13,7 @@
 #include "ui/folioview.h"
 #include "ui/symboleditor.h"
 #include "ui/commandline.h"
+#include "ui/componentdialog.h"
 #include "ui/mainwindow.h"
 #include "ui/draftingsettingsdialog.h"
 #include "ui/pagesetupdialog.h"
@@ -939,4 +941,60 @@ TEST_CASE("Le panneau des rapports sort les onglets de cablage et de composants"
 
     // La portee par defaut est le projet entier.
     CHECK(panel.scope().isProject());
+}
+
+TEST_CASE("La boite du composant reunit repere, catalogue et rattachement",
+          "[ui][component]")
+{
+    // C'est la boite la plus utilisee d'AutoCAD Electrical : tout ce qui
+    // identifie un appareil doit y tenir en un ecran.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    folio->number = QStringLiteral("1");
+
+    auto *symbol = placeSymbol(document.project(), folio,
+                               QStringLiteral("iec:contactor-power-3p"), QPointF(120, 80));
+    symbol->setDesignation(QStringLiteral("-KM1"));
+    symbol->designationLocked = true;
+    symbol->deviceGroup = QStringLiteral("km1");
+    symbol->fields.insert(QStringLiteral("manufacturer"), QStringLiteral("Schneider"));
+    symbol->fields.insert(QStringLiteral("partNumber"), QStringLiteral("LC1D09B7"));
+
+    // Un second bloc du meme appareil, sur un autre folio.
+    Folio *second = document.project().addFolio(QStringLiteral("Commande"));
+    second->number = QStringLiteral("2");
+    auto *contact = placeSymbol(document.project(), second, QStringLiteral("iec:contact-no"),
+                                QPointF(90, 150));
+    contact->setDesignation(QStringLiteral("-KM1"));
+    contact->deviceGroup = QStringLiteral("km1");
+
+    const Catalog catalog = Catalog::builtin();
+    ComponentDialog dialog(document.project(), *symbol, catalog, false);
+    dialog.resize(620, 560);
+    dialog.show();
+
+    // Sans rien toucher, la boite doit rendre exactement ce qu'elle a recu :
+    // ouvrir puis valider ne doit jamais modifier un appareil.
+    const SymbolInstance back = dialog.result();
+    CHECK(back.designation() == QLatin1String("-KM1"));
+    CHECK(back.designationLocked);
+    CHECK(back.deviceGroup == QLatin1String("km1"));
+    CHECK(back.fields.value(QStringLiteral("partNumber")) == QLatin1String("LC1D09B7"));
+    CHECK(back.definitionId == symbol->definitionId);
+    CHECK(back.placement.position == symbol->placement.position);
+}
+
+TEST_CASE("Le catalogue s'ouvre sur la famille du symbole", "[ui][component]")
+{
+    const Catalog catalog = Catalog::builtin();
+    CatalogDialog dialog(catalog, QStringLiteral("contactor"));
+    dialog.resize(760, 460);
+    dialog.show();
+
+    auto *table = dialog.findChild<QTableWidget *>();
+    REQUIRE(table);
+    CHECK(table->rowCount() == catalog.forDeviceKind(QStringLiteral("contactor")).size());
+    CHECK(table->rowCount() > 0);
+    CHECK(table->rowCount() < catalog.count()); // la famille filtre vraiment
 }

@@ -44,6 +44,14 @@ public:
     // Identifiant du profil metier : "iec", "ansi", "electronic".
     QString profileId = QStringLiteral("iec");
 
+    // Reglages de reperage propres au projet. Ils priment sur ceux du profil :
+    // le format de repere est une convention de bureau d'etudes, pas une
+    // norme, et AutoCAD le range de meme dans les proprietes du dessin.
+    // Stockes en texte parce que leur interpretation appartient a rules/ et
+    // que le coeur n'en depend pas.
+    QString designationFormat;   // ex. « %F%N » ; vide = celui du profil
+    QString designationMode;     // « sequential » ou « lineReference » ; vide = profil
+
     // Types de fils du projet (couleur, section, calque). Ils voyagent avec
     // le document : un dossier rouvert ailleurs garde ses couleurs. Un projet
     // neuf part du jeu de sa norme, pas d'une liste vide.

@@ -132,6 +132,9 @@ Q_SIGNALS:
     void toolChanged(FolioView::Tool tool);
     void statusMessage(const QString &message);
     void entityActivated(const QString &entityId);
+    // Un symbole vient d'etre pose. La fenetre principale decide d'ouvrir ou
+    // non la boite du composant : le catalogue et le reglage lui appartiennent.
+    void componentPlaced(const QString &entityId);
 
 protected:
     void paintEvent(QPaintEvent *event) override;

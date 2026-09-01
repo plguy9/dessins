@@ -59,6 +59,11 @@ ne pas s'ouvrir du tout.
 norme de symboles, le pas de grille, le format de feuille par défaut et les
 règles de repérage.
 
+`designationFormat` et `designationMode` portent la convention de repérage du
+projet et priment sur celle du profil : `sequential` compte par famille (`K1`,
+`K2`), `lineReference` fait dire au repère où trouver l'appareil (`104K`).
+Absents, c'est le profil qui décide.
+
 `wireTypes` est la bibliothèque des types de fils du projet. Un fil ne stocke
 jamais sa couleur : il référence un `id` de type. La couleur s'écrit `#rrggbb`
 et `style` vaut `solid` (défaut), `dashed`, `dotted` ou `dashdot`. Le type

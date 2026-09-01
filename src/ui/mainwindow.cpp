@@ -17,6 +17,7 @@
 #include "rules/reportplacer.h"
 #include "symboleditor.h"
 #include "symbolpalette.h"
+#include "componentdialog.h"
 #include "wiretypedialog.h"
 #include "theme.h"
 #include "symbols/librarystore.h"
@@ -121,6 +122,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 {
     m_document = new Document(this);
 
+    // Catalogue fabricant : celui livre avec le logiciel, complete par les
+    // fichiers du poste. Charge une fois pour toute la session.
+    m_catalog = Catalog::loadAll();
+
     // La bibliotheque integree est chargee une fois pour toutes : le logiciel
     // doit etre utilisable des le premier lancement, sans installation.
     SymbolLibrary library;
@@ -154,6 +159,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     connect(m_view, &FolioView::zoomChanged, this, [this] { updateActions(); });
     connect(m_document, &Document::modifiedChanged, this, &MainWindow::updateTitle);
     connect(m_view, &FolioView::contextMenuRequested, this, &MainWindow::showCanvasContextMenu);
+    connect(m_view, &FolioView::componentPlaced, this, [this](const QString &id) {
+        if (m_editOnInsertAction && m_editOnInsertAction->isChecked())
+            editComponent(id, true);
+    });
+    // Double-clic sur un appareil : la meme boite, comme chez AutoCAD.
+    connect(m_view, &FolioView::entityActivated, this, [this](const QString &id) {
+        if (dynamic_cast<const SymbolInstance *>(m_document->project().findEntity(id)))
+            editComponent(id, false);
+    });
     connect(m_document, &Document::undoStateChanged, this, &MainWindow::updateActions);
     connect(m_document, &Document::undoStateChanged, this, &MainWindow::rebuildWireTypeSelector);
     connect(m_document, &Document::currentFolioChanged, this, &MainWindow::updateTitle);
@@ -161,6 +175,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     // Le theme est applique en dernier : il redessine les icones et
     // reharmonise le fond du canevas avec le chrome de la fenetre.
     QSettings settings;
+    // AutoCAD ouvre la boite a chaque insertion : on fait de meme par defaut,
+    // et on retient le choix de celui qui prefere poser en serie.
+    m_editOnInsertAction->setChecked(
+            settings.value(QStringLiteral("ui/editComponentOnInsert"), true).toBool());
+    connect(m_editOnInsertAction, &QAction::toggled, this, [](bool on) {
+        QSettings().setValue(QStringLiteral("ui/editComponentOnInsert"), on);
+    });
     const bool dark = settings.value(QStringLiteral("ui/darkTheme"), true).toBool();
     m_darkAction->blockSignals(true);
     m_darkAction->setChecked(dark);
@@ -572,6 +593,9 @@ void MainWindow::createActions()
     make(projectMenu, false, G::Reports, tr("&Poser le rapport dans le dessin…"), QKeySequence(),
          tr("Insère le rapport affiché sous forme de table sur le folio actif"),
          &MainWindow::placeCurrentReport);
+    make(projectMenu, false, G::Renumber, tr("&Format des repères…"), QKeySequence(),
+         tr("Séquentiel ou par référence de ligne, avec ses paramètres remplaçables"),
+         &MainWindow::editTagFormat);
     make(projectMenu, true, G::Renumber, tr("&Repérage automatique"),
          QKeySequence(Qt::CTRL | Qt::Key_R),
          tr("Désigner les appareils et repérer les fils"), &MainWindow::renumberAll);
@@ -595,6 +619,17 @@ void MainWindow::createActions()
 
     // ---- Symboles ------------------------------------------------------
     QMenu *symbolMenu = menuBar()->addMenu(tr("&Symboles"));
+    m_editComponentAction = make(symbolMenu, true, G::Properties, tr("&Éditer le composant…"),
+                                 QKeySequence(Qt::Key_F2),
+                                 tr("Repère, description, catalogue et rattachement de "
+                                    "l'appareil sélectionné"),
+                                 &MainWindow::editSelectedComponent);
+    m_editOnInsertAction = new QAction(tr("Éditer le composant à l'&insertion"), this);
+    m_editOnInsertAction->setCheckable(true);
+    m_editOnInsertAction->setStatusTip(
+            tr("Ouvrir la boîte du composant juste après avoir posé un symbole"));
+    symbolMenu->addAction(m_editOnInsertAction);
+    symbolMenu->addSeparator();
     make(symbolMenu, false, G::Plus, tr("&Nouveau symbole…"), QKeySequence(),
          tr("Dessiner un symbole et l'ajouter à la bibliothèque"), &MainWindow::newSymbol);
     make(symbolMenu, true, G::Edit, tr("&Modifier le symbole de la palette…"), QKeySequence(),
@@ -623,6 +658,41 @@ void MainWindow::refreshIcons()
 {
     for (auto it = m_actionGlyphs.constBegin(); it != m_actionGlyphs.constEnd(); ++it)
         it.key()->setIcon(Icons::icon(Icons::Glyph(it.value())));
+}
+
+void MainWindow::editComponent(const QString &entityId, bool insertion)
+{
+    Folio *folio = nullptr;
+    Entity *entity = m_document->project().findEntity(entityId, &folio);
+    auto *symbol = dynamic_cast<SymbolInstance *>(entity);
+    if (!symbol || !folio)
+        return;
+
+    ComponentDialog dialog(m_document->project(), *symbol, m_catalog, insertion, this);
+    if (dialog.exec() != QDialog::Accepted) {
+        // Annuler a l'insertion annule vraiment la pose, comme chez AutoCAD.
+        // La pose vient d'etre empilee : la defaire est sans effet de bord.
+        if (insertion && m_document->commands().canUndo())
+            m_document->undo();
+        return;
+    }
+
+    auto after = std::make_unique<SymbolInstance>(dialog.result());
+    m_document->push(std::make_unique<ModifyEntityCommand>(
+            m_document->project(), folio->id(), symbol->clone(), std::move(after),
+            tr("Éditer le composant")));
+    m_view->update();
+}
+
+void MainWindow::editSelectedComponent()
+{
+    for (const QString &id : m_view->selection()) {
+        if (dynamic_cast<const SymbolInstance *>(m_document->project().findEntity(id))) {
+            editComponent(id, false);
+            return;
+        }
+    }
+    statusBar()->showMessage(tr("Sélectionner un appareil pour l'éditer"), 4000);
 }
 
 void MainWindow::newSymbol()
@@ -920,6 +990,8 @@ void MainWindow::registerCommands()
     simple(QStringLiteral("ETIRER"), { QStringLiteral("ETI") },
            tr("Étirer les sommets pris dans une fenêtre de capture"),
            [this] { m_view->beginStretch(); });
+    simple(QStringLiteral("COMPOSANT"), { QStringLiteral("CO2"), QStringLiteral("EDC") },
+           tr("Éditer l'appareil sélectionné"), [this] { editSelectedComponent(); });
     simple(QStringLiteral("POSERRAPPORT"), { QStringLiteral("PRA") },
            tr("Poser le rapport affiché dans le dessin"),
            [this] { placeCurrentReport(); });
@@ -1105,6 +1177,7 @@ void MainWindow::showCanvasContextMenu(const QPoint &globalPos)
         menu.addAction(m_copyAction);
         menu.addAction(m_deleteAction);
         menu.addSeparator();
+        menu.addAction(m_editComponentAction);
         menu.addAction(m_moveAction);
         menu.addAction(m_rotateAction);
         menu.addAction(m_mirrorAction);
@@ -1629,6 +1702,79 @@ void MainWindow::editProjectInfo()
     m_document->push(std::make_unique<ChangeProjectInfoCommand>(m_document->project(),
                                                                 dialog.info()));
     updateTitle();
+}
+
+void MainWindow::editTagFormat()
+{
+    // Le « Component TAG Format » d'AutoCAD, range dans les proprietes du
+    // dessin : le format de repere est une convention de bureau d'etudes,
+    // pas une norme, et il doit se regler sans toucher au profil metier.
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Format des repères d'appareil"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout;
+    layout->addLayout(form);
+
+    const Profile profile = m_document->profile();
+
+    auto *mode = new QComboBox(&dialog);
+    mode->addItem(tr("Séquentiel — un compteur par famille (K1, K2…)"),
+                  DesignationRule::modeTag(DesignationRule::Mode::Sequential));
+    mode->addItem(tr("Par référence de ligne — l'endroit fait le repère (104K)"),
+                  DesignationRule::modeTag(DesignationRule::Mode::LineReference));
+    mode->setCurrentIndex(std::max(0, mode->findData(
+            DesignationRule::modeTag(profile.designation.mode))));
+    form->addRow(tr("Mode"), mode);
+
+    auto *format = new QLineEdit(m_document->project().designationFormat, &dialog);
+    format->setPlaceholderText(tr("vide = le format du mode"));
+    form->addRow(tr("Format"), format);
+
+    auto *help = new QLabel(tr("<b>%F</b> famille · <b>%N</b> numéro · <b>%S</b> folio · "
+                               "<b>%X</b> référence de ligne · <b>%I</b> installation · "
+                               "<b>%L</b> emplacement · <b>%%</b> un pour cent"),
+                            &dialog);
+    help->setWordWrap(true);
+    form->addRow(QString(), help);
+
+    auto *preview = new QLabel(&dialog);
+    preview->setWordWrap(true);
+    form->addRow(tr("Aperçu"), preview);
+
+    auto refresh = [&] {
+        DesignationRule rule = profile.designation;
+        rule.mode = DesignationRule::modeFromTag(mode->currentData().toString());
+        rule.tagFormat = format->text();
+        // Un exemple concret vaut mieux qu'une explication : on montre le
+        // repere que donnerait un contacteur en colonne 4 du folio 1.
+        DesignationContext context;
+        context.family = QStringLiteral("K");
+        context.number = 2;
+        context.sheet = QStringLiteral("1");
+        context.lineReference = QStringLiteral("104");
+        context.installation = QStringLiteral("A1");
+        context.location = QStringLiteral("ARM");
+        preview->setText(tr("Un contacteur en colonne 4 du folio 1 : <b>%1</b>")
+                                 .arg(rule.format(context)));
+    };
+    connect(mode, &QComboBox::currentIndexChanged, &dialog, refresh);
+    connect(format, &QLineEdit::textChanged, &dialog, refresh);
+    refresh();
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                         &dialog);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_document->project().designationMode = mode->currentData().toString();
+    m_document->project().designationFormat = format->text().trimmed();
+    m_document->invalidateNetlist();
+    statusBar()->showMessage(tr("Format de repère modifié. Relancer le repérage "
+                                "automatique pour l'appliquer."), 8000);
 }
 
 void MainWindow::renumberAll()

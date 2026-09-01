@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "rules/catalog.h"
 #include "rules/numbering.h"
 #include "rules/reports.h"
 #include "testhelpers.h"
@@ -583,4 +584,219 @@ TEST_CASE("La portee limite un rapport au folio actif", "[rules][scope]")
     const ReportTable summary = Reports::projectSummary(project, netlist, scope);
     REQUIRE_FALSE(summary.rows.isEmpty());
     CHECK(summary.rows.first().at(1) == QLatin1String("1")); // un seul folio
+}
+
+// --------------------------------------------------------------------------
+// Format de repere et modes de reperage
+
+TEST_CASE("Le format de repere remplace ses parametres", "[rules][tagformat]")
+{
+    // Le format est une convention de bureau d'etudes : il doit pouvoir dire
+    // autre chose que « famille + numero » sans toucher au code.
+    DesignationRule rule;
+    rule.leadingDash = true;
+
+    DesignationContext context;
+    context.family = QStringLiteral("K");
+    context.number = 7;
+    context.sheet = QStringLiteral("2");
+    context.lineReference = QStringLiteral("204");
+    context.installation = QStringLiteral("A1");
+    context.location = QStringLiteral("ARM");
+
+    CHECK(rule.format(context) == QLatin1String("-K7"));   // defaut %F%N
+
+    rule.tagFormat = QStringLiteral("%S%F%N");
+    CHECK(rule.format(context) == QLatin1String("-2K7"));
+
+    rule.tagFormat = QStringLiteral("+%L-%F%N");
+    CHECK(rule.format(context) == QLatin1String("-+ARM-K7"));
+
+    rule.tagFormat = QStringLiteral("=%I+%L-%F%N");
+    CHECK(rule.format(context) == QLatin1String("-=A1+ARM-K7"));
+
+    rule.tagFormat = QStringLiteral("%X%F");
+    CHECK(rule.format(context) == QLatin1String("-204K"));
+
+    // Un pour cent litteral, et un jeton inconnu recopie tel quel : un format
+    // mal saisi doit rester lisible, pas disparaitre du repere.
+    rule.tagFormat = QStringLiteral("%F%%%Z");
+    CHECK(rule.format(context) == QLatin1String("-K%%Z"));
+}
+
+TEST_CASE("Le remplissage a gauche s'applique au numero du format",
+          "[rules][tagformat]")
+{
+    DesignationRule rule;
+    rule.leadingDash = false;
+    rule.padding = 3;
+    DesignationContext context;
+    context.family = QStringLiteral("K");
+    context.number = 7;
+    CHECK(rule.format(context) == QLatin1String("K007"));
+}
+
+TEST_CASE("Le reperage par reference de ligne place l'appareil",
+          "[rules][numbering][lineref]")
+{
+    // C'est l'interet du mode : le repere dit ou trouver l'appareil sur le
+    // schema, sans passer par la nomenclature.
+    Project project = makeProject();
+    Folio *folio = project.folioAt(0);
+    folio->sheet = sheetFormatById(QStringLiteral("A3"));
+    folio->frame.columns = 10;
+
+    Profile profile = Profile::iec();
+    profile.designation.mode = DesignationRule::Mode::LineReference;
+
+    const QRectF frame = folio->frameRect();
+    // Un appareil au milieu de la 4e colonne du cadre.
+    const double columnWidth = frame.width() / folio->frame.columns;
+    const QPointF at(frame.left() + columnWidth * 3.5, frame.top() + 40.0);
+    placeSymbol(project, folio, QStringLiteral("iec:contactor"), at);
+
+    Numbering::designateDevices(project, profile);
+
+    const auto symbols = folio->entitiesOfType<SymbolInstance>();
+    REQUIRE(symbols.size() == 1);
+    CHECK(folio->columnAt(at) == 4);
+    CHECK(symbols.front()->designation() == QLatin1String("-104K"));
+}
+
+TEST_CASE("Deux appareils sur la meme reference se departagent par une lettre",
+          "[rules][numbering][lineref]")
+{
+    // Un contact et sa bobine cote a cote tombent sur la meme reference de
+    // ligne : sans suffixe ils porteraient le meme repere, ce qui est faux.
+    Project project = makeProject();
+    Folio *folio = project.folioAt(0);
+    folio->sheet = sheetFormatById(QStringLiteral("A3"));
+    folio->frame.columns = 10;
+
+    Profile profile = Profile::iec();
+    profile.designation.mode = DesignationRule::Mode::LineReference;
+
+    const QRectF frame = folio->frameRect();
+    const double columnWidth = frame.width() / folio->frame.columns;
+    const double x = frame.left() + columnWidth * 3.5;
+    placeSymbol(project, folio, QStringLiteral("iec:contactor"), QPointF(x, frame.top() + 30.0));
+    placeSymbol(project, folio, QStringLiteral("iec:contactor"), QPointF(x, frame.top() + 60.0));
+
+    Numbering::designateDevices(project, profile);
+
+    QStringList designations;
+    for (const SymbolInstance *symbol : folio->entitiesOfType<SymbolInstance>())
+        designations << symbol->designation();
+    designations.sort();
+    CHECK(designations == QStringList{ QStringLiteral("-104K"), QStringLiteral("-104KA") });
+}
+
+TEST_CASE("Le reperage par reference de ligne reste reproductible",
+          "[rules][numbering][lineref]")
+{
+    // Meme exigence que pour le mode sequentiel : relance sur un dessin
+    // inchange, le reperage doit redonner exactement les memes reperes.
+    Project project = makeProject();
+    Folio *folio = project.folioAt(0);
+    folio->sheet = sheetFormatById(QStringLiteral("A3"));
+    folio->frame.columns = 10;
+
+    Profile profile = Profile::iec();
+    profile.designation.mode = DesignationRule::Mode::LineReference;
+
+    const QRectF frame = folio->frameRect();
+    for (int i = 0; i < 5; ++i) {
+        placeSymbol(project, folio, QStringLiteral("iec:contactor"),
+                    QPointF(frame.left() + 20.0 + i * 25.0, frame.top() + 30.0 + i * 12.0));
+    }
+
+    Numbering::designateDevices(project, profile);
+    QStringList first;
+    for (const SymbolInstance *symbol : folio->entitiesOfType<SymbolInstance>())
+        first << symbol->designation();
+
+    Numbering::designateDevices(project, profile);
+    QStringList second;
+    for (const SymbolInstance *symbol : folio->entitiesOfType<SymbolInstance>())
+        second << symbol->designation();
+
+    CHECK(first == second);
+}
+
+// --------------------------------------------------------------------------
+// Catalogue fabricant
+
+TEST_CASE("Le catalogue livre est embarque dans le binaire", "[rules][catalog]")
+{
+    // Le logiciel doit proposer des references des le premier lancement, sur
+    // un poste ou rien n'est installe a cote.
+    const Catalog catalog = Catalog::builtin();
+    CHECK(catalog.count() > 20);
+    CHECK(catalog.deviceKinds().contains(QStringLiteral("contactor")));
+    CHECK(catalog.deviceKinds().contains(QStringLiteral("terminal")));
+}
+
+TEST_CASE("Le catalogue filtre par famille d'appareil", "[rules][catalog]")
+{
+    // La boite du composant part de la famille du symbole : proposer un
+    // moteur pour une borne ferait perdre plus de temps qu'il n'en gagne.
+    const Catalog catalog = Catalog::builtin();
+    const auto contactors = catalog.forDeviceKind(QStringLiteral("contactor"));
+    REQUIRE_FALSE(contactors.isEmpty());
+    for (const CatalogItem &item : contactors)
+        CHECK(item.deviceKind == QLatin1String("contactor"));
+
+    // Une famille vide rend tout : un catalogue reel ne colle jamais
+    // parfaitement a nos familles, il faut pouvoir en sortir.
+    CHECK(catalog.forDeviceKind(QString()).size() == catalog.count());
+}
+
+TEST_CASE("La recherche du catalogue est insensible a la casse", "[rules][catalog]")
+{
+    const Catalog catalog = Catalog::builtin();
+    const auto found = catalog.search(QStringLiteral("schneider"));
+    REQUIRE_FALSE(found.isEmpty());
+    for (const CatalogItem &item : found)
+        CHECK(item.searchText().contains(QStringLiteral("Schneider")));
+
+    // La recherche porte sur toutes les colonnes, pas seulement la reference.
+    CHECK_FALSE(catalog.search(QStringLiteral("thermique")).isEmpty());
+    CHECK(catalog.search(QStringLiteral("introuvable-xyz")).isEmpty());
+}
+
+TEST_CASE("Un article charge deux fois ne compte qu'une", "[rules][catalog]")
+{
+    // Le catalogue du poste complete celui du logiciel : recharger le meme
+    // article ne doit pas le faire apparaitre en double dans la liste.
+    Catalog catalog;
+    CatalogItem item;
+    item.deviceKind = QStringLiteral("contactor");
+    item.manufacturer = QStringLiteral("Schneider");
+    item.partNumber = QStringLiteral("LC1D09B7");
+    catalog.insert(item);
+
+    item.description = QStringLiteral("Description corrigée");
+    catalog.insert(item);
+
+    REQUIRE(catalog.count() == 1);
+    CHECK(catalog.items().first().description == QStringLiteral("Description corrigée"));
+
+    // Un article sans reference n'est pas un article.
+    catalog.insert(CatalogItem());
+    CHECK(catalog.count() == 1);
+}
+
+TEST_CASE("Le catalogue survit a l'aller-retour JSON", "[rules][catalog]")
+{
+    const Catalog source = Catalog::builtin();
+    Catalog restored;
+    QString error;
+    REQUIRE(restored.readJson(source.toJson(), &error));
+    CHECK(restored.count() == source.count());
+
+    // Un fichier abime est refuse avec un message, pas devine.
+    Catalog broken;
+    CHECK_FALSE(broken.readJson(QByteArray("ceci n'est pas du JSON"), &error));
+    CHECK_FALSE(error.isEmpty());
+    CHECK(broken.isEmpty());
 }

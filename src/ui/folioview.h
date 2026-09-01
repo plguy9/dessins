@@ -91,6 +91,12 @@ public:
     // donnee, du cote ou l'on clique. C'est ainsi qu'on double un depart ou
     // qu'on ajoute un conducteur le long d'un existant.
     void beginOffset(double distanceMm);
+
+    // ETIRER : une fenetre de capture, puis deux points. Les sommets pris
+    // dans la fenetre suivent, les autres restent — c'est ainsi qu'on
+    // rallonge un barreau sans detacher ce qui y est raccorde.
+    void beginStretch();
+
     bool hasPendingGesture() const { return m_pending != Pending::None; }
     void mirrorSelection();
     void nudgeSelection(const QPointF &deltaMm);
@@ -207,9 +213,10 @@ private:
 
     // Gestes en deux ou trois clics, a la maniere de la ligne de commande
     // d'AutoCAD : la vue attend un point, puis un autre.
-    enum class Pending { None, MoveBase, MoveTarget, OffsetSide };
+    enum class Pending { None, MoveBase, MoveTarget, OffsetSide, StretchBase, StretchTarget };
     bool handlePendingClick(const QPointF &scenePoint);
     void applyOffset(const QPointF &sidePoint);
+    void applyStretch(const QPointF &delta);
     void paintPendingGesture(QPainter &painter) const;
 
     void updateUnconnectedPins();
@@ -232,7 +239,7 @@ private:
     QVector<QPointF> m_unconnectedPins;
 
     // Geste en cours
-    enum class Drag { None, Pan, Move, Rubber, GripEdit, ZoomWindow };
+    enum class Drag { None, Pan, Move, Rubber, GripEdit, ZoomWindow, StretchWindow };
     Drag m_drag = Drag::None;
     QPointF m_dragStartWidget;
     QPointF m_dragStartScene;
@@ -254,6 +261,8 @@ private:
     Pending m_pending = Pending::None;
     QPointF m_moveBase;
     double m_offsetDistance = 2.5;
+    bool m_stretchArmed = false;    // en attente de la fenetre de capture
+    QRectF m_stretchWindow;         // fenetre retenue, en millimetres
 
     QVector<QPointF> m_wirePoints;
     QString m_pendingSymbol;

@@ -10,6 +10,7 @@
 #include "folio.h"
 #include "project.h"
 
+#include <QPair>
 #include <QStringList>
 
 namespace dsn {
@@ -178,6 +179,40 @@ private:
     Project &m_project;
     ProjectInfo m_before;
     ProjectInfo m_after;
+};
+
+// ETIRER (STRETCH). La commande la plus specifique de l'edition 2D : ce n'est
+// pas l'entite qui est deplacee, ce sont ses sommets pris dans la fenetre de
+// capture. Un fil dont une seule extremite est prise s'allonge ; un fil pris
+// en entier se deplace. C'est ainsi qu'on rallonge un barreau d'echelle sans
+// detacher ce qui y est raccorde.
+//
+// Les sommets concernes sont figes a la construction : les recalculer a
+// l'annulation les chercherait dans la geometrie deja deplacee, et le
+// retablissement ne rendrait pas le meme dessin.
+class StretchEntitiesCommand : public Command
+{
+public:
+    StretchEntitiesCommand(Project &project, QString folioId, const QRectF &windowMm,
+                           QPointF delta);
+
+    void redo() override;
+    void undo() override;
+    QString text() const override;
+    bool mergeWith(const Command &other) override;
+
+    // Nombre d'entites touchees. Zero signifie que la fenetre n'a rien pris :
+    // l'appelant ne doit alors rien empiler.
+    int affectedCount() const;
+
+private:
+    void apply(const QPointF &delta);
+
+    Project &m_project;
+    QString m_folioId;
+    QPointF m_delta;
+    // Sommets pris, par entite. Une liste vide signifie « entite entiere ».
+    QVector<QPair<QString, QVector<int>>> m_targets;
 };
 
 // Renomme un folio : son numero et son titre, ce que porte le cartouche.

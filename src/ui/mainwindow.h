@@ -121,6 +121,7 @@ private:
     QAction *m_highlightAction = nullptr;
     QAction *m_moveAction = nullptr;
     QAction *m_offsetAction = nullptr;
+    QAction *m_stretchAction = nullptr;
     QAction *m_zoomFitAction = nullptr;
     QAction *m_zoomPreviousAction = nullptr;
     QAction *m_pageSetupAction = nullptr;

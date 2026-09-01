@@ -9,6 +9,7 @@
 
 #include <QWidget>
 
+class QComboBox;
 class QTabWidget;
 class QTableWidget;
 
@@ -25,6 +26,9 @@ public:
     ReportTable currentTable() const;
     QString currentTitle() const;
 
+    // Perimetre courant : tout le projet, ou le folio actif.
+    ReportScope scope() const;
+
 Q_SIGNALS:
     void statusMessage(const QString &message);
     void locateRequested(const QString &folioId, const QString &entityId);
@@ -32,13 +36,17 @@ Q_SIGNALS:
 private:
     QTableWidget *addTab(const QString &title);
     void fill(QTableWidget *table, const ReportTable &data);
+    void rebuildScopeChoices();
 
     Document *m_document = nullptr;
     QTabWidget *m_tabs = nullptr;
+    QComboBox *m_scope = nullptr;
     QTableWidget *m_summary = nullptr;
     QTableWidget *m_bom = nullptr;
+    QTableWidget *m_components = nullptr;
     QTableWidget *m_terminals = nullptr;
     QTableWidget *m_wires = nullptr;
+    QTableWidget *m_runs = nullptr;
     QTableWidget *m_checks = nullptr;
     QVector<ReportTable> m_tables;
     bool m_dirty = true;

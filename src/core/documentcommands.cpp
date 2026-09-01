@@ -259,6 +259,129 @@ QString ChangeProjectInfoCommand::text() const
     return QStringLiteral("Modifier les informations du projet");
 }
 
+// --------------------------------------------------------------------------
+// StretchEntitiesCommand
+
+namespace {
+
+// Sommets d'une entite qu'une fenetre de capture peut saisir un par un. Une
+// liste vide rend l'entite indivisible : elle se deplacera en bloc si son
+// point d'ancrage est pris.
+QVector<QPointF> stretchablePoints(const Entity &entity)
+{
+    switch (entity.type()) {
+    case EntityType::Wire:
+        return QVector<QPointF>(static_cast<const Wire &>(entity).points);
+    case EntityType::Graphic:
+        return static_cast<const GraphicItem &>(entity).shape.points;
+    default:
+        return {};
+    }
+}
+
+QPointF anchorOf(const Entity &entity)
+{
+    switch (entity.type()) {
+    case EntityType::Symbol:
+        return static_cast<const SymbolInstance &>(entity).placement.position;
+    case EntityType::Junction:
+        return static_cast<const Junction &>(entity).point;
+    case EntityType::Text:
+        return static_cast<const TextItem &>(entity).placement.position;
+    case EntityType::Label:
+        return static_cast<const Label &>(entity).point;
+    default:
+        return entity.boundingBox().center();
+    }
+}
+
+void moveVertex(Entity &entity, int index, const QPointF &delta)
+{
+    if (auto *wire = dynamic_cast<Wire *>(&entity)) {
+        if (index >= 0 && index < wire->points.size())
+            wire->points[index] += delta;
+        return;
+    }
+    if (auto *graphic = dynamic_cast<GraphicItem *>(&entity)) {
+        if (index >= 0 && index < graphic->shape.points.size())
+            graphic->shape.points[index] += delta;
+    }
+}
+
+} // namespace
+
+StretchEntitiesCommand::StretchEntitiesCommand(Project &project, QString folioId,
+                                               const QRectF &windowMm, QPointF delta)
+    : m_project(project), m_folioId(std::move(folioId)), m_delta(delta)
+{
+    const Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+    const QRectF window = windowMm.normalized();
+
+    for (const EntityPtr &entity : folio->entities()) {
+        const QVector<QPointF> points = stretchablePoints(*entity);
+        if (points.isEmpty()) {
+            // Entite indivisible : elle suit si son point d'ancrage est pris.
+            if (window.contains(anchorOf(*entity)))
+                m_targets.append({ entity->id(), {} });
+            continue;
+        }
+
+        QVector<int> taken;
+        for (int i = 0; i < points.size(); ++i) {
+            if (window.contains(points.at(i)))
+                taken.append(i);
+        }
+        if (taken.isEmpty())
+            continue;
+        // Tous les sommets pris : l'entite se deplace en bloc, comme le fait
+        // AutoCAD d'un objet entierement compris dans la fenetre.
+        if (taken.size() == points.size())
+            taken.clear();
+        m_targets.append({ entity->id(), taken });
+    }
+}
+
+int StretchEntitiesCommand::affectedCount() const { return int(m_targets.size()); }
+
+void StretchEntitiesCommand::apply(const QPointF &delta)
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+    for (const auto &target : m_targets) {
+        Entity *entity = folio->entity(target.first);
+        if (!entity)
+            continue;
+        if (target.second.isEmpty()) {
+            entity->translate(delta);
+            continue;
+        }
+        for (int index : target.second)
+            moveVertex(*entity, index, delta);
+    }
+}
+
+void StretchEntitiesCommand::redo() { apply(m_delta); }
+
+void StretchEntitiesCommand::undo() { apply(-m_delta); }
+
+QString StretchEntitiesCommand::text() const
+{
+    return m_targets.size() == 1 ? QStringLiteral("Etirer un element")
+                                 : QStringLiteral("Etirer %1 elements").arg(m_targets.size());
+}
+
+bool StretchEntitiesCommand::mergeWith(const Command &other)
+{
+    const auto *o = dynamic_cast<const StretchEntitiesCommand *>(&other);
+    if (!o || o->m_folioId != m_folioId || o->m_targets != m_targets)
+        return false;
+    m_delta += o->m_delta;
+    return true;
+}
+
 RenameFolioCommand::RenameFolioCommand(Project &project, QString folioId, QString number,
                                        QString title)
     : m_project(project), m_folioId(std::move(folioId)), m_afterNumber(std::move(number)),

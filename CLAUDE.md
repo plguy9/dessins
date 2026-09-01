@@ -59,6 +59,12 @@ sont délibérés et documentés dans le code :
 - **DÉCALER (OFFSET) et DÉPLACER (MOVE)** : `FolioView::beginOffset` et
   `beginMoveSelection`. Ce sont des gestes en deux clics, comme la ligne de
   commande d'AutoCAD ; l'état vit dans `FolioView::Pending`.
+- **ÉTIRER (STRETCH)** : `StretchEntitiesCommand`. Les sommets pris dans la
+  fenêtre de capture sont figés **à la construction** de la commande ; les
+  recalculer à l'annulation les chercherait dans la géométrie déjà déplacée.
+- **`ReportScope`** — chaque rapport commence par la question d'AutoCAD :
+  tout le projet, ou le folio actif. Un seul point de filtrage
+  (`foliosInScope`), pour qu'aucun rapport ne puisse l'oublier.
 - **Menu contextuel au clic droit**, sur le canevas et sur la liste des
   folios. Le clic droit désigne d'abord ce qu'il survole : sans cela la
   moitié du menu s'appliquerait à une autre sélection.
@@ -144,8 +150,8 @@ La distribution se fait par la page GitHub Releases.
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 
 0. Reste du relevé AutoCAD (`docs/AUTOCAD.md`) : gestionnaire de projet
-   multi-dossiers, rapport de composants, Wire From/To, entrées-sorties API,
-   palette de propriétés Ctrl+1, ÉTIRER (STRETCH).
+   multi-dossiers, entrées-sorties API, palette de propriétés Ctrl+1,
+   flèches de signal source/destination, pose d'un rapport dans le dessin.
 1. Import DXF (l'export existe : `io/dxfexport.cpp`).
 2. Unifilaires M8 : symboles de distribution + bilan de puissance
    (le modèle multi-conducteurs est prêt).

@@ -410,3 +410,177 @@ TEST_CASE("Le recapitulatif compte ce qui est sur les folios", "[rules][reports]
     // exporte (voir CsvOptions::decimalSeparator).
     CHECK(table.rows.at(3).at(1) == QStringLiteral("0.10 m"));
 }
+
+// --------------------------------------------------------------------------
+// Cablage De/Vers et rapport de composants
+
+TEST_CASE("Le cablage De-Vers donne une ligne par liaison a tirer", "[rules][fromto]")
+{
+    // Deux broches sur un potentiel : une liaison. Trois broches : deux
+    // liaisons, chainees — c'est ce qu'un cableur tire reellement.
+    Project project = makeProject();
+    Folio *folio = project.folioAt(0);
+
+    auto *a = placeSymbol(project, folio, QStringLiteral("iec:contactor"), QPointF(60, 60));
+    a->setDesignation(QStringLiteral("-K1"));
+    a->designationLocked = true;
+    auto *b = placeSymbol(project, folio, QStringLiteral("iec:breaker"), QPointF(120, 60));
+    b->setDesignation(QStringLiteral("-Q1"));
+    b->designationLocked = true;
+
+    Wire *wire = drawWire(folio, { QPointF(65, 60), QPointF(115, 60) });
+    wire->number = QStringLiteral("101");
+    wire->numberLocked = true;
+    wire->wireType = QStringLiteral("l1");
+
+    const Netlist netlist = Netlist::build(project);
+    const QVector<WireRunLine> runs = Reports::wireFromTo(project, netlist);
+
+    REQUIRE(runs.size() == 1);
+    const WireRunLine &run = runs.first();
+    CHECK(run.wireNumber == QLatin1String("101"));
+    // Les deux extremites, dans un sens ou dans l'autre, mais bien les deux.
+    const QStringList ends{ run.fromDesignation, run.toDesignation };
+    CHECK(ends.contains(QLatin1String("-K1")));
+    CHECK(ends.contains(QLatin1String("-Q1")));
+    CHECK(run.fromFolio == QLatin1String("1"));
+    CHECK(run.toFolio == QLatin1String("1"));
+    CHECK_FALSE(run.crossesFolios);
+    // Le type du fil descend dans le rapport : c'est ce qu'on va chercher au
+    // magasin avant de tirer le fil.
+    CHECK(run.crossSection == QStringLiteral("2,5 mm²"));
+    CHECK(run.colorName == QLatin1String("#7a4a2b"));
+}
+
+TEST_CASE("Un potentiel a trois broches donne deux liaisons", "[rules][fromto]")
+{
+    // n broches sur un potentiel donnent n-1 liaisons : le cablage est une
+    // chaine, pas une etoile, sinon le rapport compte des fils qui n'existent
+    // pas.
+    Project project = makeProject();
+    Folio *folio = project.folioAt(0);
+
+    // Trois appareils alignes verticalement, relies par un seul bus qui ne
+    // touche que leur borne de gauche : le potentiel porte trois broches, ni
+    // plus ni moins.
+    const QString designations[3] = { QStringLiteral("-K1"), QStringLiteral("-K2"),
+                                      QStringLiteral("-K3") };
+    for (int i = 0; i < 3; ++i) {
+        auto *s = placeSymbol(project, folio, QStringLiteral("iec:contactor"),
+                              QPointF(100.0, 50.0 + i * 40.0));
+        s->setDesignation(designations[i]);
+        s->designationLocked = true;
+    }
+    drawWire(folio, { QPointF(95, 50), QPointF(95, 130) });
+
+    const Netlist netlist = Netlist::build(project);
+    const QVector<WireRunLine> runs = Reports::wireFromTo(project, netlist);
+
+    CHECK(runs.size() == 2);
+    // Chaque appareil apparait au moins une fois dans la chaine.
+    QStringList seen;
+    for (const WireRunLine &run : runs) {
+        seen << run.fromDesignation << run.toDesignation;
+    }
+    for (const QString &d : designations)
+        CHECK(seen.contains(d));
+}
+
+TEST_CASE("Une broche seule ne produit aucune liaison", "[rules][fromto]")
+{
+    // Un fil en l'air n'est pas une liaison a cabler : il doit ressortir dans
+    // les controles, pas dans le rapport de cablage.
+    Project project = makeProject();
+    Folio *folio = project.folioAt(0);
+    auto *a = placeSymbol(project, folio, QStringLiteral("iec:contactor"), QPointF(60, 60));
+    a->setDesignation(QStringLiteral("-K1"));
+    drawWire(folio, { QPointF(65, 60), QPointF(115, 60) });
+
+    const Netlist netlist = Netlist::build(project);
+    CHECK(Reports::wireFromTo(project, netlist).isEmpty());
+}
+
+TEST_CASE("Le rapport de composants situe l'appareil en folio et en zone",
+          "[rules][components]")
+{
+    Project project = makeProject();
+    Folio *folio = project.folioAt(0);
+    folio->sheet = sheetFormatById(QStringLiteral("A3"));
+    folio->frame.columns = 10;
+    folio->frame.rows = 6;
+
+    auto *k = placeSymbol(project, folio, QStringLiteral("iec:contactor"), QPointF(60, 60));
+    k->setDesignation(QStringLiteral("-K1"));
+    k->designationLocked = true;
+    k->fields.insert(QStringLiteral("manufacturer"), QStringLiteral("Schneider"));
+    k->fields.insert(QStringLiteral("partNumber"), QStringLiteral("LC1D09"));
+
+    const Netlist netlist = Netlist::build(project);
+    const QVector<ComponentLine> lines = Reports::componentList(project, netlist);
+
+    REQUIRE(lines.size() == 1);
+    CHECK(lines.first().designation == QLatin1String("-K1"));
+    CHECK(lines.first().folio == QLatin1String("1"));
+    CHECK(lines.first().manufacturer == QLatin1String("Schneider"));
+    CHECK(lines.first().partNumber == QLatin1String("LC1D09"));
+    // La zone est ce qui permet de retrouver l'appareil sur la feuille.
+    CHECK(lines.first().zone == folio->zoneAt(QPointF(60, 60)));
+    CHECK_FALSE(lines.first().zone.isEmpty());
+}
+
+TEST_CASE("Un appareil multi-blocs ne fait qu'une ligne de composant",
+          "[rules][components]")
+{
+    // La bobine et ses contacts sont un seul appareil : le rapport de
+    // composants compte des appareils, pas des symboles poses.
+    Project project = makeProject(2);
+    Folio *first = project.folioAt(0);
+    Folio *second = project.folioAt(1);
+
+    auto *coil = placeSymbol(project, first, QStringLiteral("iec:contactor"), QPointF(60, 60));
+    coil->setDesignation(QStringLiteral("-KM1"));
+    coil->designationLocked = true;
+    coil->deviceGroup = QStringLiteral("km1");
+    coil->blockIndex = 0;
+
+    auto *contact = placeSymbol(project, second, QStringLiteral("iec:contactor"), QPointF(80, 90));
+    contact->setDesignation(QStringLiteral("-KM1"));
+    contact->designationLocked = true;
+    contact->deviceGroup = QStringLiteral("km1");
+    contact->blockIndex = 1;
+
+    const Netlist netlist = Netlist::build(project);
+    const QVector<ComponentLine> lines = Reports::componentList(project, netlist);
+
+    REQUIRE(lines.size() == 1);
+    CHECK(lines.first().blockCount == 2);
+    // Le bloc principal donne le folio ; les deux folios sont listes.
+    CHECK(lines.first().folio == QLatin1String("1"));
+    CHECK(lines.first().folios.size() == 2);
+}
+
+TEST_CASE("La portee limite un rapport au folio actif", "[rules][scope]")
+{
+    // Sortir le dossier complet et verifier une page sont deux gestes
+    // differents : la portee est ce qui les separe.
+    Project project = makeProject(2);
+    placeSymbol(project, project.folioAt(0), QStringLiteral("iec:contactor"), QPointF(60, 60))
+            ->setDesignation(QStringLiteral("-K1"));
+    placeSymbol(project, project.folioAt(1), QStringLiteral("iec:breaker"), QPointF(60, 60))
+            ->setDesignation(QStringLiteral("-Q1"));
+
+    const Netlist netlist = Netlist::build(project);
+
+    CHECK(Reports::componentList(project, netlist).size() == 2);
+
+    ReportScope scope;
+    scope.folioId = project.folioAt(1)->id();
+    const QVector<ComponentLine> onlySecond = Reports::componentList(project, netlist, scope);
+    REQUIRE(onlySecond.size() == 1);
+    CHECK(onlySecond.first().designation == QLatin1String("-Q1"));
+
+    // Le recapitulatif suit la meme portee, sinon il contredirait le rapport.
+    const ReportTable summary = Reports::projectSummary(project, netlist, scope);
+    REQUIRE_FALSE(summary.rows.isEmpty());
+    CHECK(summary.rows.first().at(1) == QLatin1String("1")); // un seul folio
+}

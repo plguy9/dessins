@@ -337,6 +337,9 @@ void MainWindow::createActions()
     m_offsetAction = make(editMenu, false, G::Duplicate, tr("Déca&ler…"), QKeySequence(Qt::Key_O),
                           tr("Copier un fil parallèlement, à une distance donnée"),
                           [this] { offsetSelection(); });
+    m_stretchAction = make(editMenu, false, G::Highlight, tr("Éti&rer"), QKeySequence(Qt::Key_E),
+                           tr("Encadrer des sommets par capture, puis les déplacer"),
+                           [this] { m_view->beginStretch(); });
 
     m_toolBar->addSeparator();
 
@@ -824,6 +827,9 @@ void MainWindow::registerCommands()
             else
                 offsetSelection();
         });
+    simple(QStringLiteral("ETIRER"), { QStringLiteral("ETI") },
+           tr("Étirer les sommets pris dans une fenêtre de capture"),
+           [this] { m_view->beginStretch(); });
     simple(QStringLiteral("TYPEFIL"), { QStringLiteral("TF") },
            tr("Gérer les types de fils"), [this] { editWireTypes(); });
     simple(QStringLiteral("POTENTIEL"), { QStringLiteral("PT") },
@@ -1010,6 +1016,7 @@ void MainWindow::showCanvasContextMenu(const QPoint &globalPos)
         menu.addAction(m_rotateAction);
         menu.addAction(m_mirrorAction);
         menu.addAction(m_offsetAction);
+        menu.addAction(m_stretchAction);
         menu.addSeparator();
         menu.addAction(m_highlightAction);
     } else {

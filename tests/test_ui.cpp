@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QMouseEvent>
 #include <QPixmap>
+#include <QTabWidget>
 #include <QTemporaryDir>
 
 #include "core/documentcommands.h"
@@ -14,6 +15,7 @@
 #include "ui/mainwindow.h"
 #include "ui/draftingsettingsdialog.h"
 #include "ui/pagesetupdialog.h"
+#include "ui/reportpanel.h"
 #include "ui/symbolpalette.h"
 #include "ui/theme.h"
 #include "testhelpers.h"
@@ -843,4 +845,98 @@ TEST_CASE("Un fil neuf recoit le type de fil arme", "[ui][wiretype]")
     }
     REQUIRE(drawn);
     CHECK(drawn->wireType == QLatin1String("l1"));
+}
+
+TEST_CASE("Etirer prend ses sommets a la fenetre puis les deplace", "[ui][stretch]")
+{
+    // Le geste complet d'AutoCAD : une fenêtre de capture, un point de base,
+    // un point d'arrivee. C'est ainsi qu'on rallonge un barreau d'echelle
+    // sans detacher ce qui y est raccorde.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    Wire *left = drawWire(folio, { QPointF(40, 100), QPointF(160, 100) });
+    Wire *right = drawWire(folio, { QPointF(40, 140), QPointF(60, 140) });
+    const QString leftId = left->id();
+    const QString rightId = right->id();
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.beginStretch();
+
+    auto at = [&](const QPointF &scene) { return view.mapFromScene(scene); };
+    auto send = [&](QEvent::Type type, const QPointF &scene, Qt::MouseButton button) {
+        QMouseEvent event(type, at(scene), view.mapToGlobal(at(scene)), button,
+                          type == QEvent::MouseButtonRelease ? Qt::NoButton : button,
+                          Qt::NoModifier);
+        QApplication::sendEvent(&view, &event);
+    };
+
+    // Fenêtre de capture autour de la seule extremite droite du premier fil.
+    send(QEvent::MouseButtonPress, QPointF(140, 80), Qt::LeftButton);
+    send(QEvent::MouseMove, QPointF(200, 120), Qt::LeftButton);
+    send(QEvent::MouseButtonRelease, QPointF(200, 120), Qt::LeftButton);
+    REQUIRE(view.hasPendingGesture());
+
+    send(QEvent::MouseButtonPress, QPointF(160, 100), Qt::LeftButton); // point de base
+    send(QEvent::MouseButtonPress, QPointF(200, 100), Qt::LeftButton); // point d'arrivee
+    CHECK_FALSE(view.hasPendingGesture());
+
+    const auto *stretched = dynamic_cast<const Wire *>(folio->entity(leftId));
+    REQUIRE(stretched);
+    CHECK(stretched->points.first() == QPointF(40, 100)); // l'autre bout ne bouge pas
+    CHECK(stretched->points.last() == QPointF(200, 100)); // le bout pris suit
+
+    // Le fil hors de la fenetre est intact.
+    const auto *untouched = dynamic_cast<const Wire *>(folio->entity(rightId));
+    REQUIRE(untouched);
+    CHECK(untouched->points.first() == QPointF(40, 140));
+
+    document.undo();
+    CHECK(dynamic_cast<const Wire *>(folio->entity(leftId))->points.last() == QPointF(160, 100));
+}
+
+TEST_CASE("Le panneau des rapports sort les onglets de cablage et de composants",
+          "[ui][reports]")
+{
+    // Les rapports d'AutoCAD Electrical les plus utilises doivent etre la,
+    // remplis, et suivre la portee choisie.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    folio->number = QStringLiteral("1");
+
+    auto *a = placeSymbol(document.project(), folio, QStringLiteral("iec:contactor-power-3p"),
+                          QPointF(100, 60));
+    a->setDesignation(QStringLiteral("-KM1"));
+    a->designationLocked = true;
+    auto *b = placeSymbol(document.project(), folio, QStringLiteral("iec:motor-3ph"),
+                          QPointF(100, 140));
+    b->setDesignation(QStringLiteral("-M1"));
+    b->designationLocked = true;
+    document.invalidateNetlist();
+
+    ReportPanel panel(&document);
+    panel.resize(900, 500);
+    panel.show();
+    panel.refresh();
+
+    // Les onglets attendus existent, dans l'ordre annonce.
+    const QStringList expected{ QStringLiteral("Récapitulatif"), QStringLiteral("Nomenclature"),
+                                QStringLiteral("Composants"),    QStringLiteral("Bornier"),
+                                QStringLiteral("Fils"),          QStringLiteral("Câblage De/Vers") };
+    auto *tabs = panel.findChild<QTabWidget *>();
+    REQUIRE(tabs);
+    for (int i = 0; i < expected.size(); ++i)
+        CHECK(tabs->tabText(i) == expected.at(i));
+
+    // Le rapport de composants voit les deux appareils poses.
+    tabs->setCurrentIndex(2);
+    const ReportTable components = panel.currentTable();
+    CHECK(components.rowCount() >= 2);
+
+    // La portee par defaut est le projet entier.
+    CHECK(panel.scope().isProject());
 }

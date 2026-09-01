@@ -28,9 +28,18 @@ Les décomptes « déjà en place » de chaque section datent du relevé. Ce qui
 | Déplacer, `MOVE` | `FolioView::beginMoveSelection`, commande `DEPLACER` / `DP` / `M`, touche <kbd>D</kbd>. Point de base puis point d'arrivée, tous deux accrochables, avec fantôme de la sélection. |
 | Menu contextuel du clic droit, `SHORTCUTMENU` | Sur le canevas (contenu selon la sélection) et sur la liste des folios (ajouter, dupliquer, renommer, monter, descendre, mise en page, supprimer). |
 
-Reste notamment : gestionnaire de projet multi-dossiers, rapport de composants,
-Wire From/To, entrées-sorties API, palette de propriétés (Ctrl+1), ÉTIRER
-(`STRETCH`), flèches de signal source/destination, éditeur de borniers.
+**Lot 3 — 2026-09-01**
+
+| Repris d'AutoCAD | Chez nous |
+|---|---|
+| Rapport de câblage De/Vers, `Wire From/To` | `Reports::wireFromTo`, onglet « Câblage De/Vers ». Une ligne par liaison à tirer : repère du fil, appareil + broche + folio + zone à chaque bout, type, couleur et section. Un potentiel à n broches donne n-1 liaisons, chaînées de proche en proche — le trajet que suit réellement un câbleur. |
+| Rapport de composants, `Component (Schematic Reports)` | `Reports::componentList`, onglet « Composants ». Un appareil par ligne (pas un symbole), avec famille, description, folio, zone, catalogue, nombre de blocs et broches câblées. À ne pas confondre avec la nomenclature, qui regroupe par article à commander. |
+| Portée d'un rapport, `Report Scope` | `ReportScope` : tout le projet ou le folio actif, appliquée uniformément aux sept rapports. Un potentiel qui traverse la page reste retenu — une liaison qui sort du folio est une liaison de ce folio. |
+| Étirer, `STRETCH` | `StretchEntitiesCommand` + `FolioView::beginStretch`, commande `ETIRER` / `ETI`, touche <kbd>E</kbd>. Fenêtre de capture, point de base, point d'arrivée. Les sommets pris suivent, les autres restent ; une entité entièrement prise se déplace. Les sommets sont figés à la construction de la commande, sinon le rétablissement ne rendrait pas le même dessin. |
+
+Reste notamment : gestionnaire de projet multi-dossiers, entrées-sorties API,
+palette de propriétés (Ctrl+1), flèches de signal source/destination, éditeur
+de borniers, pose d'un rapport dans le dessin.
 
 ## Accrochage aux objets (Object Snap / OSNAP) d'AutoCAD — modes d'accrochage, marqueurs AutoSnap et reglages associes
 31 fonctionnalités relevées — **23 déjà en place**, 8 restantes.

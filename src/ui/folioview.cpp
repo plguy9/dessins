@@ -626,6 +626,34 @@ void FolioView::beginOffset(double distanceMm)
     update();
 }
 
+void FolioView::beginStretch()
+{
+    setTool(Tool::Select);
+    m_pending = Pending::None;
+    m_stretchArmed = true;
+    m_stretchWindow = QRectF();
+    Q_EMIT statusMessage(tr("Étirer : encadrer les sommets à déplacer (fenêtre de capture)."));
+    update();
+}
+
+void FolioView::applyStretch(const QPointF &delta)
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio || m_stretchWindow.isNull())
+        return;
+
+    auto command = std::make_unique<StretchEntitiesCommand>(m_document->project(), folio->id(),
+                                                            m_stretchWindow, delta);
+    const int count = command->affectedCount();
+    if (count == 0) {
+        Q_EMIT statusMessage(tr("Étirer : la fenêtre n'a pris aucun sommet."));
+        return;
+    }
+    m_document->push(std::move(command));
+    rebuildGrips();
+    Q_EMIT statusMessage(tr("%n élément(s) étiré(s).", "", count));
+}
+
 bool FolioView::handlePendingClick(const QPointF &scenePoint)
 {
     switch (m_pending) {
@@ -654,6 +682,21 @@ bool FolioView::handlePendingClick(const QPointF &scenePoint)
         m_pending = Pending::None;
         update();
         return true;
+    case Pending::StretchBase:
+        m_moveBase = scenePoint;
+        m_pending = Pending::StretchTarget;
+        Q_EMIT statusMessage(tr("Étirer : cliquer le point d'arrivée."));
+        update();
+        return true;
+    case Pending::StretchTarget: {
+        const QPointF delta = scenePoint - m_moveBase;
+        m_pending = Pending::None;
+        if (!samePoint(delta, QPointF()))
+            applyStretch(delta);
+        m_stretchWindow = QRectF();
+        update();
+        return true;
+    }
     }
     return false;
 }
@@ -1086,8 +1129,11 @@ void FolioView::mousePressEvent(QMouseEvent *event)
             commitWire();
             return;
         }
-        if (m_pending != Pending::None) {
+        if (m_pending != Pending::None || m_stretchArmed) {
             m_pending = Pending::None;
+            m_stretchArmed = false;
+            m_stretchWindow = QRectF();
+            m_rubber = QRectF();
             Q_EMIT statusMessage(tr("Geste annulé."));
             update();
             return;
@@ -1115,6 +1161,13 @@ void FolioView::mousePressEvent(QMouseEvent *event)
 
     if (m_zoomWindowArmed) {
         m_drag = Drag::ZoomWindow;
+        m_dragStartScene = scenePoint;
+        m_rubber = QRectF(scenePoint, scenePoint);
+        return;
+    }
+
+    if (m_stretchArmed) {
+        m_drag = Drag::StretchWindow;
         m_dragStartScene = scenePoint;
         m_rubber = QRectF(scenePoint, scenePoint);
         return;
@@ -1244,6 +1297,7 @@ void FolioView::mouseMoveEvent(QMouseEvent *event)
     }
 
     case Drag::ZoomWindow:
+    case Drag::StretchWindow:
         m_rubber = normalized(m_dragStartScene, scenePoint);
         update();
         return;
@@ -1300,6 +1354,24 @@ void FolioView::mouseReleaseEvent(QMouseEvent *event)
         break;
     }
 
+    case Drag::StretchWindow: {
+        const QRectF window = m_rubber;
+        m_rubber = QRectF();
+        m_stretchArmed = false;
+        setCursor(Qt::BlankCursor);
+        if (window.width() <= 1e-3 || window.height() <= 1e-3) {
+            Q_EMIT statusMessage(tr("Étirer annulé : il faut encadrer une zone."));
+            break;
+        }
+        m_stretchWindow = window;
+        // La selection suit la fenetre : l'utilisateur voit ce qu'il vient de
+        // prendre avant de designer les deux points.
+        setSelection(entitiesIn(window, true));
+        m_pending = Pending::StretchBase;
+        Q_EMIT statusMessage(tr("Étirer : cliquer le point de base."));
+        break;
+    }
+
     case Drag::Rubber: {
         QSet<QString> found = entitiesIn(m_rubber, m_rubberCrossing);
         if (event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier))
@@ -1347,8 +1419,11 @@ void FolioView::keyPressEvent(QKeyEvent *event)
             update();
             return;
         }
-        if (m_pending != Pending::None) {
+        if (m_pending != Pending::None || m_stretchArmed) {
             m_pending = Pending::None;
+            m_stretchArmed = false;
+            m_stretchWindow = QRectF();
+            m_rubber = QRectF();
             Q_EMIT statusMessage(tr("Geste annulé."));
             update();
             return;
@@ -1501,6 +1576,55 @@ void FolioView::paintPendingGesture(QPainter &painter) const
         return;
     }
 
+    if (m_pending == Pending::StretchTarget) {
+        // Apercu du resultat : seuls les sommets pris dans la fenetre bougent.
+        // Sans lui, on ne voit pas ce que la fenetre a reellement saisi.
+        const QPointF delta = snap(m_cursorMm) - m_moveBase;
+        painter.save();
+        QPen pen(m_style.selection);
+        pen.setWidthF(m_style.wireWidth);
+        pen.setStyle(Qt::DashLine);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        for (const EntityPtr &entity : folio->entities()) {
+            if (const auto *wire = dynamic_cast<const Wire *>(entity.get())) {
+                QVector<QPointF> ghost = wire->points;
+                bool touched = false;
+                for (QPointF &p : ghost) {
+                    if (m_stretchWindow.contains(p)) {
+                        p += delta;
+                        touched = true;
+                    }
+                }
+                if (touched)
+                    painter.drawPolyline(ghost.constData(), int(ghost.size()));
+            } else if (m_stretchWindow.contains(entity->boundingBox().center())) {
+                painter.drawRect(entity->boundingBox().translated(delta));
+            }
+        }
+        // La fenetre reste affichee pendant la designation des deux points.
+        QPen frame(QColor(0x5C, 0xB8, 0x5C));
+        frame.setWidthF(0.2);
+        frame.setStyle(Qt::DotLine);
+        painter.setPen(frame);
+        painter.drawRect(m_stretchWindow);
+        painter.drawLine(m_moveBase, m_moveBase + delta);
+        painter.restore();
+        return;
+    }
+
+    if (m_pending == Pending::StretchBase && !m_stretchWindow.isNull()) {
+        painter.save();
+        QPen frame(QColor(0x5C, 0xB8, 0x5C));
+        frame.setWidthF(0.2);
+        frame.setStyle(Qt::DotLine);
+        painter.setPen(frame);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRect(m_stretchWindow);
+        painter.restore();
+        return;
+    }
+
     if (m_pending == Pending::OffsetSide) {
         // Apercu du fil decale du cote ou pointe le curseur.
         painter.save();
@@ -1619,6 +1743,18 @@ void FolioView::paintSnapFeedback(QPainter &painter) const
 
 void FolioView::paintRubberBand(QPainter &painter) const
 {
+    if (m_drag == Drag::StretchWindow && !m_rubber.isNull()) {
+        // ETIRER designe toujours par capture : le cadre reprend donc le vert
+        // pointille de la capture, pour dire que ce qu'il effleure sera pris.
+        const QColor color(0x5C, 0xB8, 0x5C);
+        QPen pen(color);
+        pen.setWidthF(0.25);
+        pen.setStyle(Qt::DashLine);
+        painter.setPen(pen);
+        painter.setBrush(QColor(color.red(), color.green(), color.blue(), 38));
+        painter.drawRect(m_rubber);
+        return;
+    }
     if (m_drag == Drag::ZoomWindow && !m_rubber.isNull()) {
         // Le cadre de zoom ne selectionne rien : il se distingue donc des
         // cadres de selection, bleu et vert, par sa couleur d'accent.

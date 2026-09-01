@@ -164,6 +164,10 @@ private:
     void paintPolarGuide(QPainter &painter) const;
     void paintRubberBand(QPainter &painter) const;
     void paintGrips(QPainter &painter) const;
+    // Le reticule et la saisie dynamique se tracent en pixels, pas en
+    // millimetres : ce sont des reperes d'ecran, pas des elements du dessin.
+    void paintCrosshair(QPainter &painter) const;
+    void paintDynamicInput(QPainter &painter) const;
 
     void rebuildGrips();
     int gripAt(const QPointF &scenePoint) const;
@@ -202,6 +206,7 @@ private:
     int m_hotGrip = -1;      // poignee survolee
     int m_draggedGrip = -1;  // poignee tiree
     bool m_spaceHeld = false;
+    bool m_cursorInside = false;
     bool m_movedSinceCommit = false;
 
     QVector<QPointF> m_wirePoints;

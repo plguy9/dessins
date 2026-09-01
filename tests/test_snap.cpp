@@ -335,3 +335,14 @@ TEST_CASE("Chaque mode a un libelle et une cle stable", "[snap]")
         CHECK(snapModeFromTag(snapModeTag(mode)) == mode);
     }
 }
+
+TEST_CASE("Le mode ortho est allume au depart", "[snap][ortho]")
+{
+    // Un schema electrique se trace en traits droits : partir en diagonale
+    // libre obligerait a corriger chaque fil. AutoCAD Electrical impose la
+    // meme contrainte a ses fils.
+    SnapEngine engine;
+    CHECK(engine.orthoEnabled());
+    CHECK(engine.objectSnapEnabled());
+    CHECK(engine.gridSnapEnabled());
+}

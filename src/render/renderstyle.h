@@ -33,6 +33,14 @@ struct RenderStyle {
     QColor snapMarker{ 0xC8, 0xD8, 0x1E };
     QColor snapGuide{ 0x9A, 0xA8, 0x22 };
     double snapMarkerSize = 3.2;   // cote du marqueur, en millimetres
+    // Reticule : les deux traits qui traversent la vue au curseur. C'est la
+    // signature visuelle d'AutoCAD, et son utilite est reelle — il aligne
+    // l'oeil sur ce qui est deja pose ailleurs sur la feuille.
+    QColor crosshair{ 0x7A, 0x88, 0x86 };
+    bool showCrosshair = true;
+    double crosshairPercent = 100.0;  // 100 % = pleine vue, comme CURSORSIZE
+    double pickBoxPixels = 9.0;       // carre de selection au centre du reticule
+    bool showDynamicInput = true;
 
     // Epaisseurs, en millimetres
     double wireWidth = 0.35;

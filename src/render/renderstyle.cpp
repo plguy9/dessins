@@ -11,6 +11,8 @@ RenderStyle RenderStyle::print()
     s.showGrid = false;
     s.showSheetShadow = false;
     s.showUnconnectedPins = false;
+    s.showCrosshair = false;   // le reticule est une aide a l'ecran, pas du dessin
+    s.showDynamicInput = false;
     s.pageBackground = QColor(255, 255, 255);
     // Le noir pur passe mieux a l'impression que les couleurs d'ecran, mais on
     // garde le bleu des fils : c'est une convention de lecture, pas un artifice.
@@ -37,6 +39,7 @@ RenderStyle RenderStyle::screenDark()
     s.label = QColor(0xC0, 0x8B, 0x62);
     s.snapMarker = QColor(0xE2, 0xEE, 0x4A);
     s.snapGuide = QColor(0xB4, 0xC4, 0x3A);
+    s.crosshair = QColor(0x6E, 0x7C, 0x7A);
     return s;
 }
 

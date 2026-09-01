@@ -31,7 +31,9 @@ FolioView::FolioView(Document *document, QWidget *parent)
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);
     setAttribute(Qt::WA_OpaquePaintEvent, true);
-    setCursor(Qt::ArrowCursor);
+    // Le reticule remplace le curseur systeme : deux pointeurs superposes se
+    // genent, et c'est le reticule qui porte la precision.
+    setCursor(Qt::BlankCursor);
 
     connect(m_document, &Document::changed, this, [this] {
         updateUnconnectedPins();
@@ -377,7 +379,7 @@ void FolioView::setTool(Tool tool)
     m_tool = tool;
     if (tool != Tool::Symbol)
         m_pendingSymbol.clear();
-    setCursor(tool == Tool::Select ? Qt::ArrowCursor : Qt::CrossCursor);
+    setCursor(Qt::BlankCursor);
     Q_EMIT toolChanged(tool);
     update();
 }
@@ -920,6 +922,7 @@ void FolioView::mouseMoveEvent(QMouseEvent *event)
     const QPointF widgetPoint = event->position();
     const QPointF scenePoint = toScene(widgetPoint);
     m_cursorMm = scenePoint;
+    m_cursorInside = true;
     m_snapHit = resolveSnap(scenePoint);
     emitCursor();
 
@@ -967,8 +970,7 @@ void FolioView::mouseMoveEvent(QMouseEvent *event)
     const int hovered = m_tool == Tool::Select ? gripAt(scenePoint) : -1;
     if (hovered != m_hotGrip) {
         m_hotGrip = hovered;
-        setCursor(hovered >= 0 ? Qt::SizeAllCursor
-                               : (m_tool == Tool::Select ? Qt::ArrowCursor : Qt::CrossCursor));
+        setCursor(hovered >= 0 ? Qt::SizeAllCursor : Qt::BlankCursor);
     }
 
     // Le retour d'accrochage change a chaque deplacement : la vue doit se
@@ -982,7 +984,7 @@ void FolioView::mouseReleaseEvent(QMouseEvent *event)
     Q_UNUSED(event);
     switch (m_drag) {
     case Drag::Pan:
-        setCursor(m_tool == Tool::Select ? Qt::ArrowCursor : Qt::CrossCursor);
+        setCursor(Qt::BlankCursor);
         break;
     case Drag::Move:
         if (m_movedSinceCommit)
@@ -1089,7 +1091,7 @@ void FolioView::keyReleaseEvent(QKeyEvent *event)
 {
     if (event->key() == Qt::Key_Space) {
         m_spaceHeld = false;
-        setCursor(m_tool == Tool::Select ? Qt::ArrowCursor : Qt::CrossCursor);
+        setCursor(Qt::BlankCursor);
         return;
     }
     QWidget::keyReleaseEvent(event);
@@ -1105,6 +1107,7 @@ void FolioView::resizeEvent(QResizeEvent *event)
 
 void FolioView::leaveEvent(QEvent *event)
 {
+    m_cursorInside = false;
     m_snapHit.reset();
     update();
     QWidget::leaveEvent(event);
@@ -1248,6 +1251,76 @@ void FolioView::paintRubberBand(QPainter &painter) const
     painter.drawRect(m_rubber);
 }
 
+void FolioView::paintCrosshair(QPainter &painter) const
+{
+    if (!m_style.showCrosshair || !m_cursorInside)
+        return;
+
+    const QPointF centre = toWidget(m_cursorMm);
+    const double reach = std::max(width(), height())
+            * std::clamp(m_style.crosshairPercent, 5.0, 100.0) / 100.0;
+
+    painter.save();
+    QPen pen(m_style.crosshair);
+    pen.setWidthF(0.8);
+    pen.setCosmetic(true);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawLine(QPointF(centre.x() - reach, centre.y()),
+                     QPointF(centre.x() + reach, centre.y()));
+    painter.drawLine(QPointF(centre.x(), centre.y() - reach),
+                     QPointF(centre.x(), centre.y() + reach));
+
+    // Le carre de selection au centre : il montre la zone effectivement
+    // testee au clic, ce qui explique pourquoi on attrape ou non un objet.
+    if (m_tool == Tool::Select) {
+        const double h = m_style.pickBoxPixels / 2.0;
+        painter.drawRect(QRectF(centre.x() - h, centre.y() - h, m_style.pickBoxPixels,
+                                m_style.pickBoxPixels));
+    }
+    painter.restore();
+}
+
+void FolioView::paintDynamicInput(QPainter &painter) const
+{
+    if (!m_style.showDynamicInput || !m_cursorInside)
+        return;
+    const QPointF *from = gestureOrigin();
+    if (!from)
+        return;
+
+    const QPointF target = snap(m_cursorMm);
+    const QPointF delta = target - *from;
+    const double length = std::hypot(delta.x(), delta.y());
+    if (length < 1e-6)
+        return;
+
+    // L'angle est donne comme le lit un dessinateur : sens trigonometrique,
+    // origine a trois heures, alors que l'axe des ordonnees descend a l'ecran.
+    double angle = -std::atan2(delta.y(), delta.x()) * 180.0 / std::numbers::pi;
+    if (angle < 0.0)
+        angle += 360.0;
+
+    const QString text = QStringLiteral("%1 mm   ∠ %2°")
+                                 .arg(length, 0, 'f', 1)
+                                 .arg(angle, 0, 'f', 1);
+
+    const QPointF anchor = toWidget(target) + QPointF(16, 20);
+    QFont font = painter.font();
+    font.setPointSizeF(9.0);
+    const QFontMetricsF metrics(font);
+    const QRectF box(anchor, QSizeF(metrics.horizontalAdvance(text) + 14, metrics.height() + 8));
+
+    painter.save();
+    painter.setFont(font);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(0, 0, 0, 165));
+    painter.drawRoundedRect(box, 4, 4);
+    painter.setPen(QColor(0xF0, 0xF4, 0xF2));
+    painter.drawText(box, Qt::AlignCenter, text);
+    painter.restore();
+}
+
 void FolioView::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
@@ -1278,6 +1351,8 @@ void FolioView::paintEvent(QPaintEvent *event)
     paintSnapFeedback(painter);
     paintRubberBand(painter);
     painter.resetTransform();
+    paintCrosshair(painter);
+    paintDynamicInput(painter);
     paintEmptyHint(painter, *folio);
 }
 

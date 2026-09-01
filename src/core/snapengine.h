@@ -120,7 +120,10 @@ private:
     SnapModes m_modes;
     bool m_objectSnap = true;
     bool m_gridSnap = true;
-    bool m_ortho = false;
+    // Ortho allume par defaut : un schema electrique se trace en traits
+    // horizontaux et verticaux, et AutoCAD Electrical impose lui aussi
+    // l'orthogonalite a ses fils. Qui veut une diagonale coupe F8.
+    bool m_ortho = true;
     bool m_polar = true;
     double m_gridStep = 2.5;
     double m_polarIncrement = 45.0;

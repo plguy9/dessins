@@ -139,7 +139,11 @@ Reste notamment : gestionnaire de projet multi-dossiers, entrées-sorties API.
 </details>
 
 ## AutoCAD Electrical — Gestion de projet, opérations projet, rapports, audits, automates (PLC) et implantation d'armoire (Panel Layout)
-66 fonctionnalités relevées — **18 déjà en place**, 48 restantes.
+66 fonctionnalités relevées — **21 déjà en place**, 45 restantes.
+
+Ajouté depuis le dernier relevé : insertion paramétrique de module d'automate,
+adressage rack / emplacement / point aux formats des constructeurs, rapport
+d'adresses et descriptions d'E/S (`rules/plc.*`, `ui/plcdialog.*`).
 
 **En place chez nous :** Bornier graphique dans l'armoire, Copier / archiver / renommer un projet, Export de rapport vers fichier, Insertion d'automate en bloc complet, Insertion d'automate paramétrique, Insertion d'empreinte depuis le menu d'icônes, Insertion d'empreintes depuis la liste du schéma, Lien bidirectionnel schéma ↔ implantation, Mise à jour des cartouches sur tout le projet, Mise à jour des renvois (références croisées), Onglet et environnement Panel Layout, Rails, goulottes et assemblages d'armoire, Rapport de nomenclature (schéma), Rapport de nomenclature manquante, Rapports d'implantation d'armoire, Renumérotation des repères de fils sur tout le projet, Tracer / publier tout le projet, Édition et copie d'empreintes
 

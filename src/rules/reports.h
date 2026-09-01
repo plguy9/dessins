@@ -6,6 +6,7 @@
 
 #include "core/netlist.h"
 #include "core/project.h"
+#include "plc.h"
 #include "profile.h"
 
 namespace dsn {
@@ -115,6 +116,25 @@ struct ComponentLine {
     int pinCount = 0;      // broches raccordees
 };
 
+// Une ligne du rapport d'adresses et descriptions d'entrees-sorties
+// d'automate : un point par ligne, avec ce qu'il commande ou ce qu'il lit.
+// C'est le document que l'automaticien et le cableur partagent — l'un y lit
+// l'adresse a programmer, l'autre la borne a raccorder.
+struct PlcIoLine {
+    QString designation;   // repere du module, ex. -A1
+    QString module;        // reference constructeur
+    QString manufacturer;
+    QString ioType;        // entree-tor, sortie-tor, entree-analogique...
+    QString address;       // « %I0.3 » — recalculee, jamais stockee
+    QString terminal;      // borne du module, « 03 »
+    QString description;   // la seule chose saisie a la main
+    QString folio;
+    QString zone;
+    QString target;        // appareil raccorde a ce point
+    QString targetPin;
+    QString wireNumber;
+};
+
 class Reports
 {
 public:
@@ -144,11 +164,20 @@ public:
     static QVector<ComponentLine> componentList(const Project &project, const Netlist &netlist,
                                                 const ReportScope &scope = {});
 
+    // Adresses et descriptions d'E/S d'automate : un point par ligne, dans
+    // l'ordre des modules puis des points. La base sert a retrouver le format
+    // d'adressage du constructeur — sans elle, un module pose reste lisible
+    // mais ses adresses ne peuvent plus etre recalculees.
+    static QVector<PlcIoLine> plcIoList(const Project &project, const Netlist &netlist,
+                                        const PlcDatabase &database,
+                                        const ReportScope &scope = {});
+
     static ReportTable toTable(const QVector<BomLine> &lines);
     static ReportTable toTable(const QVector<TerminalLine> &lines);
     static ReportTable toTable(const QVector<WireLine> &lines);
     static ReportTable toTable(const QVector<WireRunLine> &lines);
     static ReportTable toTable(const QVector<ComponentLine> &lines);
+    static ReportTable toTable(const QVector<PlcIoLine> &lines);
 
     // Recapitulatif du projet, pour le panneau de controle.
     static ReportTable projectSummary(const Project &project, const Netlist &netlist,

@@ -21,6 +21,7 @@
 #include "symbolpalette.h"
 #include "componentdialog.h"
 #include "surferdialog.h"
+#include "plcdialog.h"
 #include "terminalstripdialog.h"
 #include "wiretypedialog.h"
 #include "theme.h"
@@ -129,6 +130,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     // Catalogue fabricant : celui livre avec le logiciel, complete par les
     // fichiers du poste. Charge une fois pour toute la session.
     m_catalog = Catalog::loadAll();
+    m_plc = PlcDatabase::loadAll();
 
     // La bibliotheque integree est chargee une fois pour toutes : le logiciel
     // doit etre utilisable des le premier lancement, sans installation.
@@ -169,7 +171,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     });
     // Double-clic sur un appareil : la meme boite, comme chez AutoCAD.
     connect(m_view, &FolioView::entityActivated, this, [this](const QString &id) {
-        if (dynamic_cast<const SymbolInstance *>(m_document->project().findEntity(id)))
+        const auto *symbol =
+                dynamic_cast<const SymbolInstance *>(m_document->project().findEntity(id));
+        if (!symbol)
+            return;
+        // Une carte d'automate a sa propre boite : la boite du composant ne
+        // sait rien des adresses, et c'est tout ce qu'on vient y regler.
+        if (PlcModule::isModule(*symbol))
+            editPlcModule(id);
+        else
             editComponent(id, false);
     });
     connect(m_document, &Document::undoStateChanged, this, &MainWindow::updateActions);
@@ -615,6 +625,9 @@ void MainWindow::createActions()
     make(projectMenu, false, G::Junction, tr("&Éditeur de borniers…"), QKeySequence(),
          tr("Rassembler les bornes par bornier, les renuméroter, aller les voir"),
          &MainWindow::editTerminalStrips);
+    make(projectMenu, false, G::SymbolPlace, tr("Insérer un &automate…"), QKeySequence(),
+         tr("Poser une carte d'entrées-sorties : ses points portent déjà leur adresse"),
+         &MainWindow::insertPlcModule);
     make(projectMenu, false, G::Reports, tr("&Poser le rapport dans le dessin…"), QKeySequence(),
          tr("Insère le rapport affiché sous forme de table sur le folio actif"),
          &MainWindow::placeCurrentReport);
@@ -772,6 +785,72 @@ void MainWindow::editTerminalStrips()
         m_reports->refresh();
         m_view->update();
     }
+}
+
+void MainWindow::insertPlcModule()
+{
+    PlcDialog dialog(m_plc, nullptr, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    const PlcModuleDef *def = dialog.module();
+    if (!def)
+        return;
+
+    // Le symbole de la carte est engendre puis range dans la bibliotheque du
+    // projet — qui voyage dans le fichier. Le module devient alors un symbole
+    // ordinaire : il se deplace, se copie, s'annule et se cable comme le
+    // reste, et ni le peintre ni la netlist n'apprennent quoi que ce soit.
+    SymbolInstance prototype;
+    dialog.applyTo(prototype);
+    m_document->project().library.insert(
+            PlcModule::buildSymbol(*def, PlcModule::points(prototype, m_plc)));
+    m_palette->setLibrary(&m_document->project().library);
+
+    // Les champs voyagent avec la pose : tout tient dans une seule annulation.
+    m_view->setPendingSymbol(PlcModule::symbolId(*def), &prototype);
+    statusBar()->showMessage(
+            tr("%1 — cliquez pour poser la carte. R fait pivoter, Échap annule.")
+                    .arg(def->partNumber),
+            8000);
+}
+
+void MainWindow::editPlcModule(const QString &entityId)
+{
+    Folio *folio = nullptr;
+    Entity *entity = m_document->project().findEntity(entityId, &folio);
+    auto *symbol = dynamic_cast<SymbolInstance *>(entity);
+    if (!symbol || !folio || !PlcModule::isModule(*symbol))
+        return;
+
+    PlcDialog dialog(m_plc, symbol, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    const PlcModuleDef *def = dialog.module();
+    if (!def)
+        return;
+
+    auto after = std::make_unique<SymbolInstance>(*symbol);
+    // Changer de carte change son dessin : les anciennes descriptions de
+    // points d'un module a seize voies n'ont rien a faire sur un module a
+    // quatre, et une adresse orpheline serait pire qu'absente.
+    for (auto it = after->fields.begin(); it != after->fields.end();) {
+        it = it.key().startsWith(QLatin1String("plc.desc.")) ? after->fields.erase(it)
+                                                             : std::next(it);
+    }
+    dialog.applyTo(*after);
+    m_document->project().library.insert(
+            PlcModule::buildSymbol(*def, PlcModule::points(*after, m_plc)));
+    after->definitionId = PlcModule::symbolId(*def);
+    if (const SymbolDefinition *definition =
+                m_document->project().library.definition(after->definitionId)) {
+        after->setLocalBounds(definition->bounds());
+    }
+
+    m_document->push(std::make_unique<ModifyEntityCommand>(
+            m_document->project(), folio->id(), symbol->clone(), std::move(after),
+            tr("Régler le module d'automate")));
+    m_palette->setLibrary(&m_document->project().library);
+    m_view->update();
 }
 
 void MainWindow::locate(const QString &folioId, const QString &entityId)
@@ -1172,6 +1251,9 @@ void MainWindow::registerCommands()
            tr("Éditer l'appareil sélectionné"), [this] { editSelectedComponent(); });
     simple(QStringLiteral("BORNIER"), { QStringLiteral("BO"), QStringLiteral("TSE") },
            tr("Ouvrir l'éditeur de borniers"), [this] { editTerminalStrips(); });
+    simple(QStringLiteral("AUTOMATE"), { QStringLiteral("API"), QStringLiteral("PLC") },
+           tr("Insérer une carte d'entrées-sorties d'automate"),
+           [this] { insertPlcModule(); });
     simple(QStringLiteral("POSERRAPPORT"), { QStringLiteral("PRA") },
            tr("Poser le rapport affiché dans le dessin"),
            [this] { placeCurrentReport(); });

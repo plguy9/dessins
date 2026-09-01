@@ -5,6 +5,7 @@
 #pragma once
 
 #include "document.h"
+#include "rules/plc.h"
 #include "rules/reports.h"
 
 #include <QWidget>
@@ -46,6 +47,11 @@ private:
     QTableWidget *m_components = nullptr;
     QTableWidget *m_terminals = nullptr;
     QTableWidget *m_wires = nullptr;
+    QTableWidget *m_plc = nullptr;
+    // La base des modules sert a retrouver le format d'adressage : sans elle,
+    // les cartes posees restent lisibles mais leurs adresses ne peuvent plus
+    // etre recalculees.
+    PlcDatabase m_plcDatabase = PlcDatabase::loadAll();
     QTableWidget *m_runs = nullptr;
     QTableWidget *m_checks = nullptr;
     QVector<ReportTable> m_tables;

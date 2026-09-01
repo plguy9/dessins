@@ -1,0 +1,252 @@
+{
+  "format": "arcus-plc-database",
+  "version": 1,
+  "note": "Modules d'entrees-sorties d'automates programmables, avec leur format d'adressage. Les formats sont ceux des constructeurs : ils sont normatifs, pas decoratifs.",
+  "modules": [
+    {
+      "id": "ab:1746-IA16",
+      "manufacturer": "Allen-Bradley",
+      "series": "SLC 500",
+      "partNumber": "1746-IA16",
+      "description": "Entrées TOR 16 points, 120 V c.a.",
+      "ioType": "entree-tor",
+      "points": 16,
+      "addressFormat": "I:%S/%2P",
+      "voltage": "120 V c.a."
+    },
+    {
+      "id": "ab:1746-OW16",
+      "manufacturer": "Allen-Bradley",
+      "series": "SLC 500",
+      "partNumber": "1746-OW16",
+      "description": "Sorties relais 16 points",
+      "ioType": "sortie-tor",
+      "points": 16,
+      "addressFormat": "O:%S/%2P",
+      "voltage": "240 V c.a. / 125 V c.c."
+    },
+    {
+      "id": "ab:1746-NI4",
+      "manufacturer": "Allen-Bradley",
+      "series": "SLC 500",
+      "partNumber": "1746-NI4",
+      "description": "Entrées analogiques 4 voies, courant/tension",
+      "ioType": "entree-analogique",
+      "points": 4,
+      "addressFormat": "I:%S.%P",
+      "voltage": "±10 V / 4-20 mA"
+    },
+    {
+      "id": "ab:1756-IB16",
+      "manufacturer": "Allen-Bradley",
+      "series": "ControlLogix",
+      "partNumber": "1756-IB16",
+      "description": "Entrées TOR 16 points, 24 V c.c.",
+      "ioType": "entree-tor",
+      "points": 16,
+      "addressFormat": "Local:%S:I.Data.%P",
+      "voltage": "24 V c.c."
+    },
+    {
+      "id": "ab:1756-OB16E",
+      "manufacturer": "Allen-Bradley",
+      "series": "ControlLogix",
+      "partNumber": "1756-OB16E",
+      "description": "Sorties statiques 16 points, 24 V c.c., protégées",
+      "ioType": "sortie-tor",
+      "points": 16,
+      "addressFormat": "Local:%S:O.Data.%P",
+      "voltage": "24 V c.c."
+    },
+
+    {
+      "id": "siemens:6ES7321-1BH02",
+      "manufacturer": "Siemens",
+      "series": "SIMATIC S7-300",
+      "partNumber": "6ES7 321-1BH02-0AA0",
+      "description": "Entrées TOR 16 points, 24 V c.c.",
+      "ioType": "entree-tor",
+      "points": 16,
+      "addressFormat": "%%I%B.%b",
+      "bitsPerByte": 8,
+      "voltage": "24 V c.c."
+    },
+    {
+      "id": "siemens:6ES7322-1BH01",
+      "manufacturer": "Siemens",
+      "series": "SIMATIC S7-300",
+      "partNumber": "6ES7 322-1BH01-0AA0",
+      "description": "Sorties TOR 16 points, 24 V c.c., 0,5 A",
+      "ioType": "sortie-tor",
+      "points": 16,
+      "addressFormat": "%%Q%B.%b",
+      "bitsPerByte": 8,
+      "voltage": "24 V c.c."
+    },
+    {
+      "id": "siemens:6ES7131-6BF00",
+      "manufacturer": "Siemens",
+      "series": "SIMATIC ET 200SP",
+      "partNumber": "6ES7 131-6BF00-0BA0",
+      "description": "Entrées TOR 8 points, 24 V c.c.",
+      "ioType": "entree-tor",
+      "points": 8,
+      "addressFormat": "%%I%B.%b",
+      "bitsPerByte": 8,
+      "voltage": "24 V c.c."
+    },
+    {
+      "id": "siemens:6ES7331-7KF02",
+      "manufacturer": "Siemens",
+      "series": "SIMATIC S7-300",
+      "partNumber": "6ES7 331-7KF02-0AB0",
+      "description": "Entrées analogiques 8 voies, 13 bits",
+      "ioType": "entree-analogique",
+      "points": 8,
+      "addressFormat": "%%IW%P",
+      "voltage": "±10 V / 4-20 mA"
+    },
+
+    {
+      "id": "schneider:BMXDDI1602",
+      "manufacturer": "Schneider Electric",
+      "series": "Modicon M340",
+      "partNumber": "BMX DDI 1602",
+      "description": "Entrées TOR 16 points, 24 V c.c.",
+      "ioType": "entree-tor",
+      "points": 16,
+      "addressFormat": "%%I%R.%S.%P",
+      "voltage": "24 V c.c."
+    },
+    {
+      "id": "schneider:BMXDDO1602",
+      "manufacturer": "Schneider Electric",
+      "series": "Modicon M340",
+      "partNumber": "BMX DDO 1602",
+      "description": "Sorties statiques 16 points, 24 V c.c., 0,5 A",
+      "ioType": "sortie-tor",
+      "points": 16,
+      "addressFormat": "%%Q%R.%S.%P",
+      "voltage": "24 V c.c."
+    },
+    {
+      "id": "schneider:BMXAMI0410",
+      "manufacturer": "Schneider Electric",
+      "series": "Modicon M340",
+      "partNumber": "BMX AMI 0410",
+      "description": "Entrées analogiques 4 voies, haute vitesse",
+      "ioType": "entree-analogique",
+      "points": 4,
+      "addressFormat": "%%IW%R.%S.%P",
+      "voltage": "±10 V / 4-20 mA"
+    },
+    {
+      "id": "schneider:TM3DI16",
+      "manufacturer": "Schneider Electric",
+      "series": "Modicon TM3",
+      "partNumber": "TM3DI16",
+      "description": "Entrées TOR 16 points, 24 V c.c.",
+      "ioType": "entree-tor",
+      "points": 16,
+      "addressFormat": "%%I%S.%P",
+      "voltage": "24 V c.c."
+    },
+
+    {
+      "id": "omron:CJ1W-ID211",
+      "manufacturer": "Omron",
+      "series": "CJ1",
+      "partNumber": "CJ1W-ID211",
+      "description": "Entrées TOR 16 points, 24 V c.c.",
+      "ioType": "entree-tor",
+      "points": 16,
+      "addressFormat": "%B.%2b",
+      "bitsPerByte": 16,
+      "voltage": "24 V c.c."
+    },
+    {
+      "id": "omron:CJ1W-OC211",
+      "manufacturer": "Omron",
+      "series": "CJ1",
+      "partNumber": "CJ1W-OC211",
+      "description": "Sorties relais 16 points",
+      "ioType": "sortie-tor",
+      "points": 16,
+      "addressFormat": "%B.%2b",
+      "bitsPerByte": 16,
+      "voltage": "250 V c.a. / 24 V c.c."
+    },
+
+    {
+      "id": "abb:DI524",
+      "manufacturer": "ABB",
+      "series": "AC500",
+      "partNumber": "DI524",
+      "description": "Entrées TOR 32 points, 24 V c.c.",
+      "ioType": "entree-tor",
+      "points": 32,
+      "addressFormat": "%%I%B.%b",
+      "bitsPerByte": 8,
+      "voltage": "24 V c.c."
+    },
+    {
+      "id": "abb:DC532",
+      "manufacturer": "ABB",
+      "series": "AC500",
+      "partNumber": "DC532",
+      "description": "Entrées/sorties TOR mixtes 32 points, 24 V c.c.",
+      "ioType": "mixte-tor",
+      "points": 32,
+      "addressFormat": "%%I%B.%b",
+      "bitsPerByte": 8,
+      "voltage": "24 V c.c."
+    },
+
+    {
+      "id": "generique:e-tor-8",
+      "manufacturer": "Générique",
+      "series": "CEI 61131",
+      "partNumber": "E-TOR-8",
+      "description": "Entrées TOR 8 points — module générique",
+      "ioType": "entree-tor",
+      "points": 8,
+      "addressFormat": "%%I%B.%b",
+      "bitsPerByte": 8,
+      "voltage": "24 V c.c."
+    },
+    {
+      "id": "generique:s-tor-8",
+      "manufacturer": "Générique",
+      "series": "CEI 61131",
+      "partNumber": "S-TOR-8",
+      "description": "Sorties TOR 8 points — module générique",
+      "ioType": "sortie-tor",
+      "points": 8,
+      "addressFormat": "%%Q%B.%b",
+      "bitsPerByte": 8,
+      "voltage": "24 V c.c."
+    },
+    {
+      "id": "generique:e-ana-4",
+      "manufacturer": "Générique",
+      "series": "CEI 61131",
+      "partNumber": "E-ANA-4",
+      "description": "Entrées analogiques 4 voies — module générique",
+      "ioType": "entree-analogique",
+      "points": 4,
+      "addressFormat": "%%IW%P",
+      "voltage": "4-20 mA"
+    },
+    {
+      "id": "generique:s-ana-2",
+      "manufacturer": "Générique",
+      "series": "CEI 61131",
+      "partNumber": "S-ANA-2",
+      "description": "Sorties analogiques 2 voies — module générique",
+      "ioType": "sortie-analogique",
+      "points": 2,
+      "addressFormat": "%%QW%P",
+      "voltage": "4-20 mA"
+    }
+  ]
+}

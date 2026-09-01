@@ -17,6 +17,7 @@ add_library(arcus_ui STATIC
     componentdialog.h componentdialog.cpp
     surferdialog.h    surferdialog.cpp
     terminalstripdialog.h terminalstripdialog.cpp
+    plcdialog.h       plcdialog.cpp
     mainwindow.h      mainwindow.cpp
 )
 

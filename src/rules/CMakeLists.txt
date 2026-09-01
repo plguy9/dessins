@@ -8,6 +8,7 @@ add_library(arcus_rules STATIC
     crossref.h   crossref.cpp
     reportplacer.h reportplacer.cpp
     catalog.h    catalog.cpp
+    plc.h        plc.cpp
 )
 
 # Le catalogue fabricant est embarque comme la bibliotheque de symboles : le
@@ -16,6 +17,14 @@ qt_add_resources(arcus_rules "builtin_catalog"
     PREFIX "/catalog"
     BASE ${CMAKE_SOURCE_DIR}/catalog
     FILES ${CMAKE_SOURCE_DIR}/catalog/catalogue.json
+)
+
+# La base des modules d'automates suit le meme principe : le logiciel doit
+# savoir poser une carte d'entrees-sorties des le premier lancement.
+qt_add_resources(arcus_rules "builtin_plc"
+    PREFIX "/plc"
+    BASE ${CMAKE_SOURCE_DIR}/plc
+    FILES ${CMAKE_SOURCE_DIR}/plc/automates.json
 )
 
 target_link_libraries(arcus_rules PUBLIC arcus_core)

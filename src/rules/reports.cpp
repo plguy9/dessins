@@ -596,6 +596,89 @@ ReportTable Reports::toTable(const QVector<ComponentLine> &lines)
     return table;
 }
 
+QVector<PlcIoLine> Reports::plcIoList(const Project &project, const Netlist &netlist,
+                                     const PlcDatabase &database, const ReportScope &scope)
+{
+    QVector<PlcIoLine> lines;
+
+    for (const Folio *folio : foliosInScope(project, scope)) {
+        for (const SymbolInstance *symbol : folio->entitiesOfType<SymbolInstance>()) {
+            if (!PlcModule::isModule(*symbol))
+                continue;
+            const PlcModuleDef *def = database.find(PlcModule::moduleId(*symbol));
+            if (!def)
+                continue;
+
+            const QVector<PlcPoint> points = PlcModule::points(*symbol, database);
+            for (const PlcPoint &point : points) {
+                PlcIoLine line;
+                line.designation = symbol->designation();
+                line.module = def->partNumber;
+                line.manufacturer = def->manufacturer;
+                line.ioType = def->ioType;
+                line.address = point.address;
+                line.terminal = point.terminal;
+                line.description = point.description;
+                line.folio = folio->number.isEmpty() ? folio->title : folio->number;
+                line.zone = folio->zoneAt(symbol->placement.position);
+
+                // Ce que le point commande ou lit se deduit du dessin, comme
+                // le reste : un point non cable reste dans le rapport, avec
+                // ses colonnes vides. C'est justement ce qu'on veut voir.
+                if (const Netlist::Net *net = netlist.netOfPin(symbol->id(), point.pinNumber)) {
+                    for (const Netlist::WireRef &ref : net->wires) {
+                        const Folio *wireFolio = project.folio(ref.folioId);
+                        if (!wireFolio)
+                            continue;
+                        const auto *wire = dynamic_cast<const Wire *>(wireFolio->entity(ref.wireId));
+                        if (wire && !wire->number.isEmpty()) {
+                            line.wireNumber = wire->number;
+                            break;
+                        }
+                    }
+                    if (line.wireNumber.isEmpty())
+                        line.wireNumber = net->number.isEmpty() ? net->name : net->number;
+                    for (const Netlist::PinRef &other : net->pins) {
+                        if (other.symbolId == symbol->id())
+                            continue;
+                        line.target = other.designation;
+                        line.targetPin = other.pinNumber;
+                        break;
+                    }
+                }
+                lines.append(line);
+            }
+        }
+    }
+
+    // Tri par repere de module puis par rang de point : le rapport se lit
+    // module par module, dans l'ordre des bornes de la carte.
+    std::stable_sort(lines.begin(), lines.end(), [](const PlcIoLine &a, const PlcIoLine &b) {
+        if (a.designation != b.designation)
+            return naturalLess(a.designation, b.designation);
+        return naturalLess(a.terminal, b.terminal);
+    });
+    return lines;
+}
+
+ReportTable Reports::toTable(const QVector<PlcIoLine> &lines)
+{
+    ReportTable table;
+    table.title = QStringLiteral("Entrées-sorties d'automate");
+    table.headers = { QStringLiteral("Module"),      QStringLiteral("Référence"),
+                      QStringLiteral("Borne"),       QStringLiteral("Adresse"),
+                      QStringLiteral("Type"),        QStringLiteral("Description"),
+                      QStringLiteral("Raccordé à"),  QStringLiteral("Broche"),
+                      QStringLiteral("Fil"),         QStringLiteral("Folio"),
+                      QStringLiteral("Zone") };
+    for (const PlcIoLine &line : lines) {
+        table.rows.append({ line.designation, line.module, line.terminal, line.address,
+                            line.ioType, line.description, line.target, line.targetPin,
+                            line.wireNumber, line.folio, line.zone });
+    }
+    return table;
+}
+
 ReportTable Reports::projectSummary(const Project &project, const Netlist &netlist,
                                     const ReportScope &scope)
 {

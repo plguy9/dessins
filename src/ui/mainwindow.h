@@ -4,6 +4,7 @@
 #include "document.h"
 #include "folioview.h"
 #include "rules/catalog.h"
+#include "rules/plc.h"
 
 #include <QDockWidget>
 #include <QHash>
@@ -70,6 +71,9 @@ private:
     void editSelectedComponent();
     void surfSelection();
     void editTerminalStrips();
+    // Automates : la meme boite pose une carte et reprend une carte posee.
+    void insertPlcModule();
+    void editPlcModule(const QString &entityId);
     // Ouvre le folio voulu et designe l'entite : c'est ce que fait « y aller ».
     void locate(const QString &folioId, const QString &entityId);
 
@@ -112,6 +116,7 @@ private:
     // Catalogue fabricant, charge une fois : le logiciel doit proposer des
     // references des le premier lancement, sans installation.
     Catalog m_catalog;
+    PlcDatabase m_plc;
 
     Document *m_document = nullptr;
     FolioView *m_view = nullptr;

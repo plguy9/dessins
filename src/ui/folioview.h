@@ -19,6 +19,8 @@
 #include <QTimer>
 #include <QWidget>
 
+#include <optional>
+
 namespace dsn {
 
 class FolioView : public QWidget
@@ -35,7 +37,12 @@ public:
     void setTool(Tool tool);
 
     // Symbole arme pour le prochain clic, avec son orientation courante.
-    void setPendingSymbol(const QString &definitionId);
+    // Un prototype facultatif : ses champs, son repere et son verrou sont
+    // recopies sur l'instance posee. C'est ce qui permet a une boite
+    // d'insertion — celle des modules d'automate, par exemple — de tout
+    // regler avant la pose, et donc de tenir dans une seule annulation.
+    void setPendingSymbol(const QString &definitionId,
+                          const SymbolInstance *prototype = nullptr);
     QString pendingSymbol() const { return m_pendingSymbol; }
 
     void setLabelScope(Label::Scope scope) { m_labelScope = scope; }
@@ -327,6 +334,7 @@ private:
 
     QVector<QPointF> m_wirePoints;
     QString m_pendingSymbol;
+    std::optional<SymbolInstance> m_pendingPrototype;
     Placement m_pendingPlacement;
     Label::Scope m_labelScope = Label::Scope::Folio;
     Label::Role m_labelRole = Label::Role::Plain;

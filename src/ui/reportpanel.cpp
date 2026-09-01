@@ -36,6 +36,7 @@ ReportPanel::ReportPanel(Document *document, QWidget *parent)
     m_terminals = addTab(tr("Bornier"));
     m_wires = addTab(tr("Fils"));
     m_runs = addTab(tr("Câblage De/Vers"));
+    m_plc = addTab(tr("E/S automate"));
     m_checks = addTab(tr("Contrôles"));
 
     rebuildScopeChoices();
@@ -128,6 +129,7 @@ void ReportPanel::refresh()
     m_tables.append(Reports::toTable(Reports::terminalList(project, netlist, current)));
     m_tables.append(Reports::toTable(Reports::wireList(project, netlist, current)));
     m_tables.append(Reports::toTable(Reports::wireFromTo(project, netlist, current)));
+    m_tables.append(Reports::toTable(Reports::plcIoList(project, netlist, m_plcDatabase, current)));
     m_tables.append(Reports::diagnostics(netlist, current));
 
     fill(m_summary, m_tables.at(0));
@@ -136,12 +138,13 @@ void ReportPanel::refresh()
     fill(m_terminals, m_tables.at(3));
     fill(m_wires, m_tables.at(4));
     fill(m_runs, m_tables.at(5));
-    fill(m_checks, m_tables.at(6));
+    fill(m_plc, m_tables.at(6));
+    fill(m_checks, m_tables.at(7));
 
     // Le nombre d'anomalies reste visible sans ouvrir l'onglet : c'est
     // l'information qu'on veut voir sans la chercher.
-    const int problems = m_tables.at(6).rowCount();
-    m_tabs->setTabText(6, problems == 0 ? tr("Contrôles") : tr("Contrôles (%1)").arg(problems));
+    const int problems = m_tables.at(7).rowCount();
+    m_tabs->setTabText(7, problems == 0 ? tr("Contrôles") : tr("Contrôles (%1)").arg(problems));
     m_dirty = false;
 }
 

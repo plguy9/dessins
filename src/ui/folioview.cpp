@@ -455,17 +455,23 @@ void FolioView::setTool(Tool tool)
         return;
     cancelPending();
     m_tool = tool;
-    if (tool != Tool::Symbol)
+    if (tool != Tool::Symbol) {
         m_pendingSymbol.clear();
+        m_pendingPrototype.reset();
+    }
     setCursor(Qt::BlankCursor);
     Q_EMIT toolChanged(tool);
     update();
 }
 
-void FolioView::setPendingSymbol(const QString &definitionId)
+void FolioView::setPendingSymbol(const QString &definitionId, const SymbolInstance *prototype)
 {
     m_pendingSymbol = definitionId;
     m_pendingPlacement = Placement();
+    if (prototype)
+        m_pendingPrototype = *prototype;
+    else
+        m_pendingPrototype.reset();
     if (!definitionId.isEmpty())
         setTool(Tool::Symbol);
     update();
@@ -1261,6 +1267,18 @@ void FolioView::placeSymbolAt(const QPointF &point)
         instance->setLocalBounds(definition->bounds());
         instance->fields = definition->defaultFields;
     }
+    // Le prototype passe apres les champs par defaut : il les complete plutot
+    // que de les remplacer, et c'est lui qui gagne quand les deux parlent du
+    // meme champ.
+    if (m_pendingPrototype) {
+        for (auto it = m_pendingPrototype->fields.cbegin();
+             it != m_pendingPrototype->fields.cend(); ++it) {
+            instance->fields.insert(it.key(), it.value());
+        }
+        instance->designationLocked = m_pendingPrototype->designationLocked;
+        if (!m_pendingPrototype->deviceGroup.isEmpty())
+            instance->deviceGroup = m_pendingPrototype->deviceGroup;
+    }
     const QString id = instance->id();
 
     // Poser un appareil de passage sur un fil doit le brancher, pas se poser
@@ -1299,6 +1317,15 @@ void FolioView::placeSymbolAt(const QPointF &point)
         }
         Q_EMIT statusMessage(tr("Appareil branché : le fil a été coupé sur ses bornes."));
     });
+
+    // Un symbole ordinaire reste arme : on en pose souvent plusieurs a la
+    // suite. Un symbole prototype, non — il a ete regle pour cette pose-ci,
+    // et poser deux fois la meme carte d'automate donnerait deux modules a la
+    // meme adresse.
+    if (m_pendingPrototype) {
+        m_pendingSymbol.clear();
+        m_pendingPrototype.reset();
+    }
 
     setSelection({ id });
     Q_EMIT componentPlaced(id);

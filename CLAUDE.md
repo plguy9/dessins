@@ -107,6 +107,19 @@ sont délibérés et documentés dans le code :
   texte, parce que `core/` ne dépend pas de `rules/`.
 - **`rules/catalog.*`** — le catalogue fabricant, embarqué par ressource
   comme les symboles et complété par les fichiers du poste.
+- **`rules/plc.*`** — les automates. On choisit une carte dans la base des
+  constructeurs, on donne son adresse de départ, et chaque point porte déjà
+  son adresse : `I:3/00`, `%I0.0`, `%I0.2.5`. Trois décisions :
+  1. **Un module posé est un `SymbolInstance` ordinaire.** Sa définition est
+     engendrée à l'insertion et rangée dans la bibliothèque du **projet**,
+     qui voyage dans le fichier. Il se déplace, se copie, s'annule et se
+     câble comme le reste ; ni le peintre ni la netlist n'apprennent rien.
+  2. **L'adresse n'est jamais stockée** — elle se recalcule depuis l'adresse
+     de départ et le rang du point. Changer l'emplacement réadresse les
+     seize points d'un coup, sans risque d'en oublier un.
+  3. **Un seul compteur de points.** `%B` (octet) et `%b` (bit) sont des
+     vues dérivées de `%P`, pas une seconde numérotation : c'est ce qui fait
+     que Siemens groupe par 8 et Omron par 16 sans code séparé.
 - **`ReportScope`** — chaque rapport commence par la question d'AutoCAD :
   tout le projet, ou le folio actif. Un seul point de filtrage
   (`foliosInScope`), pour qu'aucun rapport ne puisse l'oublier.
@@ -123,6 +136,11 @@ sont délibérés et documentés dans le code :
   d'inventer un défaut.
 - **Un point désigné passe par `FolioView::placeAt`**, que le clic ou la
   frappe l'ait produit : deux chemins finiraient par diverger.
+- **`FolioView::setPendingSymbol` accepte un prototype** : ses champs et son
+  repère sont recopiés sur l'instance posée. C'est ce qui permet à une boîte
+  d'insertion de tout régler avant la pose, donc de tenir dans une seule
+  annulation. Un prototype vaut pour **une** pose — deux cartes d'automate
+  au même emplacement seraient une erreur, pas un raccourci.
 - **Touches de fonction** : F3 accrochage objets, F7 grille, F8 ortho,
   F9 résolution, F10 polaire, F11 repérage d'accrochage, F12 paramètres.
   F1 la palette de commandes, F2 éditer le composant, F4 le Surfer. Portée application, parce
@@ -268,7 +286,7 @@ La distribution se fait par la page GitHub Releases.
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 
 0. Reste du relevé AutoCAD (`docs/AUTOCAD.md`) : gestionnaire de projet
-   multi-dossiers, entrées-sorties API, éditeur de borniers, Scoot, Surfer.
+   multi-dossiers, audit électrique, configuration des colonnes de rapport.
 1. Import DXF (l'export existe : `io/dxfexport.cpp`).
 2. Unifilaires M8 : symboles de distribution + bilan de puissance
    (le modèle multi-conducteurs est prêt).

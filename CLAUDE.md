@@ -80,13 +80,26 @@ core/  →  symbols/, rules/, render/  →  io/  →  ui/  →  app/
 ## Points ouverts (décisions utilisateur en attente)
 
 Licence (libre ou propriétaire), reprise de fichiers existants (ferait
-remonter l'import DXF), mono-poste ou partagé, OS prioritaire pour
-l'empaquetage. Voir `docs/BRIEF.md`, section « Questions ouvertes ».
+remonter l'import DXF), mono-poste ou partagé. Voir `docs/BRIEF.md`,
+section « Questions ouvertes ».
+
+Tranché : **OS prioritaire = Windows** (décision utilisateur, 2026-09-01).
+La distribution se fait par la page GitHub Releases.
 
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 
-1. Import DXF (l'export existe : `io/dxfexport.cpp`).
-2. Unifilaires M8 : symboles de distribution + bilan de puissance
+1. **Empaquetage Windows** — priorité de la prochaine session. Plan :
+   workflow GitHub Actions `release.yml` déclenché sur tag `v*` ;
+   runner `windows-latest`, Qt via `jurplel/install-qt-action`,
+   compilation Ninja + MSVC, `windeployqt` dans un dossier autonome,
+   zip portable `dessins-<version>-windows-x64.zip`, publication en
+   Release. Binaire non signé : documenter le contournement SmartScreen
+   dans les notes de version. Premier tag : `v0.1.0`.
+   Vérification : dérouler le zip dans un job Windows vierge et lancer
+   `dessins.exe --screenshot=...` pour prouver qu'il démarre hors de
+   l'arbre de compilation.
+2. Import DXF (l'export existe : `io/dxfexport.cpp`).
+3. Unifilaires M8 : symboles de distribution + bilan de puissance
    (le modèle multi-conducteurs est prêt).
-3. Électronique M9 : export netlist SPICE / KiCad.
-4. Empaquetage Windows (windeployqt) et AppImage Linux.
+4. Électronique M9 : export netlist SPICE / KiCad.
+5. AppImage Linux et .dmg macOS, quand le besoin se présentera.

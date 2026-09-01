@@ -216,6 +216,25 @@ QRectF normalized(const QPointF &a, const QPointF &b)
                   QPointF(std::max(a.x(), b.x()), std::max(a.y(), b.y())));
 }
 
+bool segmentIntersectsRect(const QPointF &a, const QPointF &b, const QRectF &rect)
+{
+    const QRectF box = rect.normalized();
+    if (box.contains(a) || box.contains(b))
+        return true;
+    // Rejet rapide : deux boites qui ne se touchent pas ne peuvent pas se
+    // croiser, et c'est le cas de l'immense majorite des segments d'un folio.
+    if (!normalized(a, b).intersects(box))
+        return false;
+
+    const QPointF corners[4] = { box.topLeft(), box.topRight(), box.bottomRight(),
+                                 box.bottomLeft() };
+    for (int i = 0; i < 4; ++i) {
+        if (segmentIntersection(a, b, corners[i], corners[(i + 1) % 4]))
+            return true;
+    }
+    return false;
+}
+
 SheetFormat SheetFormat::portrait() const
 {
     SheetFormat f = *this;

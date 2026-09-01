@@ -35,6 +35,10 @@ FolioView::FolioView(Document *document, QWidget *parent)
 
     connect(m_document, &Document::changed, this, [this] {
         updateUnconnectedPins();
+        // Une modification venue d'ailleurs deplace peut-etre ce que les
+        // poignees designent : elles doivent suivre.
+        if (m_draggedGrip < 0)
+            rebuildGrips();
         update();
     });
     connect(m_document, &Document::currentFolioChanged, this, [this] {
@@ -160,7 +164,22 @@ Entity *FolioView::entityAt(const QPointF &scenePoint) const
     return nullptr;
 }
 
-QSet<QString> FolioView::entitiesIn(const QRectF &sceneRect) const
+bool FolioView::entityTouchesRect(const Entity &entity, const QRectF &rect) const
+{
+    // Un fil est un trait, pas une boite : tester sa boite englobante
+    // attraperait tout ce qui passe dans le rectangle de ses diagonales.
+    if (const auto *wire = dynamic_cast<const Wire *>(&entity)) {
+        for (int i = 1; i < wire->points.size(); ++i) {
+            if (segmentIntersectsRect(wire->points.at(i - 1), wire->points.at(i), rect))
+                return true;
+        }
+        return false;
+    }
+    const QRectF bounds = entity.boundingBox();
+    return !bounds.isNull() && rect.intersects(bounds);
+}
+
+QSet<QString> FolioView::entitiesIn(const QRectF &sceneRect, bool crossing) const
 {
     QSet<QString> found;
     const Folio *folio = m_document->currentFolio();
@@ -168,12 +187,161 @@ QSet<QString> FolioView::entitiesIn(const QRectF &sceneRect) const
         return found;
     for (const EntityPtr &entity : folio->entities()) {
         const QRectF bounds = entity->boundingBox();
-        // Selection par englobement : le rectangle doit contenir l'entite
-        // entiere, sans quoi un balayage rapide emporte la moitie du folio.
-        if (!bounds.isNull() && sceneRect.contains(bounds))
+        if (bounds.isNull())
+            continue;
+        const bool hit = crossing ? entityTouchesRect(*entity, sceneRect)
+                                  : sceneRect.contains(bounds);
+        if (hit)
             found.insert(entity->id());
     }
     return found;
+}
+
+void FolioView::rebuildGrips()
+{
+    m_grips.clear();
+    m_hotGrip = -1;
+    const Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return;
+
+    // Au-dela de quelques dizaines d'entites selectionnees, les poignees
+    // couvriraient le dessin sans rien apporter : AutoCAD les masque de meme
+    // au-dela d'un seuil.
+    if (m_selection.size() > 40)
+        return;
+
+    for (const QString &id : m_selection) {
+        const Entity *entity = folio->entity(id);
+        if (!entity)
+            continue;
+
+        if (const auto *wire = dynamic_cast<const Wire *>(entity)) {
+            for (int i = 0; i < wire->points.size(); ++i)
+                m_grips.append({ wire->points.at(i), id, Grip::Kind::Vertex, i });
+            for (int i = 1; i < wire->points.size(); ++i) {
+                m_grips.append({ (wire->points.at(i - 1) + wire->points.at(i)) / 2.0, id,
+                                 Grip::Kind::SegmentMid, i - 1 });
+            }
+            continue;
+        }
+        if (const auto *symbol = dynamic_cast<const SymbolInstance *>(entity)) {
+            m_grips.append({ symbol->placement.position, id, Grip::Kind::Insertion, -1 });
+            continue;
+        }
+        if (const auto *junction = dynamic_cast<const Junction *>(entity)) {
+            m_grips.append({ junction->point, id, Grip::Kind::Insertion, -1 });
+            continue;
+        }
+        if (const auto *label = dynamic_cast<const Label *>(entity)) {
+            m_grips.append({ label->point, id, Grip::Kind::Insertion, -1 });
+            continue;
+        }
+        if (const auto *text = dynamic_cast<const TextItem *>(entity)) {
+            m_grips.append({ text->placement.position, id, Grip::Kind::Insertion, -1 });
+            continue;
+        }
+    }
+}
+
+int FolioView::gripAt(const QPointF &scenePoint) const
+{
+    // La zone de prise est definie a l'ecran : une poignee doit rester
+    // attrapable au zoom arriere sans devenir un piege au zoom avant.
+    const double reach = 7.0 / m_scale;
+    int best = -1;
+    double bestDistance = reach;
+    for (int i = 0; i < m_grips.size(); ++i) {
+        const double d = std::hypot(m_grips.at(i).point.x() - scenePoint.x(),
+                                    m_grips.at(i).point.y() - scenePoint.y());
+        if (d <= bestDistance) {
+            bestDistance = d;
+            best = i;
+        }
+    }
+    return best;
+}
+
+void FolioView::dragGripTo(const QPointF &target)
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio || m_draggedGrip < 0 || m_draggedGrip >= m_grips.size())
+        return;
+
+    const Grip grip = m_grips.at(m_draggedGrip);
+    Entity *entity = folio->entity(grip.entityId);
+    if (!entity)
+        return;
+
+    auto before = entity->clone();
+    auto after = entity->clone();
+
+    if (auto *wire = dynamic_cast<Wire *>(after.get())) {
+        if (grip.kind == Grip::Kind::Vertex) {
+            if (grip.index < 0 || grip.index >= wire->points.size())
+                return;
+            wire->points[grip.index] = target;
+        } else if (grip.kind == Grip::Kind::SegmentMid) {
+            if (grip.index < 0 || grip.index + 1 >= wire->points.size())
+                return;
+            // Tirer le milieu d'un segment translate le segment entier, comme
+            // la poignee mediane d'AutoCAD sur une ligne.
+            const QPointF delta = target - grip.point;
+            wire->points[grip.index] += delta;
+            wire->points[grip.index + 1] += delta;
+        }
+    } else if (auto *symbol = dynamic_cast<SymbolInstance *>(after.get())) {
+        symbol->placement.position = target;
+    } else if (auto *junction = dynamic_cast<Junction *>(after.get())) {
+        junction->point = target;
+    } else if (auto *label = dynamic_cast<Label *>(after.get())) {
+        label->point = target;
+    } else if (auto *text = dynamic_cast<TextItem *>(after.get())) {
+        text->placement.position = target;
+    } else {
+        return;
+    }
+
+    auto command = std::make_unique<ModifyEntityCommand>(m_document->project(), folio->id(),
+                                                         std::move(before), std::move(after),
+                                                         tr("Déplacer une poignée"));
+    // Les etirements successifs d'un meme geste fusionnent : l'utilisateur
+    // n'attend qu'une seule entree annulable pour un seul glisser.
+    command->setMergeId(MergeMove);
+    m_document->push(std::move(command));
+
+    m_grips[m_draggedGrip].point = target;
+}
+
+void FolioView::paintGrips(QPainter &painter) const
+{
+    if (m_grips.isEmpty())
+        return;
+
+    const double size = std::max(1.2, 7.0 / m_scale);
+    const double h = size / 2.0;
+
+    painter.save();
+    for (int i = 0; i < m_grips.size(); ++i) {
+        const Grip &grip = m_grips.at(i);
+        const bool hot = (i == m_hotGrip) || (i == m_draggedGrip);
+
+        // Bleu au repos, chaud sous le curseur : les couleurs d'AutoCAD, que
+        // des millions de dessinateurs lisent sans y penser.
+        const QColor fill = hot ? QColor(0xE0, 0x50, 0x40) : QColor(0x3D, 0x7E, 0xC8);
+        painter.setPen(QPen(QColor(0xF0, 0xF4, 0xF8), size * 0.12));
+        painter.setBrush(fill);
+
+        if (grip.kind == Grip::Kind::SegmentMid) {
+            // Le milieu de segment porte un rectangle allonge : on le
+            // distingue ainsi d'un sommet, qu'il ne fait pas la meme chose.
+            painter.drawRect(QRectF(grip.point.x() - h, grip.point.y() - h * 0.62, size,
+                                    size * 0.62));
+        } else {
+            painter.drawRect(QRectF(grip.point.x() - h, grip.point.y() - h, size, size));
+        }
+    }
+    painter.restore();
 }
 
 void FolioView::setSelection(const QSet<QString> &ids)
@@ -181,6 +349,7 @@ void FolioView::setSelection(const QSet<QString> &ids)
     if (m_selection == ids)
         return;
     m_selection = ids;
+    rebuildGrips();
     Q_EMIT selectionChanged();
     update();
 }
@@ -706,6 +875,17 @@ void FolioView::mousePressEvent(QMouseEvent *event)
         break;
     }
 
+    // Une poignee sous le curseur prend la main sur tout le reste : c'est le
+    // geste le plus precis, il ne doit pas etre vole par la selection.
+    const int grip = gripAt(scenePoint);
+    if (grip >= 0) {
+        m_draggedGrip = grip;
+        m_drag = Drag::GripEdit;
+        m_movedSinceCommit = false;
+        update();
+        return;
+    }
+
     Entity *hit = entityAt(scenePoint);
     const bool additive = event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier);
 
@@ -730,6 +910,7 @@ void FolioView::mousePressEvent(QMouseEvent *event)
         m_drag = Drag::Rubber;
         m_dragStartScene = scenePoint;
         m_rubber = QRectF(scenePoint, scenePoint);
+        m_rubberCrossing = false;
     }
     update();
 }
@@ -743,6 +924,11 @@ void FolioView::mouseMoveEvent(QMouseEvent *event)
     emitCursor();
 
     switch (m_drag) {
+    case Drag::GripEdit:
+        dragGripTo(snap(scenePoint));
+        m_movedSinceCommit = true;
+        return;
+
     case Drag::Pan:
         m_pan += widgetPoint - m_dragStartWidget;
         m_dragStartWidget = widgetPoint;
@@ -769,11 +955,20 @@ void FolioView::mouseMoveEvent(QMouseEvent *event)
 
     case Drag::Rubber:
         m_rubber = normalized(m_dragStartScene, scenePoint);
+        // Le sens du geste decide du mode : vers la gauche, c'est une capture.
+        m_rubberCrossing = scenePoint.x() < m_dragStartScene.x();
         update();
         return;
 
     case Drag::None:
         break;
+    }
+
+    const int hovered = m_tool == Tool::Select ? gripAt(scenePoint) : -1;
+    if (hovered != m_hotGrip) {
+        m_hotGrip = hovered;
+        setCursor(hovered >= 0 ? Qt::SizeAllCursor
+                               : (m_tool == Tool::Select ? Qt::ArrowCursor : Qt::CrossCursor));
     }
 
     // Le retour d'accrochage change a chaque deplacement : la vue doit se
@@ -793,8 +988,14 @@ void FolioView::mouseReleaseEvent(QMouseEvent *event)
         if (m_movedSinceCommit)
             m_document->commands().breakMergeChain();
         break;
+    case Drag::GripEdit:
+        if (m_movedSinceCommit)
+            m_document->commands().breakMergeChain();
+        m_draggedGrip = -1;
+        rebuildGrips();
+        break;
     case Drag::Rubber: {
-        QSet<QString> found = entitiesIn(m_rubber);
+        QSet<QString> found = entitiesIn(m_rubber, m_rubberCrossing);
         if (event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier))
             found.unite(m_selection);
         setSelection(found);
@@ -997,6 +1198,11 @@ void FolioView::paintSnapFeedback(QPainter &painter) const
 {
     if (!m_snapHit)
         return;
+    // Une poignee sous le curseur prend la main sur le marqueur d'accrochage :
+    // les deux se superposeraient au meme point, et c'est la poignee qui dit
+    // ce que le clic va faire.
+    if (m_hotGrip >= 0 || m_draggedGrip >= 0)
+        return;
 
     // Le prolongement s'explique par un trait pointille jusqu'a l'extremite
     // dont il part : sans lui, le marqueur flotte sans raison apparente.
@@ -1029,12 +1235,16 @@ void FolioView::paintRubberBand(QPainter &painter) const
 {
     if (m_drag != Drag::Rubber || m_rubber.isNull())
         return;
-    QPen pen(m_style.selection);
+
+    // Les codes d'AutoCAD, appris par des millions de dessinateurs : bleu et
+    // trait plein pour la fenetre, vert et pointille pour la capture. La
+    // couleur annonce le mode avant que le clic ne soit relache.
+    const QColor color = m_rubberCrossing ? QColor(0x5C, 0xB8, 0x5C) : QColor(0x4C, 0x8F, 0xD4);
+    QPen pen(color);
     pen.setWidthF(0.25);
-    pen.setStyle(Qt::DashLine);
+    pen.setStyle(m_rubberCrossing ? Qt::DashLine : Qt::SolidLine);
     painter.setPen(pen);
-    painter.setBrush(QColor(m_style.selection.red(), m_style.selection.green(),
-                            m_style.selection.blue(), 40));
+    painter.setBrush(QColor(color.red(), color.green(), color.blue(), 38));
     painter.drawRect(m_rubber);
 }
 
@@ -1061,6 +1271,7 @@ void FolioView::paintEvent(QPaintEvent *event)
     folioPainter.paint(painter, *folio, visibleSceneRect());
 
     painter.setRenderHint(QPainter::Antialiasing, true);
+    paintGrips(painter);
     paintPolarGuide(painter);
     paintPendingWire(painter);
     paintPendingSymbol(painter);

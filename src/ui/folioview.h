@@ -105,6 +105,17 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
     void leaveEvent(QEvent *event) override;
 
+    // Poignee d'edition directe. AutoCAD en pose sur chaque point
+    // remarquable d'une entite selectionnee : on tire dessus au lieu de
+    // passer par une commande, et c'est le geste le plus utilise du logiciel.
+    struct Grip {
+        enum class Kind { Vertex, SegmentMid, Insertion };
+        QPointF point;
+        QString entityId;
+        Kind kind = Kind::Insertion;
+        int index = -1; // sommet pour Vertex, premier sommet du segment sinon
+    };
+
 private:
     QPointF toScene(const QPointF &widgetPoint) const;
     QPointF toWidget(const QPointF &scenePoint) const;
@@ -127,7 +138,12 @@ private:
     QString gestureExclusion() const;
 
     Entity *entityAt(const QPointF &scenePoint) const;
-    QSet<QString> entitiesIn(const QRectF &sceneRect) const;
+    // Deux modes de selection rectangulaire, comme dans AutoCAD :
+    // de gauche a droite, la « fenetre » ne prend que ce qu'elle contient
+    // entierement ; de droite a gauche, la « capture » prend tout ce qu'elle
+    // effleure. Le sens du geste decide, et la couleur du cadre l'annonce.
+    QSet<QString> entitiesIn(const QRectF &sceneRect, bool crossing) const;
+    bool entityTouchesRect(const Entity &entity, const QRectF &rect) const;
 
     void beginWireAt(const QPointF &point);
     void commitWire();
@@ -147,6 +163,11 @@ private:
     void paintSnapFeedback(QPainter &painter) const;
     void paintPolarGuide(QPainter &painter) const;
     void paintRubberBand(QPainter &painter) const;
+    void paintGrips(QPainter &painter) const;
+
+    void rebuildGrips();
+    int gripAt(const QPointF &scenePoint) const;
+    void dragGripTo(const QPointF &target);
     void paintEmptyHint(QPainter &painter, const Folio &folio) const;
 
     void updateUnconnectedPins();
@@ -169,12 +190,17 @@ private:
     QVector<QPointF> m_unconnectedPins;
 
     // Geste en cours
-    enum class Drag { None, Pan, Move, Rubber };
+    enum class Drag { None, Pan, Move, Rubber, GripEdit };
     Drag m_drag = Drag::None;
     QPointF m_dragStartWidget;
     QPointF m_dragStartScene;
     QPointF m_dragLastScene;
     QRectF m_rubber;
+    bool m_rubberCrossing = false;
+
+    QVector<Grip> m_grips;
+    int m_hotGrip = -1;      // poignee survolee
+    int m_draggedGrip = -1;  // poignee tiree
     bool m_spaceHeld = false;
     bool m_movedSinceCommit = false;
 

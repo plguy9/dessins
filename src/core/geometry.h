@@ -118,6 +118,10 @@ QPointF orthogonalize(const QPointF &a, const QPointF &b);
 
 QRectF normalized(const QPointF &a, const QPointF &b);
 
+// Un segment touche-t-il le rectangle ? Sert a la selection par capture, ou
+// il suffit d'effleurer une entite pour l'attraper.
+bool segmentIntersectsRect(const QPointF &a, const QPointF &b, const QRectF &rect);
+
 // --------------------------------------------------------------------------
 // Formats de feuille
 

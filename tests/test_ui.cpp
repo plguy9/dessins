@@ -416,3 +416,127 @@ TEST_CASE("La mise en page s'annule comme toute modification", "[ui][page]")
     document.undo();
     CHECK(folio->sheet.width == before);
 }
+
+TEST_CASE("La selection fenetre ne prend que ce qu'elle contient", "[ui][selection]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    Wire *inside = drawWire(folio, { QPointF(60, 60), QPointF(90, 60) });
+    Wire *straddling = drawWire(folio, { QPointF(80, 80), QPointF(200, 80) });
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+
+    // Geste de gauche a droite : fenetre. Le fil qui depasse du rectangle
+    // n'est pas pris, meme s'il le traverse.
+    const QPointF start = view.mapFromScene(QPointF(50, 50));
+    const QPointF end = view.mapFromScene(QPointF(120, 100));
+    QMouseEvent press(QEvent::MouseButtonPress, start, view.mapToGlobal(start),
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, end, view.mapToGlobal(end), Qt::NoButton,
+                     Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, end, view.mapToGlobal(end),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+    QApplication::sendEvent(&view, &move);
+    QApplication::sendEvent(&view, &release);
+
+    CHECK(view.selection().contains(inside->id()));
+    CHECK_FALSE(view.selection().contains(straddling->id()));
+}
+
+TEST_CASE("La selection par capture prend ce qu'elle effleure", "[ui][selection]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    Wire *inside = drawWire(folio, { QPointF(60, 60), QPointF(90, 60) });
+    Wire *straddling = drawWire(folio, { QPointF(80, 80), QPointF(200, 80) });
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+
+    // Geste de droite a gauche : capture. Le fil qui traverse le rectangle
+    // est pris, meme s'il en sort largement.
+    const QPointF start = view.mapFromScene(QPointF(120, 100));
+    const QPointF end = view.mapFromScene(QPointF(50, 50));
+    QMouseEvent press(QEvent::MouseButtonPress, start, view.mapToGlobal(start),
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, end, view.mapToGlobal(end), Qt::NoButton,
+                     Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, end, view.mapToGlobal(end),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+    QApplication::sendEvent(&view, &move);
+    QApplication::sendEvent(&view, &release);
+
+    CHECK(view.selection().contains(inside->id()));
+    CHECK(view.selection().contains(straddling->id()));
+}
+
+TEST_CASE("Une poignee deplace un sommet de fil et s'annule", "[ui][grips]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    Wire *wire = drawWire(folio, { QPointF(60, 60), QPointF(160, 60) });
+    const QString id = wire->id();
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+    view.setSelection({ id });
+
+    // On saisit la poignee de l'extremite droite et on la tire vers le bas.
+    const QPointF grip = view.mapFromScene(QPointF(160, 60));
+    const QPointF target = view.mapFromScene(QPointF(160, 100));
+    QMouseEvent press(QEvent::MouseButtonPress, grip, view.mapToGlobal(grip), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, target, view.mapToGlobal(target), Qt::NoButton,
+                     Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, target, view.mapToGlobal(target),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+    QApplication::sendEvent(&view, &move);
+    QApplication::sendEvent(&view, &release);
+
+    const auto *edited = dynamic_cast<const Wire *>(folio->entity(id));
+    REQUIRE(edited);
+    CHECK(edited->points.last().y() > 90.0);
+    // Le premier sommet ne bouge pas : seule la poignee saisie agit.
+    CHECK(edited->points.first() == QPointF(60, 60));
+
+    document.undo();
+    const auto *restored = dynamic_cast<const Wire *>(folio->entity(id));
+    REQUIRE(restored);
+    CHECK(restored->points.last() == QPointF(160, 60));
+}
+
+TEST_CASE("Un fil selectionne porte une poignee par sommet et par segment",
+          "[ui][grips]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    // Trois sommets, donc deux segments : cinq poignees attendues.
+    Wire *wire = drawWire(folio, { QPointF(40, 40), QPointF(120, 40), QPointF(120, 110) });
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+
+    const QPixmap plain = view.grab();
+    view.setSelection({ wire->id() });
+    const QPixmap gripped = view.grab();
+
+    // Les poignees doivent se voir : sans retour visuel, personne ne devine
+    // qu'on peut tirer dessus.
+    CHECK(plain.toImage() != gripped.toImage());
+}

@@ -1,0 +1,518 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "ansi:coil",
+      "logicalId": "coil",
+      "norm": "ANSI",
+      "name": "Relay coil",
+      "category": "Control",
+      "keywords": [
+        "coil",
+        "relay"
+      ],
+      "prefix": "K",
+      "deviceKind": "coil",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "A1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "A2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:contact-nc",
+      "logicalId": "contact-nc",
+      "norm": "ANSI",
+      "name": "Normally closed contact",
+      "category": "Control",
+      "keywords": [
+        "contact",
+        "NC",
+        "normally closed"
+      ],
+      "prefix": "K",
+      "deviceKind": "contact",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              -4
+            ],
+            [
+              -2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              2.0,
+              -4
+            ],
+            [
+              2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.0,
+              4.5
+            ],
+            [
+              4.0,
+              -4.5
+            ]
+          ],
+          "lineWidth": 0.35
+        }
+      ],
+      "pins": [
+        {
+          "number": "11",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 8.0
+        },
+        {
+          "number": "12",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 8.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:contact-no",
+      "logicalId": "contact-no",
+      "norm": "ANSI",
+      "name": "Normally open contact",
+      "category": "Control",
+      "keywords": [
+        "contact",
+        "NO",
+        "normally open"
+      ],
+      "prefix": "K",
+      "deviceKind": "contact",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              -4
+            ],
+            [
+              -2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              2.0,
+              -4
+            ],
+            [
+              2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        }
+      ],
+      "pins": [
+        {
+          "number": "13",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 8.0
+        },
+        {
+          "number": "14",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 8.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:indicator-lamp",
+      "logicalId": "indicator-lamp",
+      "norm": "ANSI",
+      "name": "Indicating light",
+      "category": "Control",
+      "keywords": [
+        "pilot light",
+        "lamp"
+      ],
+      "prefix": "H",
+      "deviceKind": "lamp",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 4.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.8,
+              -2.8
+            ],
+            [
+              2.8,
+              2.8
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.8,
+              2.8
+            ],
+            [
+              2.8,
+              -2.8
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "X1",
+          "at": [
+            -9,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "X2",
+          "at": [
+            9,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:pushbutton-nc",
+      "logicalId": "pushbutton-nc",
+      "norm": "ANSI",
+      "name": "Pushbutton, normally closed",
+      "category": "Control",
+      "keywords": [
+        "pushbutton",
+        "stop"
+      ],
+      "prefix": "S",
+      "deviceKind": "pushbutton",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              -4
+            ],
+            [
+              -2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              2.0,
+              -4
+            ],
+            [
+              2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.0,
+              4.5
+            ],
+            [
+              4.0,
+              -4.5
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              -6
+            ],
+            [
+              0,
+              -9
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -3,
+              -9
+            ],
+            [
+              3,
+              -9
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "11",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 8.0
+        },
+        {
+          "number": "12",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 8.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:pushbutton-no",
+      "logicalId": "pushbutton-no",
+      "norm": "ANSI",
+      "name": "Pushbutton, normally open",
+      "category": "Control",
+      "keywords": [
+        "pushbutton",
+        "start"
+      ],
+      "prefix": "S",
+      "deviceKind": "pushbutton",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              -4
+            ],
+            [
+              -2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              2.0,
+              -4
+            ],
+            [
+              2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              -4
+            ],
+            [
+              0,
+              -8
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -3,
+              -8
+            ],
+            [
+              3,
+              -8
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "13",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 8.0
+        },
+        {
+          "number": "14",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 8.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    }
+  ]
+}

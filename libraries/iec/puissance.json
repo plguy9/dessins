@@ -1,0 +1,1548 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "iec:circuit-breaker-1p",
+      "logicalId": "circuit-breaker-1p",
+      "norm": "IEC",
+      "name": "Disjoncteur unipolaire",
+      "category": "Puissance",
+      "keywords": [
+        "disjoncteur",
+        "protection",
+        "courbe C"
+      ],
+      "prefix": "Q",
+      "deviceKind": "breaker",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              5
+            ],
+            [
+              -4.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -2.6,
+              -4.6
+            ],
+            [
+              -1.4,
+              -3.4
+            ],
+            [
+              -2.6,
+              -2.2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -4.4,
+              -4.6
+            ],
+            [
+              -3.2,
+              -3.4
+            ],
+            [
+              -4.4,
+              -2.2
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {
+        "value": "C10"
+      },
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:circuit-breaker-3p",
+      "logicalId": "circuit-breaker-3p",
+      "norm": "IEC",
+      "name": "Disjoncteur tripolaire",
+      "category": "Puissance",
+      "keywords": [
+        "disjoncteur",
+        "tripolaire",
+        "triphasé"
+      ],
+      "prefix": "Q",
+      "deviceKind": "breaker",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -7.5,
+              5
+            ],
+            [
+              -11.7,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              5
+            ],
+            [
+              -4.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              7.5,
+              5
+            ],
+            [
+              3.3,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -2.6,
+              -4.6
+            ],
+            [
+              -1.4,
+              -3.4
+            ],
+            [
+              -2.6,
+              -2.2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -4.4,
+              -4.6
+            ],
+            [
+              -3.2,
+              -3.4
+            ],
+            [
+              -4.4,
+              -2.2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -11.7,
+              -1.0
+            ],
+            [
+              3.3,
+              -1.0
+            ]
+          ],
+          "lineWidth": 0.15
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -7.5,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            -7.5,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        },
+        {
+          "number": "3",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "4",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        },
+        {
+          "number": "5",
+          "at": [
+            7.5,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "6",
+          "at": [
+            7.5,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {
+        "value": "C16 3P"
+      },
+      "designationAnchor": [
+        -14.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        11.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:contactor-power-3p",
+      "logicalId": "contactor-power-3p",
+      "norm": "IEC",
+      "name": "Contacteur de puissance tripolaire",
+      "category": "Puissance",
+      "keywords": [
+        "contacteur",
+        "puissance",
+        "tripolaire"
+      ],
+      "prefix": "K",
+      "deviceKind": "contactor",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -7.5,
+              5
+            ],
+            [
+              -11.7,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              5
+            ],
+            [
+              -4.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              7.5,
+              5
+            ],
+            [
+              3.3,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              -7.5,
+              3.5
+            ]
+          ],
+          "radius": 1.8,
+          "startAngle": 180,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              0,
+              3.5
+            ]
+          ],
+          "radius": 1.8,
+          "startAngle": 180,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              7.5,
+              3.5
+            ]
+          ],
+          "radius": 1.8,
+          "startAngle": 180,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -11.7,
+              -1.0
+            ],
+            [
+              3.3,
+              -1.0
+            ]
+          ],
+          "lineWidth": 0.15
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -7.5,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            -7.5,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        },
+        {
+          "number": "3",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "4",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        },
+        {
+          "number": "5",
+          "at": [
+            7.5,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "6",
+          "at": [
+            7.5,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -14.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        11.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:disconnector",
+      "logicalId": "disconnector",
+      "norm": "IEC",
+      "name": "Sectionneur",
+      "category": "Puissance",
+      "keywords": [
+        "sectionneur",
+        "isolement"
+      ],
+      "prefix": "Q",
+      "deviceKind": "disconnector",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              5
+            ],
+            [
+              -4.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5.4,
+              -5.0
+            ],
+            [
+              -3.0,
+              -5.0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:fuse",
+      "logicalId": "fuse",
+      "norm": "IEC",
+      "name": "Fusible",
+      "category": "Puissance",
+      "keywords": [
+        "fusible",
+        "protection"
+      ],
+      "prefix": "F",
+      "deviceKind": "fuse",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -2.5,
+              -5
+            ],
+            [
+              2.5,
+              5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              -5
+            ],
+            [
+              0,
+              5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {
+        "value": "10 A gG"
+      },
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:fuse-disconnector",
+      "logicalId": "fuse-disconnector",
+      "norm": "IEC",
+      "name": "Sectionneur porte-fusible",
+      "category": "Puissance",
+      "keywords": [
+        "sectionneur",
+        "fusible"
+      ],
+      "prefix": "Q",
+      "deviceKind": "disconnector",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              5
+            ],
+            [
+              -4.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5.4,
+              -5.0
+            ],
+            [
+              -3.0,
+              -5.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -6.0,
+              -2.0
+            ],
+            [
+              -2.0,
+              4.0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:heater",
+      "logicalId": "heater",
+      "norm": "IEC",
+      "name": "Résistance chauffante",
+      "category": "Puissance",
+      "keywords": [
+        "chauffage",
+        "résistance"
+      ],
+      "prefix": "E",
+      "deviceKind": "heater",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -4,
+              -6
+            ],
+            [
+              4,
+              6
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4,
+              -2
+            ],
+            [
+              4,
+              -2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4,
+              2
+            ],
+            [
+              4,
+              2
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 4.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 4.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:motor-1ph",
+      "logicalId": "motor-1ph",
+      "norm": "IEC",
+      "name": "Moteur monophasé",
+      "category": "Puissance",
+      "keywords": [
+        "moteur",
+        "monophasé"
+      ],
+      "prefix": "M",
+      "deviceKind": "motor",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 8.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.0
+            ]
+          ],
+          "text": "M",
+          "textHeight": 5.0,
+          "align": "center"
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              6.0
+            ]
+          ],
+          "text": "1~",
+          "textHeight": 3.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "U",
+          "at": [
+            -4,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "N",
+          "at": [
+            4,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "PE",
+          "at": [
+            0,
+            13
+          ],
+          "dir": 90,
+          "length": 5.0,
+          "type": "ground"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -11.0,
+        0.0
+      ],
+      "valueAnchor": [
+        11.0,
+        0.0
+      ]
+    },
+    {
+      "id": "iec:motor-3ph",
+      "logicalId": "motor-3ph",
+      "norm": "IEC",
+      "name": "Moteur triphasé",
+      "category": "Puissance",
+      "keywords": [
+        "moteur",
+        "asynchrone",
+        "triphasé"
+      ],
+      "prefix": "M",
+      "deviceKind": "motor",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 8.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.0
+            ]
+          ],
+          "text": "M",
+          "textHeight": 5.0,
+          "align": "center"
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              6.0
+            ]
+          ],
+          "text": "3~",
+          "textHeight": 3.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "U",
+          "at": [
+            -5,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "V",
+          "at": [
+            0,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "W",
+          "at": [
+            5,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "PE",
+          "at": [
+            0,
+            13
+          ],
+          "dir": 90,
+          "length": 5.0,
+          "type": "ground"
+        }
+      ],
+      "defaultFields": {
+        "value": "1,5 kW"
+      },
+      "designationAnchor": [
+        -11.0,
+        0.0
+      ],
+      "valueAnchor": [
+        11.0,
+        0.0
+      ]
+    },
+    {
+      "id": "iec:rcd",
+      "logicalId": "rcd",
+      "norm": "IEC",
+      "name": "Interrupteur différentiel",
+      "category": "Puissance",
+      "keywords": [
+        "différentiel",
+        "30 mA",
+        "protection"
+      ],
+      "prefix": "Q",
+      "deviceKind": "rcd",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -7.5,
+              5
+            ],
+            [
+              -11.7,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              5
+            ],
+            [
+              -4.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -13.0,
+              6.0
+            ],
+            [
+              2.0,
+              11.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              -5.5,
+              10.0
+            ]
+          ],
+          "text": "I∆n",
+          "textHeight": 2.2,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -7.5,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            -7.5,
+            14
+          ],
+          "dir": 90,
+          "length": 3.0
+        },
+        {
+          "number": "3",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "4",
+          "at": [
+            0,
+            14
+          ],
+          "dir": 90,
+          "length": 3.0
+        }
+      ],
+      "defaultFields": {
+        "value": "30 mA"
+      },
+      "designationAnchor": [
+        -16.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        6.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:socket-outlet",
+      "logicalId": "socket-outlet",
+      "norm": "IEC",
+      "name": "Prise de courant",
+      "category": "Puissance",
+      "keywords": [
+        "prise",
+        "socle"
+      ],
+      "prefix": "X",
+      "deviceKind": "socket",
+      "graphics": [
+        {
+          "kind": "arc",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              0
+            ],
+            [
+              5,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              -5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "L",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "N",
+          "at": [
+            5,
+            5
+          ],
+          "dir": 0,
+          "length": 3.0
+        },
+        {
+          "number": "PE",
+          "at": [
+            -5,
+            5
+          ],
+          "dir": 180,
+          "length": 3.0,
+          "type": "ground"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:switch-disconnector",
+      "logicalId": "switch-disconnector",
+      "norm": "IEC",
+      "name": "Interrupteur-sectionneur",
+      "category": "Puissance",
+      "keywords": [
+        "interrupteur",
+        "sectionneur",
+        "coupure en charge"
+      ],
+      "prefix": "Q",
+      "deviceKind": "disconnector",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              5
+            ],
+            [
+              -4.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5.4,
+              -5.0
+            ],
+            [
+              -3.0,
+              -5.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              5
+            ]
+          ],
+          "radius": 0.9,
+          "lineWidth": 0.25,
+          "filled": true
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:thermal-relay-3p",
+      "logicalId": "thermal-relay-3p",
+      "norm": "IEC",
+      "name": "Relais thermique tripolaire",
+      "category": "Puissance",
+      "keywords": [
+        "thermique",
+        "surcharge",
+        "protection moteur"
+      ],
+      "prefix": "F",
+      "deviceKind": "thermal",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -11.0,
+              -5.0
+            ],
+            [
+              7.0,
+              5.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -7.5,
+              -5
+            ],
+            [
+              -7.5,
+              -1
+            ],
+            [
+              -5.5,
+              -1
+            ],
+            [
+              -5.5,
+              1
+            ],
+            [
+              -7.5,
+              1
+            ],
+            [
+              -7.5,
+              5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              0,
+              -5
+            ],
+            [
+              0,
+              -1
+            ],
+            [
+              2,
+              -1
+            ],
+            [
+              2,
+              1
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              7.5,
+              -5
+            ],
+            [
+              7.5,
+              -1
+            ],
+            [
+              9.5,
+              -1
+            ],
+            [
+              9.5,
+              1
+            ],
+            [
+              7.5,
+              1
+            ],
+            [
+              7.5,
+              5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -7.5,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            -7.5,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        },
+        {
+          "number": "3",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "4",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        },
+        {
+          "number": "5",
+          "at": [
+            7.5,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "6",
+          "at": [
+            7.5,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {
+        "value": "4 - 6,3 A"
+      },
+      "designationAnchor": [
+        -14.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        13.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:transformer",
+      "logicalId": "transformer",
+      "norm": "IEC",
+      "name": "Transformateur de commande",
+      "category": "Puissance",
+      "keywords": [
+        "transformateur",
+        "230/24"
+      ],
+      "prefix": "T",
+      "deviceKind": "transformer",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              -3.0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "circle",
+          "points": [
+            [
+              3.0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              -7
+            ],
+            [
+              0,
+              7
+            ]
+          ],
+          "lineWidth": 0.15
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -3,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            -3,
+            13
+          ],
+          "dir": 90,
+          "length": 5.0
+        },
+        {
+          "number": "3",
+          "at": [
+            3,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "4",
+          "at": [
+            3,
+            13
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {
+        "value": "230 / 24 V"
+      },
+      "designationAnchor": [
+        -11.0,
+        0.0
+      ],
+      "valueAnchor": [
+        11.0,
+        0.0
+      ]
+    }
+  ]
+}

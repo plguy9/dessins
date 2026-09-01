@@ -1,0 +1,141 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "ansi:earth",
+      "logicalId": "earth",
+      "norm": "ANSI",
+      "name": "Ground",
+      "category": "Terminals",
+      "keywords": [
+        "ground",
+        "earth"
+      ],
+      "prefix": "GND",
+      "deviceKind": "earth",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              0
+            ],
+            [
+              5,
+              0
+            ]
+          ],
+          "lineWidth": 0.4
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -3.2,
+              2.2
+            ],
+            [
+              3.2,
+              2.2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -1.4,
+              4.4
+            ],
+            [
+              1.4,
+              4.4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "PE",
+          "at": [
+            0,
+            -6
+          ],
+          "dir": 270,
+          "length": 6.0,
+          "type": "ground"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        3.0
+      ],
+      "valueAnchor": [
+        8.0,
+        3.0
+      ]
+    },
+    {
+      "id": "ansi:terminal",
+      "logicalId": "terminal",
+      "norm": "ANSI",
+      "name": "Terminal",
+      "category": "Terminals",
+      "keywords": [
+        "terminal",
+        "terminal block"
+      ],
+      "prefix": "TB",
+      "deviceKind": "terminal",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 1.6,
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -7,
+            0
+          ],
+          "dir": 180,
+          "length": 5.4,
+          "type": "terminal"
+        },
+        {
+          "number": "2",
+          "at": [
+            7,
+            0
+          ],
+          "dir": 0,
+          "length": 5.4,
+          "type": "terminal"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -4.0
+      ],
+      "valueAnchor": [
+        0.0,
+        6.0
+      ]
+    }
+  ]
+}

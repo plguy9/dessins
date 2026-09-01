@@ -1,0 +1,337 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "iec:chassis",
+      "logicalId": "chassis",
+      "norm": "IEC",
+      "name": "Masse châssis",
+      "category": "Bornes",
+      "keywords": [
+        "masse",
+        "châssis"
+      ],
+      "prefix": "PE",
+      "deviceKind": "earth",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4,
+              0
+            ],
+            [
+              4,
+              0
+            ]
+          ],
+          "lineWidth": 0.35
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4,
+              0
+            ],
+            [
+              -6,
+              3
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              -2,
+              3
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              4,
+              0
+            ],
+            [
+              2,
+              3
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "MA",
+          "at": [
+            0,
+            -6
+          ],
+          "dir": 270,
+          "length": 6.0,
+          "type": "ground"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        3.0
+      ],
+      "valueAnchor": [
+        8.0,
+        3.0
+      ]
+    },
+    {
+      "id": "iec:connector-plug",
+      "logicalId": "connector-plug",
+      "norm": "IEC",
+      "name": "Connecteur mâle",
+      "category": "Bornes",
+      "keywords": [
+        "connecteur",
+        "fiche"
+      ],
+      "prefix": "X",
+      "deviceKind": "connector",
+      "graphics": [
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -2,
+              -3
+            ],
+            [
+              2,
+              0
+            ],
+            [
+              -2,
+              3
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -5,
+            0
+          ],
+          "dir": 180,
+          "length": 3.0,
+          "type": "terminal"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:connector-socket",
+      "logicalId": "connector-socket",
+      "norm": "IEC",
+      "name": "Connecteur femelle",
+      "category": "Bornes",
+      "keywords": [
+        "connecteur",
+        "embase"
+      ],
+      "prefix": "X",
+      "deviceKind": "connector",
+      "graphics": [
+        {
+          "kind": "arc",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 3.0,
+          "startAngle": 90,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            5,
+            0
+          ],
+          "dir": 0,
+          "length": 3.0,
+          "type": "terminal"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:earth",
+      "logicalId": "earth",
+      "norm": "IEC",
+      "name": "Prise de terre",
+      "category": "Bornes",
+      "keywords": [
+        "terre",
+        "PE",
+        "masse"
+      ],
+      "prefix": "PE",
+      "deviceKind": "earth",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              0
+            ],
+            [
+              5,
+              0
+            ]
+          ],
+          "lineWidth": 0.4
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -3.2,
+              2.2
+            ],
+            [
+              3.2,
+              2.2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -1.4,
+              4.4
+            ],
+            [
+              1.4,
+              4.4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "PE",
+          "at": [
+            0,
+            -6
+          ],
+          "dir": 270,
+          "length": 6.0,
+          "type": "ground"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        3.0
+      ],
+      "valueAnchor": [
+        8.0,
+        3.0
+      ]
+    },
+    {
+      "id": "iec:terminal",
+      "logicalId": "terminal",
+      "norm": "IEC",
+      "name": "Borne",
+      "category": "Bornes",
+      "keywords": [
+        "borne",
+        "bornier"
+      ],
+      "prefix": "X",
+      "deviceKind": "terminal",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 1.6,
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -7
+          ],
+          "dir": 270,
+          "length": 5.4,
+          "type": "terminal"
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            7
+          ],
+          "dir": 90,
+          "length": 5.4,
+          "type": "terminal"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -4.0,
+        0.0
+      ],
+      "valueAnchor": [
+        4.0,
+        0.0
+      ]
+    }
+  ]
+}

@@ -1,0 +1,178 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "iec:plc-input",
+      "logicalId": "plc-input",
+      "norm": "IEC",
+      "name": "Entrée automate",
+      "category": "Automatisme",
+      "keywords": [
+        "automate",
+        "API",
+        "entrée"
+      ],
+      "prefix": "A",
+      "deviceKind": "plc-io",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -10,
+              -4
+            ],
+            [
+              10,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              -6,
+              1.5
+            ]
+          ],
+          "text": "I",
+          "textHeight": 3.0,
+          "align": "center"
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2,
+              -4
+            ],
+            [
+              -2,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "I",
+          "at": [
+            -14,
+            0
+          ],
+          "dir": 180,
+          "length": 4.0,
+          "type": "input"
+        },
+        {
+          "number": "COM",
+          "at": [
+            14,
+            0
+          ],
+          "dir": 0,
+          "length": 4.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -7.0
+      ],
+      "valueAnchor": [
+        0.0,
+        9.0
+      ]
+    },
+    {
+      "id": "iec:plc-output",
+      "logicalId": "plc-output",
+      "norm": "IEC",
+      "name": "Sortie automate",
+      "category": "Automatisme",
+      "keywords": [
+        "automate",
+        "API",
+        "sortie"
+      ],
+      "prefix": "A",
+      "deviceKind": "plc-io",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -10,
+              -4
+            ],
+            [
+              10,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              -6,
+              1.5
+            ]
+          ],
+          "text": "Q",
+          "textHeight": 3.0,
+          "align": "center"
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2,
+              -4
+            ],
+            [
+              -2,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "Q",
+          "at": [
+            -14,
+            0
+          ],
+          "dir": 180,
+          "length": 4.0,
+          "type": "output"
+        },
+        {
+          "number": "COM",
+          "at": [
+            14,
+            0
+          ],
+          "dir": 0,
+          "length": 4.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -7.0
+      ],
+      "valueAnchor": [
+        0.0,
+        9.0
+      ]
+    }
+  ]
+}

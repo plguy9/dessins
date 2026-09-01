@@ -11,9 +11,13 @@ add_executable(dessins_tests
     test_document.cpp
     test_netlist.cpp
     test_commands.cpp
+    test_io.cpp
+    test_rules.cpp
 )
 
-target_link_libraries(dessins_tests PRIVATE dessins_core Catch2::Catch2WithMain)
+target_link_libraries(dessins_tests PRIVATE
+    dessins_core dessins_symbols dessins_rules dessins_io
+    Catch2::Catch2WithMain)
 
 include(Catch)
 catch_discover_tests(dessins_tests)

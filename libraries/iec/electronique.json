@@ -1,0 +1,1139 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "iec:capacitor",
+      "logicalId": "capacitor",
+      "norm": "IEC",
+      "name": "Condensateur",
+      "category": "Électronique",
+      "keywords": [
+        "condensateur"
+      ],
+      "prefix": "C",
+      "deviceKind": "capacitor",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -1.2,
+              -4
+            ],
+            [
+              -1.2,
+              4
+            ]
+          ],
+          "lineWidth": 0.4
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              1.2,
+              -4
+            ],
+            [
+              1.2,
+              4
+            ]
+          ],
+          "lineWidth": 0.4
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -8,
+            0
+          ],
+          "dir": 180,
+          "length": 6.8
+        },
+        {
+          "number": "2",
+          "at": [
+            8,
+            0
+          ],
+          "dir": 0,
+          "length": 6.8
+        }
+      ],
+      "defaultFields": {
+        "value": "100 nF"
+      },
+      "designationAnchor": [
+        0.0,
+        -6.0
+      ],
+      "valueAnchor": [
+        0.0,
+        8.5
+      ]
+    },
+    {
+      "id": "iec:capacitor-polarized",
+      "logicalId": "capacitor-polarized",
+      "norm": "IEC",
+      "name": "Condensateur polarisé",
+      "category": "Électronique",
+      "keywords": [
+        "condensateur",
+        "chimique"
+      ],
+      "prefix": "C",
+      "deviceKind": "capacitor",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -1.2,
+              -4
+            ],
+            [
+              -1.2,
+              4
+            ]
+          ],
+          "lineWidth": 0.4
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              -6.0,
+              0
+            ]
+          ],
+          "radius": 5.6,
+          "startAngle": -45,
+          "spanAngle": 90,
+          "lineWidth": 0.4
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              -4.0,
+              -5.0
+            ]
+          ],
+          "text": "+",
+          "textHeight": 2.5,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "+",
+          "at": [
+            -8,
+            0
+          ],
+          "dir": 180,
+          "length": 6.8
+        },
+        {
+          "number": "-",
+          "at": [
+            8,
+            0
+          ],
+          "dir": 0,
+          "length": 6.8
+        }
+      ],
+      "defaultFields": {
+        "value": "470 µF"
+      },
+      "designationAnchor": [
+        0.0,
+        -7.5
+      ],
+      "valueAnchor": [
+        0.0,
+        8.5
+      ]
+    },
+    {
+      "id": "iec:diode",
+      "logicalId": "diode",
+      "norm": "IEC",
+      "name": "Diode",
+      "category": "Électronique",
+      "keywords": [
+        "diode"
+      ],
+      "prefix": "D",
+      "deviceKind": "diode",
+      "graphics": [
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -2.5,
+              -3
+            ],
+            [
+              2.5,
+              0
+            ],
+            [
+              -2.5,
+              3
+            ],
+            [
+              -2.5,
+              -3
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              2.5,
+              -3
+            ],
+            [
+              2.5,
+              3
+            ]
+          ],
+          "lineWidth": 0.4
+        }
+      ],
+      "pins": [
+        {
+          "number": "A",
+          "at": [
+            -8,
+            0
+          ],
+          "dir": 180,
+          "length": 5.5
+        },
+        {
+          "number": "K",
+          "at": [
+            8,
+            0
+          ],
+          "dir": 0,
+          "length": 5.5
+        }
+      ],
+      "defaultFields": {
+        "value": "1N4007"
+      },
+      "designationAnchor": [
+        0.0,
+        -5.0
+      ],
+      "valueAnchor": [
+        0.0,
+        7.5
+      ]
+    },
+    {
+      "id": "iec:gnd",
+      "logicalId": "gnd",
+      "norm": "IEC",
+      "name": "Masse électronique",
+      "category": "Électronique",
+      "keywords": [
+        "masse",
+        "gnd",
+        "0V"
+      ],
+      "prefix": "GND",
+      "deviceKind": "earth",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4,
+              0
+            ],
+            [
+              4,
+              0
+            ]
+          ],
+          "lineWidth": 0.4
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.5,
+              2
+            ],
+            [
+              2.5,
+              2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -1,
+              4
+            ],
+            [
+              1,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "GND",
+          "at": [
+            0,
+            -5
+          ],
+          "dir": 270,
+          "length": 5.0,
+          "type": "ground"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -7.0,
+        2.0
+      ],
+      "valueAnchor": [
+        7.0,
+        2.0
+      ]
+    },
+    {
+      "id": "iec:inductor",
+      "logicalId": "inductor",
+      "norm": "IEC",
+      "name": "Bobine",
+      "category": "Électronique",
+      "keywords": [
+        "inductance",
+        "self"
+      ],
+      "prefix": "L",
+      "deviceKind": "inductor",
+      "graphics": [
+        {
+          "kind": "arc",
+          "points": [
+            [
+              -4.5,
+              0
+            ]
+          ],
+          "radius": 1.5,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              -1.5,
+              0
+            ]
+          ],
+          "radius": 1.5,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              1.5,
+              0
+            ]
+          ],
+          "radius": 1.5,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              4.5,
+              0
+            ]
+          ],
+          "radius": 1.5,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 4.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 4.0
+        }
+      ],
+      "defaultFields": {
+        "value": "10 mH"
+      },
+      "designationAnchor": [
+        0.0,
+        -4.5
+      ],
+      "valueAnchor": [
+        0.0,
+        6.0
+      ]
+    },
+    {
+      "id": "iec:led",
+      "logicalId": "led",
+      "norm": "IEC",
+      "name": "Diode électroluminescente",
+      "category": "Électronique",
+      "keywords": [
+        "led",
+        "diode",
+        "voyant"
+      ],
+      "prefix": "D",
+      "deviceKind": "diode",
+      "graphics": [
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -2.5,
+              -3
+            ],
+            [
+              2.5,
+              0
+            ],
+            [
+              -2.5,
+              3
+            ],
+            [
+              -2.5,
+              -3
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              2.5,
+              -3
+            ],
+            [
+              2.5,
+              3
+            ]
+          ],
+          "lineWidth": 0.4
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              1.0,
+              -5.0
+            ],
+            [
+              3.5,
+              -7.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              2.5,
+              -4.0
+            ],
+            [
+              5.0,
+              -6.0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "A",
+          "at": [
+            -8,
+            0
+          ],
+          "dir": 180,
+          "length": 5.5
+        },
+        {
+          "number": "K",
+          "at": [
+            8,
+            0
+          ],
+          "dir": 0,
+          "length": 5.5
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -8.5
+      ],
+      "valueAnchor": [
+        0.0,
+        7.5
+      ]
+    },
+    {
+      "id": "iec:opamp",
+      "logicalId": "opamp",
+      "norm": "IEC",
+      "name": "Amplificateur opérationnel",
+      "category": "Électronique",
+      "keywords": [
+        "ampli",
+        "aop",
+        "opamp"
+      ],
+      "prefix": "U",
+      "deviceKind": "opamp",
+      "graphics": [
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -6,
+              -8
+            ],
+            [
+              8,
+              0
+            ],
+            [
+              -6,
+              8
+            ],
+            [
+              -6,
+              -8
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              -4.0,
+              -3.0
+            ]
+          ],
+          "text": "−",
+          "textHeight": 3.0
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              -4.0,
+              6.0
+            ]
+          ],
+          "text": "+",
+          "textHeight": 3.0
+        }
+      ],
+      "pins": [
+        {
+          "number": "IN-",
+          "at": [
+            -11,
+            -4
+          ],
+          "dir": 180,
+          "length": 5.0,
+          "type": "input"
+        },
+        {
+          "number": "IN+",
+          "at": [
+            -11,
+            4
+          ],
+          "dir": 180,
+          "length": 5.0,
+          "type": "input"
+        },
+        {
+          "number": "OUT",
+          "at": [
+            13,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0,
+          "type": "output"
+        },
+        {
+          "number": "V+",
+          "at": [
+            1,
+            -11
+          ],
+          "dir": 270,
+          "length": 6.0,
+          "type": "power"
+        },
+        {
+          "number": "V-",
+          "at": [
+            1,
+            11
+          ],
+          "dir": 90,
+          "length": 6.0,
+          "type": "power"
+        }
+      ],
+      "defaultFields": {
+        "value": "LM358"
+      },
+      "designationAnchor": [
+        0.0,
+        -13.0
+      ],
+      "valueAnchor": [
+        0.0,
+        15.0
+      ]
+    },
+    {
+      "id": "iec:resistor",
+      "logicalId": "resistor",
+      "norm": "IEC",
+      "name": "Résistance",
+      "category": "Électronique",
+      "keywords": [
+        "résistance",
+        "resistor"
+      ],
+      "prefix": "R",
+      "deviceKind": "resistor",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -5,
+              -2
+            ],
+            [
+              5,
+              2
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {
+        "value": "10 kΩ"
+      },
+      "designationAnchor": [
+        0.0,
+        -4.5
+      ],
+      "valueAnchor": [
+        0.0,
+        7.0
+      ]
+    },
+    {
+      "id": "iec:transistor-npn",
+      "logicalId": "transistor-npn",
+      "norm": "IEC",
+      "name": "Transistor NPN",
+      "category": "Électronique",
+      "keywords": [
+        "transistor",
+        "npn"
+      ],
+      "prefix": "Q",
+      "deviceKind": "transistor",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 6.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              -4
+            ],
+            [
+              -2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.4
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              -2
+            ],
+            [
+              3.0,
+              -5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              2
+            ],
+            [
+              3.0,
+              5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              3.0,
+              5.0
+            ],
+            [
+              0.8,
+              4.2
+            ],
+            [
+              1.6,
+              2.6
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "B",
+          "at": [
+            -11,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "C",
+          "at": [
+            3,
+            -11
+          ],
+          "dir": 270,
+          "length": 6.0
+        },
+        {
+          "number": "E",
+          "at": [
+            3,
+            11
+          ],
+          "dir": 90,
+          "length": 6.0
+        }
+      ],
+      "defaultFields": {
+        "value": "BC547"
+      },
+      "designationAnchor": [
+        -9.0,
+        -7.0
+      ],
+      "valueAnchor": [
+        9.0,
+        -7.0
+      ]
+    },
+    {
+      "id": "iec:transistor-pnp",
+      "logicalId": "transistor-pnp",
+      "norm": "IEC",
+      "name": "Transistor PNP",
+      "category": "Électronique",
+      "keywords": [
+        "transistor",
+        "pnp"
+      ],
+      "prefix": "Q",
+      "deviceKind": "transistor",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 6.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              -4
+            ],
+            [
+              -2.0,
+              4
+            ]
+          ],
+          "lineWidth": 0.4
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              -2
+            ],
+            [
+              3.0,
+              -5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.0,
+              2
+            ],
+            [
+              3.0,
+              5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -2.0,
+              2.0
+            ],
+            [
+              0.2,
+              2.8
+            ],
+            [
+              -0.6,
+              4.4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "B",
+          "at": [
+            -11,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "C",
+          "at": [
+            3,
+            -11
+          ],
+          "dir": 270,
+          "length": 6.0
+        },
+        {
+          "number": "E",
+          "at": [
+            3,
+            11
+          ],
+          "dir": 90,
+          "length": 6.0
+        }
+      ],
+      "defaultFields": {
+        "value": "BC557"
+      },
+      "designationAnchor": [
+        -9.0,
+        -7.0
+      ],
+      "valueAnchor": [
+        9.0,
+        -7.0
+      ]
+    },
+    {
+      "id": "iec:voltage-source",
+      "logicalId": "voltage-source",
+      "norm": "IEC",
+      "name": "Source de tension",
+      "category": "Électronique",
+      "keywords": [
+        "source",
+        "alimentation"
+      ],
+      "prefix": "V",
+      "deviceKind": "source",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              -1.0
+            ]
+          ],
+          "text": "+",
+          "textHeight": 3.0,
+          "align": "center"
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              4.5
+            ]
+          ],
+          "text": "−",
+          "textHeight": 3.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "+",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0,
+          "type": "power"
+        },
+        {
+          "number": "-",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0,
+          "type": "power"
+        }
+      ],
+      "defaultFields": {
+        "value": "24 V"
+      },
+      "designationAnchor": [
+        -8.0,
+        0.0
+      ],
+      "valueAnchor": [
+        8.0,
+        0.0
+      ]
+    },
+    {
+      "id": "iec:zener",
+      "logicalId": "zener",
+      "norm": "IEC",
+      "name": "Diode Zener",
+      "category": "Électronique",
+      "keywords": [
+        "zener",
+        "régulation"
+      ],
+      "prefix": "D",
+      "deviceKind": "diode",
+      "graphics": [
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -2.5,
+              -3
+            ],
+            [
+              2.5,
+              0
+            ],
+            [
+              -2.5,
+              3
+            ],
+            [
+              -2.5,
+              -3
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              1.2,
+              -4.0
+            ],
+            [
+              2.5,
+              -3.0
+            ],
+            [
+              2.5,
+              3.0
+            ],
+            [
+              3.8,
+              4.0
+            ]
+          ],
+          "lineWidth": 0.4
+        }
+      ],
+      "pins": [
+        {
+          "number": "A",
+          "at": [
+            -8,
+            0
+          ],
+          "dir": 180,
+          "length": 5.5
+        },
+        {
+          "number": "K",
+          "at": [
+            8,
+            0
+          ],
+          "dir": 0,
+          "length": 5.5
+        }
+      ],
+      "defaultFields": {
+        "value": "5V1"
+      },
+      "designationAnchor": [
+        0.0,
+        -6.0
+      ],
+      "valueAnchor": [
+        0.0,
+        7.5
+      ]
+    }
+  ]
+}

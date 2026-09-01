@@ -1,0 +1,449 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "iec:current-transformer",
+      "logicalId": "current-transformer",
+      "norm": "IEC",
+      "name": "Transformateur de courant",
+      "category": "Mesure",
+      "keywords": [
+        "TC",
+        "courant",
+        "mesure"
+      ],
+      "prefix": "T",
+      "deviceKind": "ct",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -9,
+              0
+            ],
+            [
+              9,
+              0
+            ]
+          ],
+          "lineWidth": 0.5
+        }
+      ],
+      "pins": [
+        {
+          "number": "P1",
+          "at": [
+            -12,
+            0
+          ],
+          "dir": 180,
+          "length": 3.0
+        },
+        {
+          "number": "P2",
+          "at": [
+            12,
+            0
+          ],
+          "dir": 0,
+          "length": 3.0
+        },
+        {
+          "number": "S1",
+          "at": [
+            -2.5,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        },
+        {
+          "number": "S2",
+          "at": [
+            2.5,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -8.0
+      ],
+      "valueAnchor": [
+        0.0,
+        14.0
+      ]
+    },
+    {
+      "id": "iec:energy-meter",
+      "logicalId": "energy-meter",
+      "norm": "IEC",
+      "name": "Compteur d'énergie",
+      "category": "Mesure",
+      "keywords": [
+        "compteur",
+        "énergie"
+      ],
+      "prefix": "P",
+      "deviceKind": "meter",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -7,
+              -5
+            ],
+            [
+              7,
+              5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.8
+            ]
+          ],
+          "text": "kWh",
+          "textHeight": 3.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -3.5,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            -3.5,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        },
+        {
+          "number": "3",
+          "at": [
+            3.5,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "4",
+          "at": [
+            3.5,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -10.0,
+        0.0
+      ],
+      "valueAnchor": [
+        10.0,
+        0.0
+      ]
+    },
+    {
+      "id": "iec:meter-ammeter",
+      "logicalId": "meter-ammeter",
+      "norm": "IEC",
+      "name": "Ampèremètre",
+      "category": "Mesure",
+      "keywords": [
+        "ampèremètre",
+        "courant"
+      ],
+      "prefix": "P",
+      "deviceKind": "meter",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.8
+            ]
+          ],
+          "text": "A",
+          "textHeight": 4.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:meter-frequency-meter",
+      "logicalId": "meter-frequency-meter",
+      "norm": "IEC",
+      "name": "Fréquencemètre",
+      "category": "Mesure",
+      "keywords": [
+        "fréquence"
+      ],
+      "prefix": "P",
+      "deviceKind": "meter",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.8
+            ]
+          ],
+          "text": "Hz",
+          "textHeight": 4.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:meter-voltmeter",
+      "logicalId": "meter-voltmeter",
+      "norm": "IEC",
+      "name": "Voltmètre",
+      "category": "Mesure",
+      "keywords": [
+        "voltmètre",
+        "tension"
+      ],
+      "prefix": "P",
+      "deviceKind": "meter",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.8
+            ]
+          ],
+          "text": "V",
+          "textHeight": 4.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:meter-wattmeter",
+      "logicalId": "meter-wattmeter",
+      "norm": "IEC",
+      "name": "Wattmètre",
+      "category": "Mesure",
+      "keywords": [
+        "wattmètre",
+        "puissance"
+      ],
+      "prefix": "P",
+      "deviceKind": "meter",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.8
+            ]
+          ],
+          "text": "W",
+          "textHeight": 4.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    }
+  ]
+}

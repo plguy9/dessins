@@ -1,0 +1,906 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "ansi:circuit-breaker-1p",
+      "logicalId": "circuit-breaker-1p",
+      "norm": "ANSI",
+      "name": "Circuit breaker, 1-pole",
+      "category": "Power",
+      "keywords": [
+        "breaker",
+        "protection"
+      ],
+      "prefix": "CB",
+      "deviceKind": "breaker",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              0
+            ],
+            [
+              -1.5,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              1.0,
+              0
+            ]
+          ],
+          "radius": 2.6,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              3.6,
+              0
+            ],
+            [
+              5,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:circuit-breaker-3p",
+      "logicalId": "circuit-breaker-3p",
+      "norm": "ANSI",
+      "name": "Circuit breaker, 3-pole",
+      "category": "Power",
+      "keywords": [
+        "breaker",
+        "three pole"
+      ],
+      "prefix": "CB",
+      "deviceKind": "breaker",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              -7.5
+            ],
+            [
+              -1.5,
+              -7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              1.0,
+              -7.5
+            ]
+          ],
+          "radius": 2.6,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              3.6,
+              -7.5
+            ],
+            [
+              5,
+              -7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              0
+            ],
+            [
+              -1.5,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              1.0,
+              0
+            ]
+          ],
+          "radius": 2.6,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              3.6,
+              0
+            ],
+            [
+              5,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              7.5
+            ],
+            [
+              -1.5,
+              7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              1.0,
+              7.5
+            ]
+          ],
+          "radius": 2.6,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              3.6,
+              7.5
+            ],
+            [
+              5,
+              7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              -9.5
+            ],
+            [
+              0,
+              9.5
+            ]
+          ],
+          "lineWidth": 0.15
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            -7.5
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            -7.5
+          ],
+          "dir": 0,
+          "length": 5.0
+        },
+        {
+          "number": "3",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "4",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        },
+        {
+          "number": "5",
+          "at": [
+            -10,
+            7.5
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "6",
+          "at": [
+            10,
+            7.5
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -12.0
+      ],
+      "valueAnchor": [
+        0.0,
+        14.0
+      ]
+    },
+    {
+      "id": "ansi:contactor-power-3p",
+      "logicalId": "contactor-power-3p",
+      "norm": "ANSI",
+      "name": "Contactor, 3-pole",
+      "category": "Power",
+      "keywords": [
+        "contactor"
+      ],
+      "prefix": "K",
+      "deviceKind": "contactor",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              -7.5
+            ],
+            [
+              -1.5,
+              -7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -1.5,
+              -7.5
+            ],
+            [
+              4.0,
+              -10.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              5,
+              -7.5
+            ],
+            [
+              3.4,
+              -7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              0
+            ],
+            [
+              -1.5,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -1.5,
+              0
+            ],
+            [
+              4.0,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              5,
+              0
+            ],
+            [
+              3.4,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              7.5
+            ],
+            [
+              -1.5,
+              7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -1.5,
+              7.5
+            ],
+            [
+              4.0,
+              4.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              5,
+              7.5
+            ],
+            [
+              3.4,
+              7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              -9.5
+            ],
+            [
+              0,
+              9.5
+            ]
+          ],
+          "lineWidth": 0.15
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            -7.5
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            -7.5
+          ],
+          "dir": 0,
+          "length": 5.0
+        },
+        {
+          "number": "3",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "4",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        },
+        {
+          "number": "5",
+          "at": [
+            -10,
+            7.5
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "6",
+          "at": [
+            10,
+            7.5
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -13.0
+      ],
+      "valueAnchor": [
+        0.0,
+        14.0
+      ]
+    },
+    {
+      "id": "ansi:disconnector",
+      "logicalId": "disconnector",
+      "norm": "ANSI",
+      "name": "Disconnect switch",
+      "category": "Power",
+      "keywords": [
+        "disconnect",
+        "isolator"
+      ],
+      "prefix": "DS",
+      "deviceKind": "disconnector",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              0
+            ],
+            [
+              -1.5,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -1.5,
+              0
+            ],
+            [
+              4.0,
+              -4.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              5,
+              0
+            ],
+            [
+              3.0,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:fuse",
+      "logicalId": "fuse",
+      "norm": "ANSI",
+      "name": "Fuse",
+      "category": "Power",
+      "keywords": [
+        "fuse",
+        "protection"
+      ],
+      "prefix": "FU",
+      "deviceKind": "fuse",
+      "graphics": [
+        {
+          "kind": "arc",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "startAngle": 90,
+          "spanAngle": 180,
+          "lineWidth": 0.3
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              0
+            ],
+            [
+              5,
+              0
+            ]
+          ],
+          "lineWidth": 0.0
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            10,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "ansi:motor-3ph",
+      "logicalId": "motor-3ph",
+      "norm": "ANSI",
+      "name": "Motor, three phase",
+      "category": "Power",
+      "keywords": [
+        "motor",
+        "induction"
+      ],
+      "prefix": "M",
+      "deviceKind": "motor",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 8.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              2.0
+            ]
+          ],
+          "text": "M",
+          "textHeight": 6.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "T1",
+          "at": [
+            -5,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "T2",
+          "at": [
+            0,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "T3",
+          "at": [
+            5,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "PE",
+          "at": [
+            0,
+            13
+          ],
+          "dir": 90,
+          "length": 5.0,
+          "type": "ground"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -11.0,
+        0.0
+      ],
+      "valueAnchor": [
+        11.0,
+        0.0
+      ]
+    },
+    {
+      "id": "ansi:thermal-relay-3p",
+      "logicalId": "thermal-relay-3p",
+      "norm": "ANSI",
+      "name": "Overload relay",
+      "category": "Power",
+      "keywords": [
+        "overload",
+        "thermal"
+      ],
+      "prefix": "OL",
+      "deviceKind": "thermal",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -8,
+              -9
+            ],
+            [
+              8,
+              9
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -4,
+              -9
+            ],
+            [
+              -4,
+              -2
+            ],
+            [
+              -1,
+              -2
+            ],
+            [
+              -1,
+              2
+            ],
+            [
+              -4,
+              2
+            ],
+            [
+              -4,
+              9
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              1,
+              -9
+            ],
+            [
+              1,
+              -2
+            ],
+            [
+              4,
+              -2
+            ],
+            [
+              4,
+              2
+            ],
+            [
+              1,
+              2
+            ],
+            [
+              1,
+              9
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -12,
+            -4.5
+          ],
+          "dir": 180,
+          "length": 4.0
+        },
+        {
+          "number": "2",
+          "at": [
+            12,
+            -4.5
+          ],
+          "dir": 0,
+          "length": 4.0
+        },
+        {
+          "number": "3",
+          "at": [
+            -12,
+            4.5
+          ],
+          "dir": 180,
+          "length": 4.0
+        },
+        {
+          "number": "4",
+          "at": [
+            12,
+            4.5
+          ],
+          "dir": 0,
+          "length": 4.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -12.0
+      ],
+      "valueAnchor": [
+        0.0,
+        14.0
+      ]
+    }
+  ]
+}

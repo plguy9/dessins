@@ -1,0 +1,424 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "iec:battery",
+      "logicalId": "battery",
+      "norm": "IEC",
+      "name": "Batterie",
+      "category": "Distribution",
+      "keywords": [
+        "batterie",
+        "accumulateur"
+      ],
+      "prefix": "G",
+      "deviceKind": "battery",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4,
+              -2
+            ],
+            [
+              4,
+              -2
+            ]
+          ],
+          "lineWidth": 0.5
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2,
+              1
+            ],
+            [
+              2,
+              1
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4,
+              4
+            ],
+            [
+              4,
+              4
+            ]
+          ],
+          "lineWidth": 0.5
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2,
+              7
+            ],
+            [
+              2,
+              7
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "+",
+          "at": [
+            0,
+            -8
+          ],
+          "dir": 270,
+          "length": 6.0,
+          "type": "power"
+        },
+        {
+          "number": "-",
+          "at": [
+            0,
+            13
+          ],
+          "dir": 90,
+          "length": 6.0,
+          "type": "power"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        2.0
+      ]
+    },
+    {
+      "id": "iec:busbar",
+      "logicalId": "busbar",
+      "norm": "IEC",
+      "name": "Jeu de barres",
+      "category": "Distribution",
+      "keywords": [
+        "jeu de barres",
+        "unifilaire",
+        "distribution"
+      ],
+      "prefix": "W",
+      "deviceKind": "busbar",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -30,
+              0
+            ],
+            [
+              30,
+              0
+            ]
+          ],
+          "lineWidth": 1.2
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -30,
+            0
+          ],
+          "dir": 180,
+          "length": 0.0
+        },
+        {
+          "number": "2",
+          "at": [
+            30,
+            0
+          ],
+          "dir": 0,
+          "length": 0.0
+        },
+        {
+          "number": "T1",
+          "at": [
+            -20,
+            0
+          ],
+          "dir": 90,
+          "length": 0.0
+        },
+        {
+          "number": "T2",
+          "at": [
+            0,
+            0
+          ],
+          "dir": 90,
+          "length": 0.0
+        },
+        {
+          "number": "T3",
+          "at": [
+            20,
+            0
+          ],
+          "dir": 90,
+          "length": 0.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -33.0,
+        -3.0
+      ],
+      "valueAnchor": [
+        33.0,
+        -3.0
+      ]
+    },
+    {
+      "id": "iec:generator",
+      "logicalId": "generator",
+      "norm": "IEC",
+      "name": "Groupe électrogène",
+      "category": "Distribution",
+      "keywords": [
+        "groupe",
+        "générateur",
+        "secours"
+      ],
+      "prefix": "G",
+      "deviceKind": "generator",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 8.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.0
+            ]
+          ],
+          "text": "G",
+          "textHeight": 5.0,
+          "align": "center"
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              6.0
+            ]
+          ],
+          "text": "3~",
+          "textHeight": 3.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "L",
+          "at": [
+            0,
+            -13
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "N",
+          "at": [
+            6,
+            11
+          ],
+          "dir": 90,
+          "length": 3.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -11.0,
+        0.0
+      ],
+      "valueAnchor": [
+        11.0,
+        0.0
+      ]
+    },
+    {
+      "id": "iec:surge-arrester",
+      "logicalId": "surge-arrester",
+      "norm": "IEC",
+      "name": "Parafoudre",
+      "category": "Distribution",
+      "keywords": [
+        "parafoudre",
+        "surtension"
+      ],
+      "prefix": "F",
+      "deviceKind": "arrester",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -3.5,
+              -6
+            ],
+            [
+              3.5,
+              6
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -2,
+              3
+            ],
+            [
+              0,
+              -1
+            ],
+            [
+              -1,
+              -1
+            ],
+            [
+              1,
+              -5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 4.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 4.0,
+          "type": "ground"
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:transformer-power",
+      "logicalId": "transformer-power",
+      "norm": "IEC",
+      "name": "Transformateur de puissance",
+      "category": "Distribution",
+      "keywords": [
+        "transformateur",
+        "HTA",
+        "poste"
+      ],
+      "prefix": "T",
+      "deviceKind": "transformer",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              -4.0
+            ]
+          ],
+          "radius": 6.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              4.0
+            ]
+          ],
+          "radius": 6.0,
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "HT",
+          "at": [
+            0,
+            -14
+          ],
+          "dir": 270,
+          "length": 4.0
+        },
+        {
+          "number": "BT",
+          "at": [
+            0,
+            14
+          ],
+          "dir": 90,
+          "length": 4.0
+        }
+      ],
+      "defaultFields": {
+        "value": "630 kVA"
+      },
+      "designationAnchor": [
+        -10.0,
+        0.0
+      ],
+      "valueAnchor": [
+        10.0,
+        0.0
+      ]
+    }
+  ]
+}

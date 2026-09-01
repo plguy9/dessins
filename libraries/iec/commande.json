@@ -1,0 +1,1460 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "iec:coil",
+      "logicalId": "coil",
+      "norm": "IEC",
+      "name": "Bobine de contacteur",
+      "category": "Commande",
+      "keywords": [
+        "bobine",
+        "contacteur",
+        "commande"
+      ],
+      "prefix": "K",
+      "deviceKind": "coil",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -5,
+              -4
+            ],
+            [
+              5,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "A1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 6.0
+        },
+        {
+          "number": "A2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 6.0
+        }
+      ],
+      "defaultFields": {
+        "value": "230 V CA"
+      },
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:coil-timer-off",
+      "logicalId": "coil-timer-off",
+      "norm": "IEC",
+      "name": "Bobine temporisée au repos",
+      "category": "Commande",
+      "keywords": [
+        "temporisé",
+        "bobine"
+      ],
+      "prefix": "K",
+      "deviceKind": "coil",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -5,
+              -4
+            ],
+            [
+              5,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              1,
+              -4
+            ],
+            [
+              1,
+              4
+            ],
+            [
+              5,
+              -4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "A1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 6.0
+        },
+        {
+          "number": "A2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 6.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:coil-timer-on",
+      "logicalId": "coil-timer-on",
+      "norm": "IEC",
+      "name": "Bobine temporisée au travail",
+      "category": "Commande",
+      "keywords": [
+        "temporisé",
+        "bobine"
+      ],
+      "prefix": "K",
+      "deviceKind": "coil",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -5,
+              -4
+            ],
+            [
+              5,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -5,
+              4
+            ],
+            [
+              -1,
+              -4
+            ],
+            [
+              -1,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "A1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 6.0
+        },
+        {
+          "number": "A2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 6.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:contact-changeover",
+      "logicalId": "contact-changeover",
+      "norm": "IEC",
+      "name": "Contact inverseur",
+      "category": "Commande",
+      "keywords": [
+        "inverseur",
+        "changeover"
+      ],
+      "prefix": "K",
+      "deviceKind": "contact",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4,
+              5
+            ],
+            [
+              -3.6,
+              -2.8
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.6,
+              -3.0
+            ],
+            [
+              -1.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "11",
+          "at": [
+            -4,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "12",
+          "at": [
+            -4,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        },
+        {
+          "number": "14",
+          "at": [
+            4,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:contact-nc",
+      "logicalId": "contact-nc",
+      "norm": "IEC",
+      "name": "Contact à ouverture",
+      "category": "Commande",
+      "keywords": [
+        "contact",
+        "NC",
+        "ouverture",
+        "repos"
+      ],
+      "prefix": "K",
+      "deviceKind": "contact",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              3
+            ],
+            [
+              -3.6,
+              -3.2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.6,
+              -3.0
+            ],
+            [
+              -1.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "11",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "12",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:contact-nc-delayed-off",
+      "logicalId": "contact-nc-delayed-off",
+      "norm": "IEC",
+      "name": "Contact à ouverture temporisé au repos",
+      "category": "Commande",
+      "keywords": [
+        "temporisé",
+        "retard",
+        "repos"
+      ],
+      "prefix": "K",
+      "deviceKind": "contact",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              3
+            ],
+            [
+              -3.6,
+              -3.2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.6,
+              -3.0
+            ],
+            [
+              -1.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 3.0,
+          "startAngle": 180,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "15",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "16",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:contact-no",
+      "logicalId": "contact-no",
+      "norm": "IEC",
+      "name": "Contact à fermeture",
+      "category": "Commande",
+      "keywords": [
+        "contact",
+        "NO",
+        "fermeture",
+        "travail"
+      ],
+      "prefix": "K",
+      "deviceKind": "contact",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              3
+            ],
+            [
+              -3.6,
+              -2.6
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "13",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "14",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:contact-no-delayed-on",
+      "logicalId": "contact-no-delayed-on",
+      "norm": "IEC",
+      "name": "Contact à fermeture temporisé au travail",
+      "category": "Commande",
+      "keywords": [
+        "temporisé",
+        "retard",
+        "travail"
+      ],
+      "prefix": "K",
+      "deviceKind": "contact",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              3
+            ],
+            [
+              -3.6,
+              -2.6
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 3.0,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "17",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "18",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:emergency-stop",
+      "logicalId": "emergency-stop",
+      "norm": "IEC",
+      "name": "Arrêt d'urgence coup de poing",
+      "category": "Commande",
+      "keywords": [
+        "arrêt",
+        "urgence",
+        "coup de poing",
+        "AU"
+      ],
+      "prefix": "S",
+      "deviceKind": "pushbutton",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              3
+            ],
+            [
+              -3.6,
+              -3.2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.6,
+              -3.0
+            ],
+            [
+              -1.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -3.6,
+              -3.2
+            ],
+            [
+              -3.6,
+              -6.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "circle",
+          "points": [
+            [
+              -3.6,
+              -7.8
+            ]
+          ],
+          "radius": 1.4,
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "11",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "12",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:horn",
+      "logicalId": "horn",
+      "norm": "IEC",
+      "name": "Avertisseur sonore",
+      "category": "Commande",
+      "keywords": [
+        "sirène",
+        "klaxon",
+        "alarme"
+      ],
+      "prefix": "H",
+      "deviceKind": "horn",
+      "graphics": [
+        {
+          "kind": "arc",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 4.0,
+          "startAngle": -90,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              -4
+            ],
+            [
+              0,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 6.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 6.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:indicator-lamp",
+      "logicalId": "indicator-lamp",
+      "norm": "IEC",
+      "name": "Voyant lumineux",
+      "category": "Commande",
+      "keywords": [
+        "voyant",
+        "lampe",
+        "signalisation"
+      ],
+      "prefix": "H",
+      "deviceKind": "lamp",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 4.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.8,
+              -2.8
+            ],
+            [
+              2.8,
+              2.8
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -2.8,
+              2.8
+            ],
+            [
+              2.8,
+              -2.8
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "X1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 6.0
+        },
+        {
+          "number": "X2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 6.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:limit-switch-nc",
+      "logicalId": "limit-switch-nc",
+      "norm": "IEC",
+      "name": "Interrupteur de position à ouverture",
+      "category": "Commande",
+      "keywords": [
+        "fin de course",
+        "position"
+      ],
+      "prefix": "S",
+      "deviceKind": "switch",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              3
+            ],
+            [
+              -3.6,
+              -3.2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.6,
+              -3.0
+            ],
+            [
+              -1.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -3.6,
+              -3.2
+            ],
+            [
+              -3.6,
+              -5.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -5.0,
+              -7.5
+            ],
+            [
+              -2.2,
+              -5.5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "11",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "12",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:limit-switch-no",
+      "logicalId": "limit-switch-no",
+      "norm": "IEC",
+      "name": "Interrupteur de position à fermeture",
+      "category": "Commande",
+      "keywords": [
+        "fin de course",
+        "position"
+      ],
+      "prefix": "S",
+      "deviceKind": "switch",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              3
+            ],
+            [
+              -3.6,
+              -2.6
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -3.6,
+              -2.6
+            ],
+            [
+              -3.6,
+              -5.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -5.0,
+              -7.5
+            ],
+            [
+              -2.2,
+              -5.5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "13",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "14",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:pushbutton-nc",
+      "logicalId": "pushbutton-nc",
+      "norm": "IEC",
+      "name": "Bouton-poussoir à ouverture",
+      "category": "Commande",
+      "keywords": [
+        "bouton",
+        "poussoir",
+        "arrêt"
+      ],
+      "prefix": "S",
+      "deviceKind": "pushbutton",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              3
+            ],
+            [
+              -3.6,
+              -3.2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.6,
+              -3.0
+            ],
+            [
+              -1.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -3.6,
+              -3.2
+            ],
+            [
+              -3.6,
+              -6.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -6.0,
+              -6.0
+            ],
+            [
+              -1.2,
+              -6.0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "11",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "12",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:pushbutton-no",
+      "logicalId": "pushbutton-no",
+      "norm": "IEC",
+      "name": "Bouton-poussoir à fermeture",
+      "category": "Commande",
+      "keywords": [
+        "bouton",
+        "poussoir",
+        "marche"
+      ],
+      "prefix": "S",
+      "deviceKind": "pushbutton",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              3
+            ],
+            [
+              -3.6,
+              -2.6
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -3.6,
+              -2.6
+            ],
+            [
+              -3.6,
+              -6.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -6.0,
+              -6.0
+            ],
+            [
+              -1.2,
+              -6.0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "13",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "14",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:relay-coil",
+      "logicalId": "relay-coil",
+      "norm": "IEC",
+      "name": "Bobine de relais",
+      "category": "Commande",
+      "keywords": [
+        "bobine",
+        "relais"
+      ],
+      "prefix": "K",
+      "deviceKind": "coil",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -5,
+              -4
+            ],
+            [
+              5,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              -4
+            ],
+            [
+              5,
+              4
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "A1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 6.0
+        },
+        {
+          "number": "A2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 6.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:selector-switch",
+      "logicalId": "selector-switch",
+      "norm": "IEC",
+      "name": "Commutateur deux positions",
+      "category": "Commande",
+      "keywords": [
+        "commutateur",
+        "sélecteur"
+      ],
+      "prefix": "S",
+      "deviceKind": "switch",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              3
+            ],
+            [
+              -3.6,
+              -2.6
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5.4,
+              -4.4
+            ],
+            [
+              -1.8,
+              -0.8
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:thermal-contact",
+      "logicalId": "thermal-contact",
+      "norm": "IEC",
+      "name": "Contact de relais thermique",
+      "category": "Commande",
+      "keywords": [
+        "thermique",
+        "protection",
+        "surcharge"
+      ],
+      "prefix": "F",
+      "deviceKind": "contact",
+      "graphics": [
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              3
+            ],
+            [
+              -3.6,
+              -3.2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.6,
+              -3.0
+            ],
+            [
+              -1.2,
+              -3.0
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -3.6,
+              -3.2
+            ],
+            [
+              -3.6,
+              -5.5
+            ],
+            [
+              -6.0,
+              -5.5
+            ],
+            [
+              -6.0,
+              -7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "95",
+          "at": [
+            0,
+            -10
+          ],
+          "dir": 270,
+          "length": 7.0
+        },
+        {
+          "number": "96",
+          "at": [
+            0,
+            10
+          ],
+          "dir": 90,
+          "length": 7.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -8.0,
+        -2.0
+      ],
+      "valueAnchor": [
+        8.0,
+        -2.0
+      ]
+    }
+  ]
+}

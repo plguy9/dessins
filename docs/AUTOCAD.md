@@ -82,8 +82,15 @@ Les décomptes « déjà en place » de chaque section datent du relevé. Ce qui
 | Déplacer un composant, `Move Component` | `MoveComponentCommand`, commande `DEPLACERAPPAREIL` / `DA`, <kbd>Maj</kbd>+<kbd>D</kbd>. Déplacement libre, les extrémités de fil posées sur les broches suivent. Un fil qui croise une broche sans y finir ne suit pas : il la croise, il n'y est pas raccordé. |
 | Surfer, `AESURF` | `ui/surferdialog.*`, commande `SURFER` / `SU`, <kbd>F4</kbd>. Liste les autres blocs de l'appareil, les appareils raccordés au même potentiel, et les deux bouts d'un signal — puis y saute en cadrant dessus. Travaille à l'échelle du projet. |
 
-Reste notamment : gestionnaire de projet multi-dossiers, entrées-sorties API,
-éditeur de borniers.
+**Lot 9 — 2026-09-01**
+
+| Repris d'AutoCAD | Chez nous |
+|---|---|
+| Insertion sur un fil : coupure et reconnexion, `Insert Component` | Poser un appareil de passage sur un fil le coupe et le rebranche sur ses bornes. Il faut deux broches, sur le tracé et alignées avec lui — sinon l'appareil est en travers, et le couper le laisserait en l'air. Une seule annulation. |
+| Insérer une borne | Même mécanisme : la borne coupe le fil en deux réseaux, ce qui est exactement ce qu'elle fait dans l'armoire. |
+| Éditeur de borniers, `AETSE` | `ui/terminalstripdialog.*`, commande `BORNIER` / `BO`. Les bornes d'un bornier rassemblées dans l'ordre de lecture du dossier, avec le fil et l'appareil raccordés, les repères en double signalés, la renumérotation 1, 2, 3… et le double-clic qui va voir la borne sur le folio. |
+
+Reste notamment : gestionnaire de projet multi-dossiers, entrées-sorties API.
 
 ## Accrochage aux objets (Object Snap / OSNAP) d'AutoCAD — modes d'accrochage, marqueurs AutoSnap et reglages associes
 31 fonctionnalités relevées — **23 déjà en place**, 8 restantes.

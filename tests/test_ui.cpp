@@ -20,6 +20,7 @@
 #include "ui/pagesetupdialog.h"
 #include "ui/reportpanel.h"
 #include "ui/surferdialog.h"
+#include "ui/terminalstripdialog.h"
 #include "ui/symbolpalette.h"
 #include "ui/theme.h"
 #include "testhelpers.h"
@@ -1367,3 +1368,161 @@ TEST_CASE("Glisser deplace l'appareil le long de son fil seulement",
     CHECK_THAT(stretched->points.first().y(), WithinAbs(pinA.y() - 50.0, 1e-6));
     CHECK(stretched->points.last().y() > pinA.y());
 }
+
+TEST_CASE("Poser un appareil sur un fil le branche en coupant", "[ui][insert]")
+{
+    // Poser une borne sur un fil doit la brancher, pas la poser par-dessus en
+    // laissant le fil passer derriere : le schema serait faux sans que rien
+    // ne le montre.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    // Le fusible a ses broches a la verticale : le fil doit l'etre aussi,
+    // sinon l'appareil serait en travers et le couper le laisserait en l'air.
+    drawWire(folio, { QPointF(120, 40), QPointF(120, 200) });
+    const int before = int(folio->entityCount());
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setPendingSymbol(QStringLiteral("iec:fuse"));
+
+    const QPointF at = view.mapFromScene(QPointF(120, 120));
+    QMouseEvent press(QEvent::MouseButtonPress, at, view.mapToGlobal(at), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+
+    // Un fil de plus (coupe en deux) et le symbole : trois entites au lieu
+    // d'une.
+    CHECK(int(folio->entityCount()) == before + 2);
+
+    QVector<const Wire *> wires;
+    for (const EntityPtr &entity : folio->entities()) {
+        if (const auto *wire = dynamic_cast<const Wire *>(entity.get()))
+            wires.append(wire);
+    }
+    REQUIRE(wires.size() == 2);
+    // Aucun morceau ne va plus d'un bout a l'autre : le fil est reellement
+    // coupe, pas seulement recouvert.
+    for (const Wire *wire : wires) {
+        const bool spansWhole = wire->points.first() == QPointF(120, 40)
+                && wire->points.last() == QPointF(120, 200);
+        CHECK_FALSE(spansWhole);
+    }
+
+    // Et tout se defait d'une seule annulation.
+    document.undo();
+    CHECK(int(folio->entityCount()) == before);
+}
+
+TEST_CASE("Un appareil pose a cote du fil ne le coupe pas", "[ui][insert]")
+{
+    // La coupure ne doit se declencher que si l'appareil est vraiment sur le
+    // fil : sinon poser un symbole quelque part casserait un fil voisin.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    drawWire(folio, { QPointF(120, 40), QPointF(120, 200) });
+    const int before = int(folio->entityCount());
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setPendingSymbol(QStringLiteral("iec:fuse"));
+
+    const QPointF at = view.mapFromScene(QPointF(180, 120)); // bien a l'ecart
+    QMouseEvent press(QEvent::MouseButtonPress, at, view.mapToGlobal(at), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+
+    CHECK(int(folio->entityCount()) == before + 1); // seulement le symbole
+}
+
+TEST_CASE("L'editeur de borniers rassemble les bornes dans l'ordre du dossier",
+          "[ui][terminals]")
+{
+    // Un bornier ne se lit pas sur le schema : ses bornes sont dispersees sur
+    // plusieurs folios, et c'est leur ordre dans l'armoire qui compte.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *first = document.currentFolio();
+    first->number = QStringLiteral("1");
+    Folio *second = document.project().addFolio();
+    second->number = QStringLiteral("2");
+
+    auto terminal = [&](Folio *folio, const QPointF &at, const QString &block,
+                        const QString &number) {
+        auto *symbol = placeSymbol(document.project(), folio, QStringLiteral("iec:terminal"), at);
+        symbol->setDesignation(block);
+        symbol->designationLocked = true;
+        symbol->fields.insert(QStringLiteral("terminal"), number);
+        return symbol;
+    };
+    // Posees dans le desordre, sur deux folios et deux borniers.
+    terminal(second, QPointF(100, 60), QStringLiteral("-X1"), QStringLiteral("3"));
+    terminal(first, QPointF(100, 140), QStringLiteral("-X1"), QStringLiteral("2"));
+    terminal(first, QPointF(100, 60), QStringLiteral("-X1"), QStringLiteral("1"));
+    terminal(first, QPointF(160, 60), QStringLiteral("-X2"), QStringLiteral("1"));
+    document.invalidateNetlist();
+
+    const QStringList blocks = TerminalStripDialog::blocksOf(document.project());
+    CHECK(blocks == QStringList{ QStringLiteral("-X1"), QStringLiteral("-X2") });
+
+    const auto strip = TerminalStripDialog::terminalsOf(document.project(), document.netlist(),
+                                                        QStringLiteral("-X1"));
+    REQUIRE(strip.size() == 3);
+    // Ordre de lecture : folio 1 de haut en bas, puis folio 2.
+    CHECK(strip.at(0).folio == QLatin1String("1"));
+    CHECK(strip.at(0).number == QLatin1String("1"));
+    CHECK(strip.at(1).folio == QLatin1String("1"));
+    CHECK(strip.at(1).number == QLatin1String("2"));
+    CHECK(strip.at(2).folio == QLatin1String("2"));
+    CHECK(strip.at(2).number == QLatin1String("3"));
+
+    // Le second bornier n'est pas mele au premier.
+    CHECK(TerminalStripDialog::terminalsOf(document.project(), document.netlist(),
+                                           QStringLiteral("-X2")).size() == 1);
+}
+
+TEST_CASE("L'editeur de borniers montre le fil et l'appareil raccordes",
+          "[ui][terminals]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    folio->number = QStringLiteral("1");
+
+    auto *borne = placeSymbol(document.project(), folio, QStringLiteral("iec:terminal"),
+                              QPointF(100, 60));
+    borne->setDesignation(QStringLiteral("-X1"));
+    borne->designationLocked = true;
+    borne->fields.insert(QStringLiteral("terminal"), QStringLiteral("1"));
+
+    auto *appareil = placeSymbol(document.project(), folio, QStringLiteral("iec:fuse"),
+                                 QPointF(100, 140));
+    appareil->setDesignation(QStringLiteral("-F1"));
+    appareil->designationLocked = true;
+
+    // Un fil entre la borne et l'appareil.
+    const SymbolDefinition *terminalDef =
+            document.project().library.definition(borne->definitionId);
+    const SymbolDefinition *fuseDef =
+            document.project().library.definition(appareil->definitionId);
+    REQUIRE(terminalDef);
+    REQUIRE(fuseDef);
+    Wire *wire = drawWire(folio, { borne->placement.map(terminalDef->pins.last().position),
+                                   appareil->placement.map(fuseDef->pins.first().position) });
+    wire->number = QStringLiteral("101");
+    wire->numberLocked = true;
+    document.invalidateNetlist();
+
+    const auto strip = TerminalStripDialog::terminalsOf(document.project(), document.netlist(),
+                                                        QStringLiteral("-X1"));
+    REQUIRE(strip.size() == 1);
+    CHECK(strip.first().wireNumber == QLatin1String("101"));
+    CHECK(strip.first().target == QLatin1String("-F1"));
+    CHECK_FALSE(strip.first().zone.isEmpty());
+}
+

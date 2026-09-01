@@ -61,6 +61,7 @@ private:
     void editComponent(const QString &entityId, bool insertion);
     void editSelectedComponent();
     void surfSelection();
+    void editTerminalStrips();
     // Ouvre le folio voulu et designe l'entite : c'est ce que fait « y aller ».
     void locate(const QString &folioId, const QString &entityId);
 

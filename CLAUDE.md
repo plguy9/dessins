@@ -85,6 +85,13 @@ sont délibérés et documentés dans le code :
   fils raccordés, et ne propose rien quand ils tirent dans des sens
   différents. Comme pour ÉTIRER, les sommets sont figés à la construction de
   la commande.
+- **Insertion sur un fil** — poser un appareil de passage sur un fil le
+  **coupe** et le rebranche sur ses bornes (`ComponentTools::splitForInsertion`).
+  Il faut deux broches, posées sur le tracé et alignées avec lui : tout le
+  reste se pose à côté du fil, pas dessus. Les morceaux héritent du repère,
+  des conducteurs et du type — brancher ne fait pas perdre son identité au fil.
+- **`ui/terminalstripdialog.*`** — l'éditeur de borniers. Il ne dessine rien :
+  il modifie les repères de borne par commandes annulables, en une macro.
 - **`ui/surferdialog.*`** — le Surfer d'AutoCAD : ce qui est lié à un élément
   **dans tout le dossier**, et le saut vers là-bas. Il travaille au projet,
   pas au folio — c'est tout son intérêt.

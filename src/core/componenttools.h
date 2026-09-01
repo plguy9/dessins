@@ -41,6 +41,22 @@ public:
     static std::optional<QPointF> scootAxis(const Folio &folio, const SymbolLibrary &library,
                                             const SymbolInstance &symbol);
 
+    // Coupure d'un fil a l'insertion d'un appareil. AutoCAD Electrical le fait
+    // tout seul : poser une borne ou un contact sur un fil doit brancher
+    // l'appareil, pas le poser par-dessus en laissant le fil passer derriere.
+    struct WireSplit {
+        QString wireId;
+        QVector<QPointF> before;  // du debut du fil jusqu'a la premiere broche
+        QVector<QPointF> after;   // de la seconde broche jusqu'a la fin
+    };
+
+    // Coupure a realiser pour brancher ce symbole, ou rien. Il faut un
+    // appareil a deux broches, pose sur un fil et aligne avec lui : tout le
+    // reste se pose a cote du fil, pas dessus.
+    static std::optional<WireSplit> splitForInsertion(const Folio &folio,
+                                                      const SymbolLibrary &library,
+                                                      const SymbolInstance &symbol);
+
     // Projette un deplacement sur l'axe : Scoot ne bouge que le long du fil,
     // c'est ce qui l'empeche de detacher l'appareil de son circuit.
     static QPointF constrainToAxis(const QPointF &delta, const QPointF &axis);

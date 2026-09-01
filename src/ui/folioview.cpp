@@ -1261,9 +1261,43 @@ void FolioView::placeSymbolAt(const QPointF &point)
     }
     const QString id = instance->id();
 
-    m_document->push(std::make_unique<AddEntityCommand>(m_document->project(), folio->id(),
-                                                        std::move(instance),
-                                                        tr("Poser un symbole")));
+    // Poser un appareil de passage sur un fil doit le brancher, pas se poser
+    // par-dessus : le fil est coupe et rebranche sur les broches, comme le
+    // fait AutoCAD Electrical. La coupure se calcule sur l'appareil deja pose,
+    // donc apres l'ajout — et le tout tient dans une seule annulation.
+    const SymbolInstance model = *instance;
+    m_document->pushMacro(tr("Poser un symbole"), [&] {
+        m_document->push(std::make_unique<AddEntityCommand>(m_document->project(), folio->id(),
+                                                            std::move(instance),
+                                                            tr("Poser un symbole")));
+        const auto split = ComponentTools::splitForInsertion(*folio,
+                                                             m_document->project().library,
+                                                             model);
+        if (!split)
+            return;
+        const auto *wire = dynamic_cast<const Wire *>(folio->entity(split->wireId));
+        if (!wire)
+            return;
+
+        // Les morceaux heritent du fil d'origine : repere, conducteurs, type.
+        // Brancher un appareil ne doit pas faire perdre son identite au fil.
+        const Wire pattern = *wire;
+        m_document->push(std::make_unique<RemoveEntityCommand>(m_document->project(),
+                                                               folio->id(), split->wireId,
+                                                               tr("Brancher sur le fil")));
+        for (const QVector<QPointF> &piece : { split->before, split->after }) {
+            if (piece.size() < 2)
+                continue;
+            auto part = std::make_unique<Wire>(pattern);
+            part->setId(newId());
+            part->points = piece;
+            m_document->push(std::make_unique<AddEntityCommand>(m_document->project(),
+                                                                folio->id(), std::move(part),
+                                                                tr("Brancher sur le fil")));
+        }
+        Q_EMIT statusMessage(tr("Appareil branché : le fil a été coupé sur ses bornes."));
+    });
+
     setSelection({ id });
     Q_EMIT componentPlaced(id);
 }

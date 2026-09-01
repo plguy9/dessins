@@ -1,6 +1,7 @@
 #include "componenttools.h"
 
 #include "entities.h"
+#include "wiretools.h"
 
 #include <cmath>
 
@@ -82,6 +83,73 @@ std::optional<QPointF> ComponentTools::scootAxis(const Folio &folio,
             return std::nullopt;
     }
     return axis;
+}
+
+std::optional<ComponentTools::WireSplit> ComponentTools::splitForInsertion(
+        const Folio &folio, const SymbolLibrary &library, const SymbolInstance &symbol)
+{
+    const SymbolDefinition *definition = library.definition(symbol.definitionId);
+    if (!definition)
+        return std::nullopt;
+
+    QVector<QPointF> pins;
+    for (const Pin &pin : definition->pins) {
+        if (pin.type == PinType::NotConnected)
+            continue;
+        pins.append(symbol.placement.map(pin.position));
+    }
+    // Seul un appareil de passage se branche en coupant : une bobine a deux
+    // bornes oui, un moteur a quatre non.
+    if (pins.size() != 2)
+        return std::nullopt;
+
+    const QPointF insertion = symbol.placement.position;
+
+    for (const Wire *wire : folio.entitiesOfType<Wire>()) {
+        if (wire->points.size() < 2)
+            continue;
+        // Le fil doit passer par le point d'insertion : c'est ce qui dit que
+        // l'appareil est pose dessus et non a cote.
+        bool crosses = false;
+        for (int i = 1; i < wire->points.size() && !crosses; ++i)
+            crosses = pointOnSegment(insertion, wire->points.at(i - 1), wire->points.at(i));
+        if (!crosses)
+            continue;
+
+        // Et les deux broches doivent tomber sur le trace, sinon l'appareil
+        // est en travers du fil et le couper le laisserait en l'air.
+        bool aligned = true;
+        for (const QPointF &pin : pins) {
+            bool onWire = false;
+            for (int i = 1; i < wire->points.size() && !onWire; ++i)
+                onWire = pointOnSegment(pin, wire->points.at(i - 1), wire->points.at(i));
+            if (!onWire) {
+                aligned = false;
+                break;
+            }
+        }
+        if (!aligned)
+            continue;
+
+        const double total = WireTools::polylineLength(wire->points);
+        double first = WireTools::lengthAtPoint(wire->points, pins.at(0));
+        double second = WireTools::lengthAtPoint(wire->points, pins.at(1));
+        if (first > second)
+            std::swap(first, second);
+        if (first < 0.0 || second < 0.0 || second > total)
+            continue;
+
+        WireSplit split;
+        split.wireId = wire->id();
+        // Un morceau de longueur nulle n'est pas un fil : une borne posee a
+        // l'extremite d'un fil ne doit pas en creer un degenere.
+        if (first > kConnectTolerance)
+            split.before = WireTools::subPolyline(wire->points, 0.0, first);
+        if (total - second > kConnectTolerance)
+            split.after = WireTools::subPolyline(wire->points, second, total);
+        return split;
+    }
+    return std::nullopt;
 }
 
 QPointF ComponentTools::constrainToAxis(const QPointF &delta, const QPointF &axis)

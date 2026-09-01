@@ -14,6 +14,7 @@ add_library(dessins_ui STATIC
     wiretypedialog.h  wiretypedialog.cpp
     componentdialog.h componentdialog.cpp
     surferdialog.h    surferdialog.cpp
+    terminalstripdialog.h terminalstripdialog.cpp
     mainwindow.h      mainwindow.cpp
 )
 

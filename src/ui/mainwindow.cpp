@@ -19,6 +19,7 @@
 #include "symbolpalette.h"
 #include "componentdialog.h"
 #include "surferdialog.h"
+#include "terminalstripdialog.h"
 #include "wiretypedialog.h"
 #include "theme.h"
 #include "symbols/librarystore.h"
@@ -592,6 +593,9 @@ void MainWindow::createActions()
     make(projectMenu, false, G::Wire, tr("&Types de fils…"), QKeySequence(),
          tr("Couleur, section, calque et style de chaque type de fil"),
          &MainWindow::editWireTypes);
+    make(projectMenu, false, G::Junction, tr("&Éditeur de borniers…"), QKeySequence(),
+         tr("Rassembler les bornes par bornier, les renuméroter, aller les voir"),
+         &MainWindow::editTerminalStrips);
     make(projectMenu, false, G::Reports, tr("&Poser le rapport dans le dessin…"), QKeySequence(),
          tr("Insère le rapport affiché sous forme de table sur le folio actif"),
          &MainWindow::placeCurrentReport);
@@ -730,6 +734,17 @@ void MainWindow::surfSelection()
         return;
     }
     dialog.exec();
+}
+
+void MainWindow::editTerminalStrips()
+{
+    TerminalStripDialog dialog(m_document, this);
+    connect(&dialog, &TerminalStripDialog::locateRequested, this, &MainWindow::locate);
+    if (dialog.exec() == QDialog::Accepted) {
+        m_document->invalidateNetlist();
+        m_reports->refresh();
+        m_view->update();
+    }
 }
 
 void MainWindow::locate(const QString &folioId, const QString &entityId)
@@ -1064,6 +1079,8 @@ void MainWindow::registerCommands()
            [this] { surfSelection(); });
     simple(QStringLiteral("COMPOSANT"), { QStringLiteral("CO2"), QStringLiteral("EDC") },
            tr("Éditer l'appareil sélectionné"), [this] { editSelectedComponent(); });
+    simple(QStringLiteral("BORNIER"), { QStringLiteral("BO"), QStringLiteral("TSE") },
+           tr("Ouvrir l'éditeur de borniers"), [this] { editTerminalStrips(); });
     simple(QStringLiteral("POSERRAPPORT"), { QStringLiteral("PRA") },
            tr("Poser le rapport affiché dans le dessin"),
            [this] { placeCurrentReport(); });

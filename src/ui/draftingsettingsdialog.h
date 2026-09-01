@@ -40,6 +40,7 @@ private:
     QCheckBox *m_objectSnap = nullptr;
     QCheckBox *m_ortho = nullptr;
     QCheckBox *m_polar = nullptr;
+    QCheckBox *m_tracking = nullptr;
     QDoubleSpinBox *m_gridStep = nullptr;
     QDoubleSpinBox *m_polarIncrement = nullptr;
 };

@@ -16,6 +16,7 @@
 
 #include <QHash>
 #include <QSet>
+#include <QTimer>
 #include <QWidget>
 
 namespace dsn {
@@ -172,6 +173,15 @@ private:
     // est ecartee pour qu'elle ne s'accroche pas a elle-meme.
     std::optional<SnapHit> resolveSnap(const QPointF &scenePoint) const;
 
+    // Repere d'alignement sous le curseur, quand aucun point du dessin ne
+    // l'emporte. C'est le reperage d'accrochage d'AutoCAD : le curseur se
+    // pose sur un trait issu d'un point acquis, pas sur la geometrie.
+    std::optional<TrackHit> resolveTrack(const QPointF &scenePoint) const;
+
+    // Acquisition au survol : rester sur un point d'accrochage le retient,
+    // y revenir l'oublie. C'est le geste d'AutoCAD, sans clic ni modificateur.
+    void updateAcquisition(const QPointF &scenePoint);
+
     // Point retenu : l'accrochage s'il y en a un, sinon la contrainte de
     // direction, sinon le curseur brut.
     QPointF snap(const QPointF &scenePoint) const;
@@ -206,6 +216,7 @@ private:
     void paintPendingWire(QPainter &painter) const;
     void paintPendingSymbol(QPainter &painter) const;
     void paintSnapFeedback(QPainter &painter) const;
+    void paintTracking(QPainter &painter) const;
     void paintPolarGuide(QPainter &painter) const;
     void paintRubberBand(QPainter &painter) const;
     void paintGrips(QPainter &painter) const;
@@ -284,6 +295,12 @@ private:
 
     QPointF m_cursorMm;
     std::optional<SnapHit> m_snapHit;
+    std::optional<TrackHit> m_trackHit;
+
+    // Acquisition au survol. Le point n'est retenu qu'apres un temps d'arret :
+    // sans ce delai, traverser un dessin dense acquerrait tout sur son passage.
+    QTimer *m_acquireTimer = nullptr;
+    std::optional<SnapHit> m_hoverCandidate;
     // QVector exige un type copiable, ce que EntityPtr n'est pas.
     std::vector<EntityPtr> m_clipboard;
 };

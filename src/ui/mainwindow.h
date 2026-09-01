@@ -120,6 +120,7 @@ private:
     QAction *m_osnapAction = nullptr;
     QAction *m_orthoAction = nullptr;
     QAction *m_polarAction = nullptr;
+    QAction *m_trackingAction = nullptr;
     QComboBox *m_wireTypeSelector = nullptr;
     // Actions reprises par le menu contextuel du canevas : elles y gardent
     // leur icone et leur raccourci, au lieu d'etre redecrites.

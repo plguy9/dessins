@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <QApplication>
 #include <QMouseEvent>
@@ -24,6 +25,7 @@
 
 using namespace dsn;
 using namespace test;
+using Catch::Matchers::WithinAbs;
 
 namespace {
 
@@ -998,3 +1000,98 @@ TEST_CASE("Le catalogue s'ouvre sur la famille du symbole", "[ui][component]")
     CHECK(table->rowCount() > 0);
     CHECK(table->rowCount() < catalog.count()); // la famille filtre vraiment
 }
+
+TEST_CASE("Le reperage aligne un fil neuf sur le milieu d'un autre", "[ui][tracking]")
+{
+    // Le geste demande : retenir le milieu d'un fil existant, puis tracer un
+    // fil qui s'arrete exactement a son aplomb, loin de toute geometrie.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    // Fil horizontal de 40 a 200 : son milieu est en x = 120.
+    drawWire(folio, { QPointF(40, 60), QPointF(200, 60) });
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.snapEngine().setTrackingEnabled(true);
+    view.snapEngine().setOrthoEnabled(true);
+
+    // L'outil se choisit d'abord : changer d'outil relache les reperes, comme
+    // la fin d'une commande chez AutoCAD.
+    view.setTool(FolioView::Tool::Wire);
+    // Acquisition directe : le survol prolonge est un detail d'interface, la
+    // regle testee ici est ce que le repere fait une fois retenu.
+    view.snapEngine().acquire(QPointF(120, 60), SnapMode::Midpoint);
+    REQUIRE(view.snapEngine().isTracked(QPointF(120, 60)));
+
+    auto click = [&](const QPointF &scene) {
+        const QPointF at = view.mapFromScene(scene);
+        QMouseEvent press(QEvent::MouseButtonPress, at, view.mapToGlobal(at), Qt::LeftButton,
+                          Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(&view, &press);
+    };
+
+    click(QPointF(40, 160));   // depart, a gauche et plus bas
+    // Le second point vise a peu pres l'aplomb du milieu : le reperage doit
+    // le ramener exactement dessus.
+    click(QPointF(122, 161));
+
+    const QPointF right = view.mapFromScene(QPointF(122, 161));
+    QMouseEvent stop(QEvent::MouseButtonPress, right, view.mapToGlobal(right), Qt::RightButton,
+                     Qt::RightButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &stop);
+
+    const Wire *drawn = nullptr;
+    for (const EntityPtr &entity : folio->entities()) {
+        const auto *wire = dynamic_cast<const Wire *>(entity.get());
+        if (wire && wire->points.first() != QPointF(40, 60))
+            drawn = wire;
+    }
+    REQUIRE(drawn);
+    CHECK_THAT(drawn->points.last().x(), WithinAbs(120.0, 1e-9)); // pile a l'aplomb du milieu
+    CHECK_THAT(drawn->points.last().y(), WithinAbs(160.0, 1e-9)); // sur l'horizontale du trace
+
+    // Les reperes appartiennent a la commande : elle finie, ils sont oublies.
+    CHECK(view.snapEngine().trackedPoints().isEmpty());
+}
+
+TEST_CASE("Sans repere acquis, le trace n'est pas devie", "[ui][tracking]")
+{
+    // Le reperage ne doit rien changer tant qu'aucun point n'est retenu :
+    // un alignement surgi de nulle part serait pire que pas d'alignement.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    drawWire(folio, { QPointF(40, 60), QPointF(200, 60) });
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.snapEngine().setTrackingEnabled(true);
+    view.snapEngine().setGridSnapEnabled(false);
+
+    auto click = [&](const QPointF &scene, Qt::MouseButton button) {
+        const QPointF at = view.mapFromScene(scene);
+        QMouseEvent press(QEvent::MouseButtonPress, at, view.mapToGlobal(at), button, button,
+                          Qt::NoModifier);
+        QApplication::sendEvent(&view, &press);
+    };
+
+    view.setTool(FolioView::Tool::Wire);
+    click(QPointF(40, 160), Qt::LeftButton);
+    click(QPointF(122, 160), Qt::LeftButton);
+    click(QPointF(122, 160), Qt::RightButton);
+
+    const Wire *drawn = nullptr;
+    for (const EntityPtr &entity : folio->entities()) {
+        const auto *wire = dynamic_cast<const Wire *>(entity.get());
+        if (wire && wire->points.first() != QPointF(40, 60))
+            drawn = wire;
+    }
+    REQUIRE(drawn);
+    CHECK_THAT(drawn->points.last().x(), WithinAbs(122.0, 1e-9)); // le curseur garde la main
+}
+

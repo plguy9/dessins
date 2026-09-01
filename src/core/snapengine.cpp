@@ -457,4 +457,196 @@ std::optional<SnapHit> SnapEngine::snap(const Folio &folio, const SymbolLibrary 
     return hits.first();
 }
 
+// --------------------------------------------------------------------------
+// Reperage d'accrochage aux objets (OTRACK)
+
+namespace {
+
+// Intersection de deux droites infinies, donnees par un point et un angle en
+// degres ecran. Rien quand elles sont paralleles.
+std::optional<QPointF> lineIntersection(const QPointF &p1, double a1,
+                                        const QPointF &p2, double a2)
+{
+    const double r1 = a1 * std::numbers::pi / 180.0;
+    const double r2 = a2 * std::numbers::pi / 180.0;
+    const QPointF d1(std::cos(r1), std::sin(r1));
+    const QPointF d2(std::cos(r2), std::sin(r2));
+    const double denominator = d1.x() * d2.y() - d1.y() * d2.x();
+    // Deux droites paralleles ne se croisent pas : elles se confondent ou
+    // s'ignorent, et dans les deux cas il n'y a pas de point a designer.
+    if (std::abs(denominator) < 1e-9)
+        return std::nullopt;
+    const QPointF delta = p2 - p1;
+    const double t = (delta.x() * d2.y() - delta.y() * d2.x()) / denominator;
+    return p1 + d1 * t;
+}
+
+// Distance du point a la droite passant par `origin` avec cet angle, et
+// projete du point sur cette droite.
+double distanceToLine(const QPointF &origin, double angleDegrees, const QPointF &point,
+                      QPointF *projection)
+{
+    const double radians = angleDegrees * std::numbers::pi / 180.0;
+    const QPointF direction(std::cos(radians), std::sin(radians));
+    const QPointF delta = point - origin;
+    const double along = delta.x() * direction.x() + delta.y() * direction.y();
+    const QPointF foot = origin + direction * along;
+    if (projection)
+        *projection = foot;
+    const QPointF offset = point - foot;
+    return std::hypot(offset.x(), offset.y());
+}
+
+} // namespace
+
+void SnapEngine::setTrackingEnabled(bool on)
+{
+    m_tracking = on;
+    // Eteindre le reperage oublie les reperes : les garder ferait reapparaitre
+    // des traits d'alignement surgis de nulle part au rallumage.
+    if (!on)
+        m_tracked.clear();
+}
+
+void SnapEngine::acquire(const QPointF &point, SnapMode mode)
+{
+    if (isTracked(point))
+        return;
+    m_tracked.append({ point, mode });
+    while (m_tracked.size() > kMaxTrackedPoints)
+        m_tracked.removeFirst();
+}
+
+void SnapEngine::release(const QPointF &point)
+{
+    m_tracked.removeIf([&](const TrackedPoint &t) { return samePoint(t.point, point); });
+}
+
+void SnapEngine::clearTracked() { m_tracked.clear(); }
+
+void SnapEngine::toggleTracked(const QPointF &point, SnapMode mode)
+{
+    if (isTracked(point))
+        release(point);
+    else
+        acquire(point, mode);
+}
+
+bool SnapEngine::isTracked(const QPointF &point) const
+{
+    return std::any_of(m_tracked.cbegin(), m_tracked.cend(),
+                       [&](const TrackedPoint &t) { return samePoint(t.point, point); });
+}
+
+QVector<double> SnapEngine::trackingAngles() const
+{
+    // Sans suivi polaire, on ne suit que les orthogonales : c'est le reglage
+    // par defaut d'AutoCAD, et sur un schema electrique c'est presque
+    // toujours ce qu'on veut.
+    QVector<double> angles{ 0.0, 90.0, 180.0, 270.0 };
+    if (!m_polar || m_polarIncrement <= 0.0)
+        return angles;
+
+    for (double a = 0.0; a < 360.0 - 1e-9; a += m_polarIncrement) {
+        const double normalized = std::fmod(a + 360.0, 360.0);
+        if (!std::any_of(angles.cbegin(), angles.cend(),
+                         [&](double existing) { return std::abs(existing - normalized) < 1e-6; })) {
+            angles.append(normalized);
+        }
+    }
+    return angles;
+}
+
+std::optional<TrackHit> SnapEngine::track(const QPointF &cursor, double apertureMm,
+                                          const QPointF *from) const
+{
+    if (!m_tracking || !m_objectSnap || m_tracked.isEmpty() || apertureMm <= 0.0)
+        return std::nullopt;
+
+    const QVector<double> angles = trackingAngles();
+    QVector<TrackHit> candidates;
+
+    auto consider = [&](TrackHit hit) {
+        const QPointF delta = hit.point - cursor;
+        hit.distance = std::hypot(delta.x(), delta.y());
+        if (hit.distance <= apertureMm)
+            candidates.append(hit);
+    };
+
+    // 1. Projection sur un chemin d'alignement.
+    for (const TrackedPoint &tracked : m_tracked) {
+        for (double angle : angles) {
+            QPointF projection;
+            if (distanceToLine(tracked.point, angle, cursor, &projection) > apertureMm)
+                continue;
+            TrackHit hit;
+            hit.point = projection;
+            hit.origin = tracked.point;
+            hit.originMode = tracked.mode;
+            consider(hit);
+        }
+    }
+
+    // 2. Croisement de deux chemins issus de reperes differents.
+    for (int i = 0; i < m_tracked.size(); ++i) {
+        for (int j = i + 1; j < m_tracked.size(); ++j) {
+            for (double a1 : angles) {
+                for (double a2 : angles) {
+                    const auto crossing = lineIntersection(m_tracked.at(i).point, a1,
+                                                           m_tracked.at(j).point, a2);
+                    if (!crossing)
+                        continue;
+                    TrackHit hit;
+                    hit.point = *crossing;
+                    hit.origin = m_tracked.at(i).point;
+                    hit.originMode = m_tracked.at(i).mode;
+                    hit.hasSecond = true;
+                    hit.secondOrigin = m_tracked.at(j).point;
+                    hit.secondMode = m_tracked.at(j).mode;
+                    consider(hit);
+                }
+            }
+        }
+    }
+
+    // 3. Croisement avec la direction contrainte du trace en cours. C'est le
+    // geste que le dispositif sert vraiment : « a l'aplomb du milieu de ce
+    // fil, sur ma ligne horizontale ».
+    if (from) {
+        const auto constrained = constrainedAngle(*from, cursor);
+        if (constrained) {
+            for (const TrackedPoint &tracked : m_tracked) {
+                for (double angle : angles) {
+                    const auto crossing = lineIntersection(*from, *constrained,
+                                                           tracked.point, angle);
+                    if (!crossing)
+                        continue;
+                    TrackHit hit;
+                    hit.point = *crossing;
+                    hit.origin = tracked.point;
+                    hit.originMode = tracked.mode;
+                    hit.crossesConstraint = true;
+                    hit.constraintOrigin = *from;
+                    consider(hit);
+                }
+            }
+        }
+    }
+
+    if (candidates.isEmpty())
+        return std::nullopt;
+
+    // Un croisement designe un point unique, une projection seulement une
+    // direction : le croisement gagne meme un peu plus loin du curseur.
+    std::sort(candidates.begin(), candidates.end(), [&](const TrackHit &a, const TrackHit &b) {
+        const double bias = apertureMm * 0.5;
+        const double sa = a.distance + (a.isCrossing() ? 0.0 : bias);
+        const double sb = b.distance + (b.isCrossing() ? 0.0 : bias);
+        if (std::abs(sa - sb) > 1e-9)
+            return sa < sb;
+        return a.distance < b.distance;
+    });
+    return candidates.first();
+}
+
 } // namespace dsn

@@ -221,12 +221,23 @@ QWidget *DraftingSettingsDialog::buildPolarTab()
     m_polarIncrement->setValue(m_engine.polarIncrement());
     form->addRow(tr("Incrément d'angle"), m_polarIncrement);
 
+    m_tracking = new QCheckBox(tr("Repérage d'accrochage aux objets"), box);
+    m_tracking->setToolTip(tr("F11"));
+    m_tracking->setChecked(m_engine.trackingEnabled());
+    form->addRow(m_tracking);
+
     layout->addWidget(box);
 
     auto *note = new QLabel(
             tr("<p style='color:palette(mid)'>Le mode ortho prime sur le repérage polaire, "
                "comme dans AutoCAD. Un accrochage à un objet prime sur les deux : viser une "
-               "broche l'emporte toujours sur la contrainte d'angle.</p>"),
+               "broche l'emporte toujours sur la contrainte d'angle.</p>"
+               "<p style='color:palette(mid)'>Le <b>repérage d'accrochage</b> retient un point "
+               "que l'on survole un instant — le milieu d'un fil, une extrémité — et fait "
+               "partir de lui des traits d'alignement pointillés. On peut alors viser à son "
+               "aplomb, loin de toute géométrie, ou au croisement de deux repères. Survoler "
+               "à nouveau un point retenu l'oublie ; les repères sont relâchés à la fin du "
+               "tracé.</p>"),
             page);
     note->setWordWrap(true);
     layout->addWidget(note);
@@ -238,6 +249,7 @@ SnapEngine DraftingSettingsDialog::engine() const
 {
     SnapEngine result = m_engine;
     result.setObjectSnapEnabled(m_objectSnap->isChecked());
+    result.setTrackingEnabled(m_tracking->isChecked());
     result.setGridSnapEnabled(m_gridSnap->isChecked());
     result.setOrthoEnabled(m_ortho->isChecked());
     result.setPolarEnabled(m_polar->isChecked());

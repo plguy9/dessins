@@ -44,9 +44,17 @@ sont délibérés et documentés dans le code :
   marqueurs normatifs : carré = extrémité, triangle = milieu, cercle =
   centre, cercle barré = nodal, losange = quadrant, croix = intersection.
   Les formes sont aussi normatives que les symboles.
-- **Priorité d'accrochage** : un point du dessin prime sur la contrainte
-  d'angle, qui prime sur la grille. Le classement mêle distance et
-  importance du mode.
+- **Priorité d'accrochage** : un point du dessin prime sur le repérage
+  d'alignement, qui prime sur la contrainte d'angle, qui prime sur la
+  grille. Le classement mêle distance et importance du mode.
+- **Repérage d'accrochage** (OTRACK, F11) — survoler un point un instant le
+  **retient** ; des traits pointillés en partent et le curseur s'y pose.
+  Le cas qui compte est le croisement d'un alignement avec la direction
+  contrainte du tracé : « à l'aplomb du milieu de ce fil, sur ma
+  horizontale ». Un croisement désigne un point, une projection seulement
+  une direction : le croisement gagne même un peu plus loin du curseur.
+  On n'acquiert que pendant une commande, et les repères sont relâchés à
+  la fin — sinon des alignements sans rapport survivraient au geste.
 - **`core/wiretools.*`** — AJUSTER (TRIM) et PROLONGER (EXTEND). Attention :
   un obstacle colinéaire ne « croise » rien géométriquement, or c'est le cas
   courant (prolonger jusqu'à une borne alignée) — traité à part.
@@ -92,7 +100,7 @@ sont délibérés et documentés dans le code :
 - **Sélection fenêtre (bleu plein) vs capture (vert pointillé)**, poignées
   bleues qui rougissent au survol, réticule pleine vue, saisie dynamique.
 - **Touches de fonction** : F3 accrochage objets, F7 grille, F8 ortho,
-  F9 résolution, F10 polaire, F12 paramètres. Portée application, parce
+  F9 résolution, F10 polaire, F11 repérage d'accrochage, F12 paramètres. Portée application, parce
   qu'on lâche une touche de fonction sans regarder où est le curseur.
 
 ## Invariants à ne pas casser

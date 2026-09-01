@@ -53,6 +53,31 @@ FolioView::FolioView(Document *document, QWidget *parent)
         zoomToFit();
         Q_EMIT selectionChanged();
     });
+    // Acquisition au survol. Le delai est celui d'AutoCAD a quelques
+    // dizaines de millisecondes pres : assez court pour que le geste reste
+    // fluide, assez long pour ne pas acquerir en traversant.
+    m_acquireTimer = new QTimer(this);
+    m_acquireTimer->setSingleShot(true);
+    m_acquireTimer->setInterval(350);
+    connect(m_acquireTimer, &QTimer::timeout, this, [this] {
+        if (!m_hoverCandidate || !m_cursorInside)
+            return;
+        // Le curseur doit toujours etre sur le point : sinon l'utilisateur
+        // est deja reparti et acquerir serait une surprise.
+        const auto current = resolveSnap(m_cursorMm);
+        if (!current || !samePoint(current->point, m_hoverCandidate->point))
+            return;
+
+        const bool was = m_snapEngine.isTracked(current->point);
+        m_snapEngine.toggleTracked(current->point, current->mode);
+        Q_EMIT statusMessage(was ? tr("Repère relâché.")
+                                 : tr("Repère acquis : %1. Éloignez le curseur pour "
+                                      "suivre son alignement.")
+                                           .arg(current->label()));
+        m_hoverCandidate.reset();
+        update();
+    });
+
     updateUnconnectedPins();
     updateCrossReferences();
 }
@@ -112,10 +137,49 @@ std::optional<SnapHit> FolioView::resolveSnap(const QPointF &scenePoint) const
                        gestureOrigin(), gestureExclusion());
 }
 
+std::optional<TrackHit> FolioView::resolveTrack(const QPointF &scenePoint) const
+{
+    return m_snapEngine.track(scenePoint, aperture(), gestureOrigin());
+}
+
+void FolioView::updateAcquisition(const QPointF &scenePoint)
+{
+    // Comme chez AutoCAD, on n'acquiert que pendant une commande : hors
+    // commande, le survol accumulerait des reperes que personne n'a demandes.
+    const bool commandRunning = m_tool != Tool::Select || !m_wirePoints.isEmpty()
+            || m_pending != Pending::None || m_stretchArmed;
+    if (!commandRunning || !m_snapEngine.trackingEnabled()
+        || !m_snapEngine.objectSnapEnabled()) {
+        m_hoverCandidate.reset();
+        m_acquireTimer->stop();
+        return;
+    }
+
+    const auto hit = resolveSnap(scenePoint);
+    if (!hit) {
+        m_hoverCandidate.reset();
+        m_acquireTimer->stop();
+        return;
+    }
+
+    // Tant qu'on reste sur le meme point d'accrochage, le compte a rebours
+    // court. Des qu'on en change, il repart : c'est le temps d'arret qui
+    // distingue « je vise ce point » de « je passe dessus ».
+    if (m_hoverCandidate && samePoint(m_hoverCandidate->point, hit->point))
+        return;
+    m_hoverCandidate = hit;
+    m_acquireTimer->start();
+}
+
 QPointF FolioView::snap(const QPointF &scenePoint) const
 {
     if (const auto hit = resolveSnap(scenePoint))
         return hit->point;
+
+    // Un repere d'alignement passe avant la contrainte de direction : il
+    // designe un point, alors que la contrainte ne donne qu'une direction.
+    if (const auto track = resolveTrack(scenePoint))
+        return track->point;
 
     // Sans accrochage a un objet, la contrainte de direction prend la main,
     // puis la grille. L'ordre compte : un point du dessin vaut toujours mieux
@@ -399,6 +463,13 @@ void FolioView::setPendingSymbol(const QString &definitionId)
 
 void FolioView::cancelPending()
 {
+    // Les reperes acquis appartiennent a la commande en cours : les garder
+    // ferait suivre des alignements sans rapport avec le geste suivant.
+    m_snapEngine.clearTracked();
+    m_trackHit.reset();
+    m_hoverCandidate.reset();
+    if (m_acquireTimer)
+        m_acquireTimer->stop();
     m_wirePoints.clear();
     m_drag = Drag::None;
     m_rubber = QRectF();
@@ -890,6 +961,8 @@ void FolioView::commitWire()
     });
 
     m_wirePoints.clear();
+    m_snapEngine.clearTracked();
+    m_trackHit.reset();
     update();
 }
 
@@ -1295,6 +1368,10 @@ void FolioView::mouseMoveEvent(QMouseEvent *event)
     m_cursorMm = scenePoint;
     m_cursorInside = true;
     m_snapHit = resolveSnap(scenePoint);
+    // Le repere d'alignement ne se cherche que faute d'accrochage : un point
+    // du dessin vaut toujours mieux qu'un point calcule.
+    m_trackHit = m_snapHit ? std::nullopt : resolveTrack(scenePoint);
+    updateAcquisition(scenePoint);
     emitCursor();
 
     switch (m_drag) {
@@ -1530,6 +1607,10 @@ void FolioView::resizeEvent(QResizeEvent *event)
 
 void FolioView::leaveEvent(QEvent *event)
 {
+    if (m_acquireTimer)
+        m_acquireTimer->stop();
+    m_hoverCandidate.reset();
+    m_trackHit.reset();
     m_cursorInside = false;
     m_snapHit.reset();
     update();
@@ -1779,6 +1860,69 @@ void FolioView::paintSnapFeedback(QPainter &painter) const
     painter.restore();
 }
 
+void FolioView::paintTracking(QPainter &painter) const
+{
+    const auto &tracked = m_snapEngine.trackedPoints();
+    if (tracked.isEmpty())
+        return;
+
+    // Taille fixee a l'ecran, comme les marqueurs d'accrochage : un repere
+    // doit garder le meme encombrement a tous les zooms.
+    const double size = std::max(m_style.snapMarkerSize * 0.8, 10.0 / m_scale);
+
+    painter.save();
+    // Le marqueur du repere acquis : la petite croix d'AutoCAD. Elle dit
+    // « ce point est retenu », rien de plus, et doit rester discrete.
+    QPen mark(m_style.snapMarker);
+    mark.setWidthF(std::max(0.22, 2.0 / m_scale));
+    painter.setPen(mark);
+    painter.setBrush(Qt::NoBrush);
+    for (const TrackedPoint &point : tracked) {
+        painter.drawLine(point.point + QPointF(-size, 0.0), point.point + QPointF(size, 0.0));
+        painter.drawLine(point.point + QPointF(0.0, -size), point.point + QPointF(0.0, size));
+    }
+
+    // Les traits d'alignement ne se tracent que lorsqu'on est dessus : les
+    // afficher en permanence couvrirait le folio de pointilles.
+    if (m_trackHit) {
+        QPen guide(m_style.snapGuide);
+        guide.setWidthF(std::max(0.12, 1.0 / m_scale));
+        guide.setStyle(Qt::DotLine);
+        painter.setPen(guide);
+
+        auto ray = [&](const QPointF &origin) {
+            // Le trait depasse le point vise : c'est ce prolongement qui
+            // montre qu'il s'agit d'un alignement et non d'un segment.
+            const QPointF delta = m_trackHit->point - origin;
+            const double length = std::hypot(delta.x(), delta.y());
+            if (length < 1e-6)
+                return;
+            const QPointF direction = delta / length;
+            painter.drawLine(origin, m_trackHit->point + direction * (12.0 / m_scale));
+        };
+        ray(m_trackHit->origin);
+        if (m_trackHit->hasSecond)
+            ray(m_trackHit->secondOrigin);
+        if (m_trackHit->crossesConstraint)
+            ray(m_trackHit->constraintOrigin);
+
+        // Marqueur et etiquette au point retenu, comme pour un accrochage :
+        // c'est la meme promesse, « le clic tombera ici ».
+        const double markerSize = std::max(m_style.snapMarkerSize, 13.0 / m_scale);
+        FolioPainter::paintSnapMarker(painter, m_trackHit->originMode, m_trackHit->point,
+                                      markerSize, m_style.snapGuide);
+        painter.setPen(m_style.snapGuide);
+        const QString label = m_trackHit->isCrossing()
+                ? tr("%1 : croisement").arg(snapModeName(m_trackHit->originMode))
+                : tr("%1 : alignement").arg(snapModeName(m_trackHit->originMode));
+        FolioPainter::drawTextMm(painter,
+                                 m_trackHit->point + QPointF(markerSize * 0.85,
+                                                             markerSize * 1.5),
+                                 label, std::max(2.0, 11.0 / m_scale));
+    }
+    painter.restore();
+}
+
 void FolioView::paintRubberBand(QPainter &painter) const
 {
     if (m_drag == Drag::StretchWindow && !m_rubber.isNull()) {
@@ -1918,6 +2062,7 @@ void FolioView::paintEvent(QPaintEvent *event)
     paintPendingWire(painter);
     paintPendingSymbol(painter);
     paintPendingGesture(painter);
+    paintTracking(painter);
     paintSnapFeedback(painter);
     paintRubberBand(painter);
     painter.resetTransform();

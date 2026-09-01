@@ -58,6 +58,13 @@ Les décomptes « déjà en place » de chaque section datent du relevé. Ce qui
 | Base catalogue fabricant, `default_cat.mdb` / `AECATALOG` | `rules/catalog.*` + `catalog/catalogue.json`, embarqué par ressource comme la bibliothèque de symboles, complété par les fichiers du poste. 41 articles de départ (Schneider, Siemens, ABB, Phoenix Contact, Legrand…). |
 | Recherche catalogue depuis le composant, `Catalog Lookup` | `CatalogDialog`, ouverte par le bouton « Chercher… ». Part de la famille du symbole mais laisse en sortir — un catalogue réel ne colle jamais parfaitement à nos familles. La description saisie à la main n'est jamais écrasée. |
 
+**Lot 6 — 2026-09-01**
+
+| Repris d'AutoCAD | Chez nous |
+|---|---|
+| Repérage d'accrochage aux objets, `OTRACK` (F11) | `SnapEngine::acquire` / `track`. Survoler un point d'accrochage un instant le retient ; des traits d'alignement pointillés en partent et le curseur s'y pose. Survoler à nouveau l'oublie. Jusqu'à 7 repères, relâchés à la fin de la commande. |
+| Croisement d'alignements | Deux repères acquis donnent un point précis à l'intersection de leurs chemins ; un repère plus la direction contrainte du tracé aussi — c'est le geste que le dispositif sert vraiment. Un croisement l'emporte sur une simple projection, même un peu plus loin du curseur. |
+
 Reste notamment : gestionnaire de projet multi-dossiers, entrées-sorties API,
 éditeur de borniers, Scoot, Surfer.
 

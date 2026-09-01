@@ -781,9 +781,16 @@ void MainWindow::createDraftingToggles(QMenu *menu)
                                QKeySequence(Qt::Key_F3), engine.objectSnapEnabled(),
                                tr("Accrocher aux extrémités, milieux, centres, broches…"),
                                [this](bool on) { m_view->snapEngine().setObjectSnapEnabled(on); });
+    m_trackingAction = makeToggle(G::Snap, tr("&Repérage d'accrochage"), tr("REPÉRAGE"),
+                                  QKeySequence(Qt::Key_F11), engine.trackingEnabled(),
+                                  tr("Retenir un point survolé et suivre son alignement"),
+                                  [this](bool on) {
+                                      m_view->snapEngine().setTrackingEnabled(on);
+                                      m_view->update();
+                                  });
 
     for (QAction *action : { m_gridSnapAction, m_gridAction, m_orthoAction, m_polarAction,
-                             m_osnapAction })
+                             m_osnapAction, m_trackingAction })
         m_toolBar->addAction(action);
 
     auto *settings = new QAction(Icons::icon(G::Properties), tr("&Paramètres de dessin…"), this);
@@ -802,6 +809,7 @@ void MainWindow::syncDraftingToggles()
     m_orthoAction->setChecked(engine.orthoEnabled());
     m_polarAction->setChecked(engine.polarEnabled());
     m_osnapAction->setChecked(engine.objectSnapEnabled());
+    m_trackingAction->setChecked(engine.trackingEnabled());
     m_gridAction->setChecked(m_view->style().showGrid);
     m_syncingToggles = false;
 

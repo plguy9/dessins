@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(Dessins
-    VERSION 0.2.0
+    VERSION 0.2.1
     DESCRIPTION "Logiciel de dessin electrique"
     LANGUAGES CXX)
 

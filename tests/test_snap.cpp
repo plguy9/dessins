@@ -346,3 +346,124 @@ TEST_CASE("Le mode ortho est allume au depart", "[snap][ortho]")
     CHECK(engine.objectSnapEnabled());
     CHECK(engine.gridSnapEnabled());
 }
+
+// --------------------------------------------------------------------------
+// Reperage d'accrochage aux objets (OTRACK)
+
+TEST_CASE("Un repere acquis aligne le curseur a l'aplomb", "[snap][tracking]")
+{
+    // Le geste que le dispositif sert : on retient le milieu d'un fil, puis
+    // on vise a son aplomb, loin de toute geometrie.
+    SnapEngine engine;
+    engine.acquire(QPointF(100, 50), SnapMode::Midpoint);
+
+    // Curseur presque a l'aplomb, 80 mm plus bas et 1 mm a cote.
+    const auto hit = engine.track(QPointF(101, 130), 4.0);
+    REQUIRE(hit);
+    CHECK_THAT(hit->point.x(), WithinAbs(100.0, 1e-9)); // sur la verticale du repere
+    CHECK_THAT(hit->point.y(), WithinAbs(130.0, 1e-9)); // la profondeur reste au curseur
+    CHECK(hit->origin == QPointF(100, 50));
+    CHECK(hit->originMode == SnapMode::Midpoint);
+    CHECK_FALSE(hit->isCrossing());
+}
+
+TEST_CASE("Loin de tout chemin d'alignement, rien n'est propose", "[snap][tracking]")
+{
+    SnapEngine engine;
+    engine.acquire(QPointF(100, 50), SnapMode::Midpoint);
+    CHECK_FALSE(engine.track(QPointF(140, 130), 4.0).has_value());
+}
+
+TEST_CASE("Le croisement de deux reperes designe un point unique",
+          "[snap][tracking]")
+{
+    // Deux reperes, deux chemins : leur croisement est un point precis, alors
+    // qu'une projection seule ne donne qu'une direction.
+    SnapEngine engine;
+    engine.acquire(QPointF(100, 50), SnapMode::Midpoint);   // verticale x=100
+    engine.acquire(QPointF(30, 140), SnapMode::Endpoint);   // horizontale y=140
+
+    const auto hit = engine.track(QPointF(101, 141), 4.0);
+    REQUIRE(hit);
+    CHECK(hit->isCrossing());
+    CHECK(hit->hasSecond);
+    CHECK_THAT(hit->point.x(), WithinAbs(100.0, 1e-9));
+    CHECK_THAT(hit->point.y(), WithinAbs(140.0, 1e-9));
+}
+
+TEST_CASE("Le croisement avec la direction du trace est le cas utile",
+          "[snap][tracking]")
+{
+    // On trace un fil horizontal depuis (40,200) et on veut s'arreter juste
+    // sous le milieu d'un autre fil, acquis en (120,60).
+    SnapEngine engine;
+    engine.setOrthoEnabled(true);
+    engine.acquire(QPointF(120, 60), SnapMode::Midpoint);
+
+    const QPointF from(40, 200);
+    const auto hit = engine.track(QPointF(122, 201), 4.0, &from);
+    REQUIRE(hit);
+    CHECK(hit->crossesConstraint);
+    CHECK(hit->constraintOrigin == from);
+    // Sur l'horizontale du trace, a l'aplomb du repere.
+    CHECK_THAT(hit->point.x(), WithinAbs(120.0, 1e-9));
+    CHECK_THAT(hit->point.y(), WithinAbs(200.0, 1e-9));
+}
+
+TEST_CASE("Survoler deux fois le meme point l'oublie", "[snap][tracking]")
+{
+    // Comportement d'AutoCAD : le survol acquiert, le survol suivant relache.
+    SnapEngine engine;
+    engine.toggleTracked(QPointF(100, 50), SnapMode::Midpoint);
+    CHECK(engine.isTracked(QPointF(100, 50)));
+    CHECK(engine.trackedPoints().size() == 1);
+
+    engine.toggleTracked(QPointF(100, 50), SnapMode::Midpoint);
+    CHECK_FALSE(engine.isTracked(QPointF(100, 50)));
+    CHECK(engine.trackedPoints().isEmpty());
+}
+
+TEST_CASE("Le nombre de reperes est borne", "[snap][tracking]")
+{
+    // Une vue couverte de traits d'alignement n'aide plus personne : au-dela
+    // de la limite, le plus ancien repere sort.
+    SnapEngine engine;
+    for (int i = 0; i < SnapEngine::kMaxTrackedPoints + 3; ++i)
+        engine.acquire(QPointF(i * 10.0, 50.0), SnapMode::Endpoint);
+
+    CHECK(engine.trackedPoints().size() == SnapEngine::kMaxTrackedPoints);
+    CHECK_FALSE(engine.isTracked(QPointF(0, 50)));       // le premier est sorti
+    CHECK(engine.isTracked(QPointF((SnapEngine::kMaxTrackedPoints + 2) * 10.0, 50.0)));
+}
+
+TEST_CASE("Le reperage eteint n'aligne rien", "[snap][tracking]")
+{
+    SnapEngine engine;
+    engine.acquire(QPointF(100, 50), SnapMode::Midpoint);
+    engine.setTrackingEnabled(false);
+    CHECK_FALSE(engine.track(QPointF(101, 130), 4.0).has_value());
+    // Eteindre oublie les reperes : les garder ferait reapparaitre des traits
+    // surgis de nulle part au rallumage.
+    engine.setTrackingEnabled(true);
+    CHECK(engine.trackedPoints().isEmpty());
+}
+
+TEST_CASE("Sans suivi polaire, seules les orthogonales sont suivies",
+          "[snap][tracking]")
+{
+    SnapEngine engine;
+    engine.setPolarEnabled(false);
+    CHECK(engine.trackingAngles().size() == 4);
+
+    engine.setPolarEnabled(true);
+    engine.setPolarIncrement(45.0);
+    CHECK(engine.trackingAngles().size() == 8);
+
+    // Une diagonale n'est suivie qu'avec le suivi polaire.
+    engine.setPolarEnabled(false);
+    engine.acquire(QPointF(100, 100), SnapMode::Endpoint);
+    CHECK_FALSE(engine.track(QPointF(140, 140), 3.0).has_value());
+    engine.setPolarEnabled(true);
+    engine.acquire(QPointF(100, 100), SnapMode::Endpoint);
+    CHECK(engine.track(QPointF(140, 140), 3.0).has_value());
+}

@@ -10,14 +10,21 @@
 #pragma once
 
 #include <QColor>
+#include <QFont>
 #include <QIcon>
 #include <QString>
 
 class QApplication;
+class QWidget;
 
 namespace dsn {
 
+// Un plan par usage, et un seul. « canvas » est le vide derriere la feuille,
+// « window » le chrome, « surface » les panneaux, « elevated » ce qui flotte
+// au-dessus. Le fond du dessin est plus profond que le chrome : c'est ce qui
+// fait flotter la feuille au lieu de la poser sur un gris etranger.
 struct ThemeColors {
+    QColor canvas;
     QColor window;
     QColor surface;
     QColor elevated;
@@ -25,6 +32,7 @@ struct ThemeColors {
     QColor borderStrong;
     QColor text;
     QColor textMuted;
+    QColor textFaint;
     QColor accent;
     QColor accentHover;
     QColor accentText;
@@ -41,9 +49,29 @@ public:
     static const ThemeColors &colors();
     static bool isDark();
 
-    // Espacements de base, en pixels logiques.
-    static int gap() { return 8; }
+    // Espacements : un seul pas de quatre pixels, multiplie. Toutes les
+    // marges du logiciel en sortent, ce qui donne un rythme vertical unique
+    // d'une boite de dialogue a l'autre.
+    static int space(int steps = 1) { return 4 * steps; }
+    static int gap() { return space(2); }
     static int radius() { return 6; }
+
+    // Fonte d'interface : la premiere disponible d'une liste de fontes
+    // modernes, sinon celle du systeme. Aucune fonte n'a besoin d'etre
+    // installee pour que le logiciel soit correct.
+    static QFont uiFont(int pointSize = 0, int weight = 0);
+
+    // Chasse fixe, pour tout ce qui est chiffre : coordonnees, zoom, cotes,
+    // ligne de commande. Un nombre qui change ne doit pas deplacer ses
+    // voisins.
+    static QFont monoFont(double pointSize = 0.0);
+
+    // Etiquette gravee : petites capitales espacees, en retrait. C'est le
+    // reperage de l'interface — titres de panneaux, en-tetes, sections.
+    static QFont engravedFont(double pointSize = 0.0);
+
+    // Applique la fonte gravee et la propriete de style correspondante.
+    static void engrave(QWidget *widget);
 };
 
 // Icones vectorielles. Chaque icone est un petit programme de trace : elle est

@@ -148,6 +148,45 @@ Nous prenons les deux bouts sans le ruban :
   différentes ne doivent jamais partager un glyphe, sinon la barre d'outils
   devient illisible.
 
+## Le système visuel (`ui/theme.*`)
+
+Tout l'habillage sort d'un seul fichier, et il tient en cinq règles. Elles
+sont vérifiées par des tests (`[ui][theme]`) : ce ne sont pas des goûts.
+
+1. **Quatre plans, dans cet ordre** — `canvas` (le vide derrière la feuille),
+   `window` (le chrome), `surface` (les panneaux), `elevated` (ce qui flotte).
+   Le fond du dessin est **plus profond que le chrome** : c'est ce qui fait
+   flotter la feuille au lieu de la poser sur un gris étranger. Les vignettes
+   de folios et les aperçus de symboles suivent le thème pour la même raison.
+2. **Des filets, pas des boîtes** — un panneau se sépare par une ligne de
+   1 px, jamais par un cadre. Ni les panneaux ancrables, ni les listes, ni
+   les regroupements n'ont de bordure complète.
+3. **Un seul accent, tenu en réserve** — il ne désigne que ce qui est actif
+   ou sélectionné. Le seul aplat coloré du logiciel est le bandeau de l'écran
+   d'accueil, parce qu'il ne contient aucune commande à lire.
+4. **Trois niveaux d'encre** — `text` porte, `textMuted` accompagne,
+   `textFaint` s'efface. Les étiquettes gravées (titres de panneaux,
+   en-têtes, sections) sont au troisième : petites capitales espacées.
+   `Theme::engravedFont()` porte la mise en capitales, car **Qt n'a pas de
+   `text-transform` en feuille de style**.
+5. **Un seul pas d'espacement** — `Theme::space(n)` = 4 n. `ArcusStyle`
+   (un `QProxyStyle`) impose les marges de disposition par le style plutôt
+   que boîte par boîte : une disposition qui ne demande rien respire pareil
+   partout.
+
+Chiffres et coordonnées passent par `Theme::monoFont()` : un nombre qui
+change ne doit pas déplacer ses voisins.
+
+Deux pièges de Qt, payés une fois :
+
+- La feuille de style de l'application déclare un `min-height` pour les
+  boutons, et Qt s'en sert pour **réécrire la taille minimale du widget** :
+  un `setMinimumHeight` posé sur un bouton est effacé sans bruit. Passer par
+  `sizeHint()` et une politique verticale `Fixed` (voir `ActionCard`).
+- Un `font-weight` posé sur `QPushButton:default` rogne le texte : Qt
+  calcule la taille du bouton dans son état normal. Le bouton par défaut se
+  distingue par son aplat, pas par sa graisse.
+
 ## Invariants à ne pas casser
 
 1. **Ce que l'utilisateur a saisi à la main n'est jamais écrasé** par un

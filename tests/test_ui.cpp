@@ -8,6 +8,7 @@
 #include <QLineEdit>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QFontMetricsF>
 #include <QTemporaryDir>
 
 #include "core/documentcommands.h"
@@ -1606,4 +1607,71 @@ TEST_CASE("La palette expose tout ce que les menus offrent", "[ui][palette]")
         CHECK(entry.run != nullptr);
 
     palette->close();
+}
+
+// --------------------------------------------------------------------------
+// Identite visuelle
+
+TEST_CASE("Les plans du theme vont du plus profond au plus clair", "[ui][theme]")
+{
+    // Le fond du dessin passe sous le chrome, et le chrome sous les panneaux :
+    // c'est cet ordre, et lui seul, qui fait flotter la feuille au lieu de la
+    // poser a plat sur un gris etranger. Quelqu'un retouchera une couleur un
+    // jour ; le test dit dans quel ordre elles doivent rester.
+    auto *app = qobject_cast<QApplication *>(QCoreApplication::instance());
+    REQUIRE(app);
+
+    for (const bool dark : { true, false }) {
+        Theme::apply(*app, dark);
+        const ThemeColors &c = Theme::colors();
+        CAPTURE(dark);
+        CHECK(c.dark == dark);
+
+        if (dark) {
+            CHECK(c.canvas.lightness() < c.window.lightness());
+            CHECK(c.window.lightness() < c.surface.lightness());
+            CHECK(c.surface.lightness() <= c.elevated.lightness());
+        } else {
+            // En clair l'echelle est renversee : la feuille est ce qu'il y a
+            // de plus clair, et le fond du canevas ce qu'il y a de plus fonce.
+            CHECK(c.canvas.lightness() < c.window.lightness());
+            CHECK(c.window.lightness() < c.surface.lightness());
+        }
+
+        // Trois niveaux d'encre, dans l'ordre : le texte porte, le retrait
+        // accompagne, l'etiquette gravee s'efface. Deux niveaux qui se
+        // rejoindraient rendraient l'un des deux inutile.
+        const int surface = c.surface.lightness();
+        CHECK(std::abs(c.text.lightness() - surface) > 120);
+        CHECK(std::abs(c.textMuted.lightness() - surface)
+              > std::abs(c.textFaint.lightness() - surface));
+    }
+    Theme::apply(*app, true);
+}
+
+TEST_CASE("L'echelle d'espacement n'a qu'un pas", "[ui][theme]")
+{
+    // Toutes les marges du logiciel sortent d'un seul pas de quatre pixels :
+    // c'est ce qui donne le meme rythme d'une boite de dialogue a l'autre.
+    CHECK(Theme::space() == 4);
+    CHECK(Theme::space(2) == 8);
+    CHECK(Theme::space(5) == 20);
+    CHECK(Theme::gap() == Theme::space(2));
+}
+
+TEST_CASE("L'etiquette gravee est en capitales et espacee", "[ui][theme]")
+{
+    // Qt ne sait pas mettre un texte en capitales depuis une feuille de style :
+    // la mise en capitales passe donc par la fonte, et c'est elle qui doit la
+    // porter — sans quoi chaque appelant devrait y penser.
+    const QFont engraved = Theme::engravedFont();
+    CHECK(engraved.capitalization() == QFont::AllUppercase);
+    CHECK(engraved.letterSpacing() > 0.0);
+    CHECK(engraved.pointSizeF() < Theme::uiFont(10).pointSizeF());
+
+    // Et la chasse fixe est bien fixe : une coordonnee qui change ne doit pas
+    // faire danser celles d'a cote.
+    const QFontMetricsF metrics(Theme::monoFont());
+    CHECK_THAT(metrics.horizontalAdvance(QStringLiteral("0")),
+               WithinAbs(metrics.horizontalAdvance(QStringLiteral("8")), 0.01));
 }

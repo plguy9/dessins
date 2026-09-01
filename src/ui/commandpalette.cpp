@@ -2,11 +2,13 @@
 
 #include "theme.h"
 
+#include <QAbstractItemDelegate>
 #include <QApplication>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QPainter>
 #include <QVBoxLayout>
 
 namespace dsn {
@@ -91,6 +93,105 @@ int CommandPalette::score(const QString &needle, const Entry &entry)
     return -1;
 }
 
+namespace {
+
+// Roles ou vivent les morceaux d'une ligne. Le libelle complet ne suffit pas :
+// le titre, le menu d'origine, le raccourci et la phrase n'ont ni la meme
+// couleur ni la meme place.
+constexpr int kGroupRole = Qt::UserRole + 1;
+constexpr int kShortcutRole = Qt::UserRole + 2;
+constexpr int kDetailRole = Qt::UserRole + 3;
+
+// Le trace d'une ligne de la palette. Trois niveaux de lecture : le titre, le
+// menu ou la commande se trouve, et ce qu'elle fait. Le raccourci est dessine
+// en touche, a droite — c'est la facon de l'apprendre sans le chercher.
+class PaletteDelegate : public QAbstractItemDelegate
+{
+public:
+    using QAbstractItemDelegate::QAbstractItemDelegate;
+
+    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &index) const override
+    {
+        return QSize(320, index.data(kDetailRole).toString().isEmpty() ? 34 : 46);
+    }
+
+    void paint(QPainter *p, const QStyleOptionViewItem &option,
+               const QModelIndex &index) const override
+    {
+        const ThemeColors &c = Theme::colors();
+        const bool enabled = index.flags().testFlag(Qt::ItemIsEnabled);
+        const bool selected = option.state.testFlag(QStyle::State_Selected);
+        const bool hover = option.state.testFlag(QStyle::State_MouseOver);
+
+        p->setRenderHint(QPainter::Antialiasing, true);
+        const QRectF row = QRectF(option.rect).adjusted(4, 1, -4, -1);
+        if (selected || hover) {
+            QColor fill = selected ? c.accent : c.text;
+            fill.setAlpha(selected ? 44 : 16);
+            p->setPen(Qt::NoPen);
+            p->setBrush(fill);
+            p->drawRoundedRect(row, 6, 6);
+        }
+        if (selected) {
+            // Une barre d'accent a gauche : elle designe la ligne meme quand
+            // l'aplat est trop dilue pour se voir sur un ecran mal regle.
+            p->setBrush(c.accent);
+            p->drawRoundedRect(QRectF(row.left() + 2, row.top() + 6, 3, row.height() - 12),
+                               1.5, 1.5);
+        }
+
+        const QString title = index.data(Qt::DisplayRole).toString();
+        const QString group = index.data(kGroupRole).toString();
+        const QString shortcut = index.data(kShortcutRole).toString();
+        const QString detail = index.data(kDetailRole).toString();
+        const bool twoLines = !detail.isEmpty();
+
+        // La touche, a droite : encadree, a chasse fixe, pour qu'elle se lise
+        // comme une touche et non comme du texte.
+        double right = row.right() - 10;
+        if (!shortcut.isEmpty()) {
+            p->setFont(Theme::monoFont(8.5));
+            const int w = p->fontMetrics().horizontalAdvance(shortcut) + 14;
+            const QRectF cap(right - w, row.center().y() - 10, w, 20);
+            p->setPen(QPen(c.border, 1.0));
+            p->setBrush(c.dark ? c.canvas : c.window);
+            p->drawRoundedRect(cap.adjusted(0.5, 0.5, -0.5, -0.5), 4, 4);
+            p->setPen(enabled ? c.textMuted : c.textFaint);
+            p->drawText(cap, Qt::AlignCenter, shortcut);
+            right = cap.left() - 12;
+        }
+
+        const double left = row.left() + 14;
+        const double width = std::max(40.0, right - left);
+        const double titleTop = twoLines ? row.top() + 5 : row.top() + 7;
+
+        p->setFont(Theme::uiFont(10, int(QFont::DemiBold)));
+        p->setPen(enabled ? (selected ? c.accent : c.text) : c.textFaint);
+        const int titleWidth = p->fontMetrics().horizontalAdvance(title);
+        p->drawText(QRectF(left, titleTop, width, 20), Qt::AlignLeft | Qt::AlignVCenter, title);
+
+        if (!group.isEmpty()) {
+            p->setFont(Theme::uiFont(9));
+            p->setPen(c.textFaint);
+            const double x = left + titleWidth + 10;
+            if (x < right - 20) {
+                p->drawText(QRectF(x, titleTop, right - x, 20),
+                            Qt::AlignLeft | Qt::AlignVCenter, group);
+            }
+        }
+
+        if (twoLines) {
+            p->setFont(Theme::uiFont(9));
+            p->setPen(c.textFaint);
+            const QRectF line(left, row.top() + 24, width, 18);
+            p->drawText(line, Qt::AlignLeft | Qt::AlignVCenter,
+                        p->fontMetrics().elidedText(detail, Qt::ElideRight, int(line.width())));
+        }
+    }
+};
+
+} // namespace
+
 CommandPalette::CommandPalette(QWidget *parent)
     : QDialog(parent, Qt::Popup | Qt::FramelessWindowHint)
 {
@@ -110,6 +211,8 @@ CommandPalette::CommandPalette(QWidget *parent)
     m_list = new QListWidget(this);
     m_list->setObjectName(QStringLiteral("paletteList"));
     m_list->setUniformItemSizes(false);
+    m_list->setItemDelegate(new PaletteDelegate(m_list));
+    m_list->setMouseTracking(true);
     m_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     layout->addWidget(m_list, 1);
 
@@ -130,13 +233,10 @@ CommandPalette::CommandPalette(QWidget *parent)
                           "  color: %3; }"
                           "#paletteList { background: transparent; border: none; "
                           "  padding: 6px; }"
-                          "#paletteList::item { padding: 7px 10px; border-radius: 6px; "
-                          "  color: %3; }"
-                          "#paletteList::item:selected { background: %4; color: %5; }"
-                          "#paletteHint { color: %6; padding: 8px; border-top: 1px solid %2; "
+                          "#paletteHint { color: %4; padding: 9px; border-top: 1px solid %2; "
                           "  font-size: 11px; }")
                           .arg(c.elevated.name(), c.border.name(), c.text.name(),
-                               c.accent.name(), c.accentText.name(), c.textMuted.name()));
+                               c.textFaint.name()));
 
     connect(m_search, &QLineEdit::textChanged, this, &CommandPalette::refresh);
     connect(m_list, &QListWidget::itemActivated, this, [this] { runCurrent(); });
@@ -209,12 +309,10 @@ void CommandPalette::refresh()
         const Entry &e = m_entries.at(entry.second);
         m_visible.append(entry.second);
 
-        QString label = e.title;
-        if (!e.group.isEmpty())
-            label = e.group + QStringLiteral("  ›  ") + e.title;
-        if (!e.shortcut.isEmpty())
-            label += QStringLiteral("        ") + e.shortcut;
-        auto *item = new QListWidgetItem(label);
+        auto *item = new QListWidgetItem(e.title);
+        item->setData(kGroupRole, e.group);
+        item->setData(kShortcutRole, e.shortcut);
+        item->setData(kDetailRole, e.detail);
         if (!e.detail.isEmpty())
             item->setToolTip(e.detail);
         // Une commande hors de portee reste visible mais grisee : la cacher

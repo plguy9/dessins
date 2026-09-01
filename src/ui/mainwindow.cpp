@@ -211,30 +211,39 @@ MainWindow::~MainWindow() = default;
 
 void MainWindow::createDocks()
 {
-    auto *paletteDock = new QDockWidget(tr("Symboles"), this);
+    auto *paletteDock = new QDockWidget(tr("Symboles").toUpper(), this);
     paletteDock->setObjectName(QStringLiteral("dock.symbols"));
     m_palette = new SymbolPalette(paletteDock);
     paletteDock->setWidget(m_palette);
     addDockWidget(Qt::LeftDockWidgetArea, paletteDock);
 
-    auto *navigatorDock = new QDockWidget(tr("Folios"), this);
+    auto *navigatorDock = new QDockWidget(tr("Folios").toUpper(), this);
     navigatorDock->setObjectName(QStringLiteral("dock.folios"));
     m_navigator = new FolioNavigator(m_document, navigatorDock);
     navigatorDock->setWidget(m_navigator);
     addDockWidget(Qt::LeftDockWidgetArea, navigatorDock);
 
-    auto *propertiesDock = new QDockWidget(tr("Propriétés"), this);
+    auto *propertiesDock = new QDockWidget(tr("Propriétés").toUpper(), this);
     propertiesDock->setObjectName(QStringLiteral("dock.properties"));
     m_properties = new PropertiesPanel(m_document, propertiesDock);
     propertiesDock->setWidget(m_properties);
     addDockWidget(Qt::RightDockWidgetArea, propertiesDock);
 
-    auto *reportDock = new QDockWidget(tr("Rapports"), this);
+    auto *reportDock = new QDockWidget(tr("Rapports").toUpper(), this);
     reportDock->setObjectName(QStringLiteral("dock.reports"));
     m_reports = new ReportPanel(m_document, reportDock);
     reportDock->setWidget(m_reports);
     addDockWidget(Qt::BottomDockWidgetArea, reportDock);
     reportDock->hide(); // ouvert a la demande : il n'encombre pas le dessin
+
+    // Titres graves : petites capitales espacees, en retrait. La fonte est
+    // posee sur le panneau, puis rendue au contenu — sans quoi la liste de
+    // symboles heriterait des capitales du titre.
+    for (QDockWidget *dock : { paletteDock, navigatorDock, propertiesDock, reportDock }) {
+        dock->setFont(Theme::engravedFont());
+        if (dock->widget())
+            dock->widget()->setFont(Theme::uiFont(10));
+    }
 
     // Largeurs de depart. Les noms de symboles et les titres de folios sont
     // longs : un panneau trop etroit les tronque des le premier affichage.
@@ -244,7 +253,9 @@ void MainWindow::createDocks()
     resizeDocks({ paletteDock, propertiesDock }, { 320, 340 }, Qt::Horizontal);
     resizeDocks({ paletteDock, navigatorDock }, { 3, 2 }, Qt::Vertical);
 
-    m_commandDock = new QDockWidget(tr("Ligne de commande"), this);
+    // Les titres de panneaux sont graves en petites capitales : Qt ne sait
+    // pas mettre en capitales depuis une feuille de style, on le fait ici.
+    m_commandDock = new QDockWidget(tr("Ligne de commande").toUpper(), this);
     m_commandDock->setObjectName(QStringLiteral("dock.command"));
     m_command = new CommandLine(m_commandDock);
     m_commandDock->setWidget(m_command);
@@ -252,6 +263,8 @@ void MainWindow::createDocks()
     // Trois lignes d'historique, comme la ligne de commande d'AutoCAD :
     // elle informe sans manger la place du dessin. Elle reste
     // redimensionnable pour qui veut relire une longue liste.
+    m_commandDock->setFont(Theme::engravedFont());
+    m_command->setFont(Theme::uiFont(10));
     m_commandDock->setMinimumHeight(84);
     m_commandDock->setMaximumHeight(320);
 
@@ -1376,8 +1389,13 @@ void MainWindow::createStatusBar()
     m_zoneLabel = new QLabel(this);
     m_zoomLabel = new QLabel(this);
     m_selectionLabel = new QLabel(this);
+    // Les mesures sont a chasse fixe : le curseur bouge en permanence, et des
+    // chiffres a chasse variable feraient danser toute la barre d'etat.
+    const QFont readout = Theme::monoFont();
     for (QLabel *label : { m_cursorLabel, m_zoneLabel, m_zoomLabel, m_selectionLabel }) {
-        label->setMinimumWidth(110);
+        label->setMinimumWidth(118);
+        label->setFont(readout);
+        label->setProperty("readout", true);
         statusBar()->addPermanentWidget(label);
     }
     m_cursorLabel->setText(QStringLiteral("X 0,0   Y 0,0 mm"));
@@ -1390,7 +1408,9 @@ void MainWindow::createStatusBar()
         if (!action)
             continue;
         auto *button = new QToolButton(this);
-        button->setText(action->data().toString());
+        // Qt n'a pas de « text-transform » en feuille de style : les capitales
+        // de la barre d'etat se posent ici.
+        button->setText(action->data().toString().toUpper());
         button->setToolTip(action->toolTip());
         button->setCheckable(true);
         button->setChecked(action->isChecked());
@@ -1453,13 +1473,18 @@ void MainWindow::applyTheme(bool dark)
     style.showGrid = m_view->style().showGrid;
     style.showPinNumbers = m_view->style().showPinNumbers;
     style.showUnconnectedPins = m_view->style().showUnconnectedPins;
-    // Le pourtour du canevas prend la couleur du chrome : la feuille flotte
-    // alors dans la fenetre au lieu d'etre posee sur un gris etranger.
-    style.pageBackground = Theme::colors().window;
+    // Le pourtour du canevas est le plan le plus profond du theme, un cran
+    // sous le chrome : la feuille flotte alors dans la fenetre au lieu d'y
+    // etre posee a plat. C'est le seul endroit ou l'interface a de la
+    // profondeur, et c'est celui qui compte — le dessin.
+    style.pageBackground = Theme::colors().canvas;
     m_view->setStyle(style);
 
-    // Les apercus de la palette sont redessines dans les couleurs du theme.
+    // Les apercus de la palette et les vignettes de folios sont redessines
+    // dans les couleurs du theme : sans cela, un panneau sombre garderait des
+    // rectangles blancs.
     m_palette->setLibrary(&m_document->project().library);
+    m_navigator->refresh();
 
     QSettings settings;
     settings.setValue(QStringLiteral("ui/darkTheme"), dark);

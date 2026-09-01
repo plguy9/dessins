@@ -1,12 +1,17 @@
 #include "theme.h"
 
 #include <QApplication>
+#include <QFont>
+#include <QFontDatabase>
+#include <QFontInfo>
 #include <QHash>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPalette>
 #include <QPixmap>
+#include <QProxyStyle>
 #include <QStyleFactory>
+#include <QWidget>
 
 namespace dsn {
 
@@ -15,26 +20,38 @@ namespace {
 ThemeColors g_colors;
 bool g_dark = true;
 QHash<int, QIcon> g_iconCache;
+QString g_uiFamily;
+QString g_monoFamily;
 
+// L'echelle de gris est construite comme une echelle, pas choisie teinte par
+// teinte : chaque marche est un pas net au-dessus de la precedente, et la
+// distance entre deux marches voisines est la meme partout. C'est ce qui
+// permet de superposer les plans (fond, panneau, carte, champ) sans jamais
+// avoir a poser une bordure pour les separer.
 ThemeColors darkColors()
 {
     ThemeColors c;
     c.dark = true;
-    // Neutres legerement bleu-vert : ils s'accordent au bleu des conducteurs
-    // sans jamais entrer en concurrence avec la feuille blanche du dessin.
-    c.window = QColor(0x16, 0x19, 0x1B);
-    c.surface = QColor(0x1E, 0x23, 0x25);
-    c.elevated = QColor(0x27, 0x2D, 0x30);
-    c.border = QColor(0x33, 0x3A, 0x3D);
-    c.borderStrong = QColor(0x46, 0x50, 0x54);
-    c.text = QColor(0xE6, 0xEB, 0xE8);
-    c.textMuted = QColor(0x8B, 0x97, 0x99);
-    c.accent = QColor(0x4B, 0x9F, 0xE1);
-    c.accentHover = QColor(0x69, 0xB2, 0xEB);
-    c.accentText = QColor(0x0B, 0x14, 0x18);
-    c.danger = QColor(0xE2, 0x68, 0x5C);
-    c.success = QColor(0x7E, 0xBC, 0x55);
-    c.warning = QColor(0xE0, 0xA3, 0x3C);
+    // Neutres tres legerement bleutes. Le bleu est celui de l'arc de la
+    // marque, dilue a l'extreme : l'interface et l'icone sont de la meme
+    // famille sans que l'interface soit coloree.
+    c.canvas = QColor(0x0A, 0x0D, 0x0F);   // le vide derriere la feuille
+    c.window = QColor(0x11, 0x15, 0x18);   // le chrome
+    c.surface = QColor(0x16, 0x1B, 0x1F);  // les panneaux
+    c.elevated = QColor(0x1E, 0x24, 0x29); // ce qui flotte : menus, boutons
+    c.border = QColor(0x23, 0x2A, 0x30);   // le filet, presque invisible
+    c.borderStrong = QColor(0x39, 0x43, 0x4A);
+    c.text = QColor(0xE9, 0xEE, 0xF1);
+    c.textMuted = QColor(0x87, 0x94, 0x9C);
+    c.textFaint = QColor(0x5C, 0x68, 0x70); // etiquettes gravees, unites
+    // Un seul accent, celui du halo de l'arc. Il ne sert qu'a designer ce qui
+    // est actif ou selectionne : partout ailleurs, du gris.
+    c.accent = QColor(0x1F, 0xA6, 0xE8);
+    c.accentHover = QColor(0x51, 0xBE, 0xF3);
+    c.accentText = QColor(0x04, 0x12, 0x1A);
+    c.danger = QColor(0xE8, 0x6E, 0x60);
+    c.success = QColor(0x74, 0xC1, 0x6A);
+    c.warning = QColor(0xE3, 0xA9, 0x42);
     return c;
 }
 
@@ -42,19 +59,23 @@ ThemeColors lightColors()
 {
     ThemeColors c;
     c.dark = false;
-    c.window = QColor(0xF0, 0xF2, 0xF1);
+    c.canvas = QColor(0xDF, 0xE3, 0xE6);
+    c.window = QColor(0xF2, 0xF4, 0xF6);
     c.surface = QColor(0xFF, 0xFF, 0xFF);
-    c.elevated = QColor(0xF7, 0xF9, 0xF8);
-    c.border = QColor(0xDC, 0xE2, 0xE0);
-    c.borderStrong = QColor(0xBD, 0xC7, 0xC4);
-    c.text = QColor(0x17, 0x1C, 0x1A);
-    c.textMuted = QColor(0x5F, 0x6B, 0x68);
-    c.accent = QColor(0x0A, 0x5C, 0x9E);
-    c.accentHover = QColor(0x0C, 0x6F, 0xBD);
+    c.elevated = QColor(0xFF, 0xFF, 0xFF);
+    c.border = QColor(0xE1, 0xE6, 0xEA);
+    c.borderStrong = QColor(0xBF, 0xC8, 0xCE);
+    c.text = QColor(0x0F, 0x15, 0x19);
+    c.textMuted = QColor(0x5B, 0x69, 0x71);
+    c.textFaint = QColor(0x8A, 0x96, 0x9D);
+    // En clair, l'accent doit tenir sur du blanc : il descend en luminosite
+    // sans changer de teinte, sinon les deux themes n'ont pas la meme marque.
+    c.accent = QColor(0x0B, 0x76, 0xB8);
+    c.accentHover = QColor(0x0D, 0x8B, 0xD6);
     c.accentText = QColor(0xFF, 0xFF, 0xFF);
-    c.danger = QColor(0xC0, 0x39, 0x2B);
-    c.success = QColor(0x3E, 0x7D, 0x2E);
-    c.warning = QColor(0xA9, 0x72, 0x14);
+    c.danger = QColor(0xBF, 0x38, 0x2C);
+    c.success = QColor(0x2F, 0x77, 0x36);
+    c.warning = QColor(0x9C, 0x6B, 0x11);
     return c;
 }
 
@@ -69,6 +90,71 @@ QString rgba(const QColor &color, int alpha)
             .arg(alpha);
 }
 
+// Choisit la premiere fonte reellement installee. On vise en tete les fontes
+// d'interface modernes des trois systemes, puis on retombe sur ce que Qt
+// propose : le logiciel ne doit jamais dependre d'une fonte a installer.
+QString pickFamily(const QStringList &candidates, const QString &fallback)
+{
+    const QStringList available = QFontDatabase::families();
+    for (const QString &name : candidates) {
+        if (available.contains(name, Qt::CaseInsensitive))
+            return name;
+    }
+    return fallback;
+}
+
+void resolveFamilies()
+{
+    if (!g_uiFamily.isEmpty())
+        return;
+    g_uiFamily = pickFamily({ QStringLiteral("Inter"),
+                              QStringLiteral("Segoe UI Variable Text"),
+                              QStringLiteral("Segoe UI"),
+                              QStringLiteral("SF Pro Text"),
+                              QStringLiteral("Noto Sans"),
+                              QStringLiteral("DejaVu Sans") },
+                            QFontDatabase::systemFont(QFontDatabase::GeneralFont).family());
+    // Les chiffres d'un logiciel de CAO defilent : une coordonnee qui change
+    // ne doit pas faire bouger celles d'a cote. D'ou une chasse fixe partout
+    // ou un nombre s'affiche, et jamais ailleurs.
+    g_monoFamily = pickFamily({ QStringLiteral("JetBrains Mono"),
+                                QStringLiteral("Cascadia Mono"),
+                                QStringLiteral("Consolas"),
+                                QStringLiteral("SF Mono"),
+                                QStringLiteral("DejaVu Sans Mono"),
+                                QStringLiteral("Noto Sans Mono") },
+                              QFontDatabase::systemFont(QFontDatabase::FixedFont).family());
+}
+
+// Le rythme du logiciel tient a une seule mesure, et Qt la donne par le
+// style : plutot que de reposer les marges dans chaque boite de dialogue —
+// ou de les oublier dans la moitie —, on les fixe une fois ici. Toute
+// disposition qui ne demande rien de particulier respire alors pareil.
+class ArcusStyle : public QProxyStyle
+{
+public:
+    using QProxyStyle::QProxyStyle;
+
+    int pixelMetric(PixelMetric metric, const QStyleOption *option,
+                    const QWidget *widget) const override
+    {
+        switch (metric) {
+        case PM_LayoutLeftMargin:
+        case PM_LayoutRightMargin:
+        case PM_LayoutTopMargin:
+        case PM_LayoutBottomMargin:
+            return Theme::space(3);
+        case PM_LayoutHorizontalSpacing:
+            return Theme::space(2);
+        case PM_LayoutVerticalSpacing:
+            return Theme::space(2);
+        default:
+            break;
+        }
+        return QProxyStyle::pixelMetric(metric, option, widget);
+    }
+};
+
 QString styleSheet(const ThemeColors &c)
 {
     const int r = Theme::radius();
@@ -78,26 +164,27 @@ QString styleSheet(const ThemeColors &c)
 QWidget {
     background: %WINDOW%;
     color: %TEXT%;
-    font-size: 10pt;
 }
 
 QToolTip {
     background: %ELEVATED%;
     color: %TEXT%;
     border: 1px solid %BORDER%;
-    border-radius: 4px;
-    padding: 5px 8px;
+    border-radius: 6px;
+    padding: 6px 9px;
 }
 
-/* --- barre de menus ------------------------------------------------- */
+/* --- barre de menus --------------------------------------------------
+   Aucun cadre : la barre de menus est du texte pose sur le chrome, et
+   seule la ligne du bas la separe de ce qui suit. */
 QMenuBar {
     background: %WINDOW%;
     border-bottom: 1px solid %BORDER%;
-    padding: 2px 6px;
+    padding: 3px 8px;
 }
 QMenuBar::item {
-    padding: 6px 11px;
-    border-radius: 5px;
+    padding: 6px 12px;
+    border-radius: 6px;
     background: transparent;
 }
 QMenuBar::item:selected { background: %HOVER%; }
@@ -107,34 +194,36 @@ QMenu {
     background: %ELEVATED%;
     border: 1px solid %BORDER%;
     border-radius: %R%px;
-    padding: 6px;
+    padding: 7px 6px;
 }
 QMenu::item {
-    padding: 7px 26px 7px 30px;
-    border-radius: 5px;
+    padding: 7px 30px 7px 32px;
+    border-radius: 6px;
 }
-QMenu::item:selected  { background: %ACCENT%; color: %ACCENTTEXT%; }
-QMenu::item:disabled  { color: %MUTED%; }
-QMenu::separator      { height: 1px; background: %BORDER%; margin: 6px 8px; }
-QMenu::icon           { padding-left: 10px; }
+QMenu::item:selected  { background: %ACCENTSOFT%; color: %ACCENT%; }
+QMenu::item:disabled  { color: %FAINT%; }
+QMenu::separator      { height: 1px; background: %BORDER%; margin: 6px 10px; }
+QMenu::icon           { padding-left: 12px; }
 
-/* --- barres d'outils ------------------------------------------------ */
+/* --- barres d'outils -------------------------------------------------
+   Les boutons n'ont pas de cadre au repos : la barre est une rangee de
+   signes, pas une rangee de boites. Le cadre n'apparait qu'au survol. */
 QToolBar {
     background: %WINDOW%;
     border: none;
     border-bottom: 1px solid %BORDER%;
-    padding: 5px 6px;
-    spacing: 3px;
+    padding: 6px 8px;
+    spacing: 2px;
 }
 QToolBar::separator {
     width: 1px;
     background: %BORDER%;
-    margin: 5px 7px;
+    margin: 6px 8px;
 }
 QToolButton {
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 5px;
+    border-radius: 6px;
     padding: 6px 9px;
     color: %TEXT%;
 }
@@ -142,56 +231,56 @@ QToolButton:hover    { background: %HOVER%; }
 QToolButton:pressed  { background: %ACCENTSOFT%; }
 QToolButton:checked  {
     background: %ACCENTSOFT%;
-    border-color: %ACCENTBORDER%;
     color: %ACCENT%;
 }
-QToolButton:disabled { color: %MUTED%; }
+QToolButton:disabled { color: %FAINT%; }
+QToolButton::menu-indicator { width: 0; height: 0; image: none; }
 
-/* --- panneaux ancrables --------------------------------------------- */
+/* --- panneaux ancrables ----------------------------------------------
+   Le titre est grave dans le panneau, pas pose dessus : petites capitales
+   espacees, aucun fond, un filet dessous. Un panneau n'est plus une boite
+   dans une boite mais une colonne separee par un trait. */
 QDockWidget {
     titlebar-close-icon: none;
     titlebar-normal-icon: none;
-    font-weight: 600;
+    color: %FAINT%;
 }
 QDockWidget::title {
     background: %SURFACE%;
-    border: 1px solid %BORDER%;
-    border-bottom: none;
-    border-top-left-radius: %R%px;
-    border-top-right-radius: %R%px;
-    padding: 8px 10px;
+    border: none;
+    border-bottom: 1px solid %BORDER%;
+    padding: 9px 12px 8px 12px;
     text-align: left;
 }
 QDockWidget > QWidget {
     background: %SURFACE%;
-    border: 1px solid %BORDER%;
-    border-top: none;
-    border-bottom-left-radius: %R%px;
-    border-bottom-right-radius: %R%px;
+    border: none;
 }
 QDockWidget::close-button, QDockWidget::float-button {
     background: transparent;
     border: none;
     padding: 2px;
+    icon-size: 11px;
 }
 QDockWidget::close-button:hover, QDockWidget::float-button:hover {
     background: %HOVER%;
     border-radius: 4px;
 }
 
+/* La rainure entre deux panneaux est un filet, pas une gouttiere. */
 QMainWindow::separator {
-    background: %WINDOW%;
-    width: 6px;
-    height: 6px;
+    background: %BORDER%;
+    width: 1px;
+    height: 1px;
 }
-QMainWindow::separator:hover { background: %ACCENTSOFT%; }
+QMainWindow::separator:hover { background: %ACCENT%; }
 
-/* --- champs de saisie ----------------------------------------------- */
+/* --- champs de saisie ------------------------------------------------ */
 QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QDateEdit, QComboBox {
     background: %FIELD%;
     border: 1px solid %BORDER%;
-    border-radius: 5px;
-    padding: 5px 8px;
+    border-radius: 6px;
+    padding: 6px 9px;
     selection-background-color: %ACCENT%;
     selection-color: %ACCENTTEXT%;
     min-height: 18px;
@@ -202,17 +291,19 @@ QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover, QDateEdit:hover, QComboBo
 QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus,
 QDoubleSpinBox:focus, QDateEdit:focus, QComboBox:focus {
     border-color: %ACCENT%;
+    background: %FIELDFOCUS%;
 }
-QLineEdit:disabled, QComboBox:disabled { color: %MUTED%; background: %WINDOW%; }
+QLineEdit:disabled, QComboBox:disabled { color: %FAINT%; background: %WINDOW%; }
+QLineEdit[readOnly="true"] { color: %MUTED%; background: %WINDOW%; }
 
 QComboBox::drop-down { border: none; width: 22px; }
 QComboBox QAbstractItemView {
     background: %ELEVATED%;
     border: 1px solid %BORDER%;
-    border-radius: 5px;
-    padding: 4px;
-    selection-background-color: %ACCENT%;
-    selection-color: %ACCENTTEXT%;
+    border-radius: 6px;
+    padding: 5px;
+    selection-background-color: %ACCENTSOFT%;
+    selection-color: %ACCENT%;
 }
 QSpinBox::up-button, QSpinBox::down-button,
 QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
@@ -221,24 +312,31 @@ QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
     width: 16px;
 }
 
-/* --- boutons -------------------------------------------------------- */
+/* --- boutons ---------------------------------------------------------
+   Trois niveaux seulement : l'action principale porte l'accent plein, les
+   autres un filet, et les tertiaires rien du tout. */
 QPushButton {
     background: %ELEVATED%;
     border: 1px solid %BORDER%;
-    border-radius: 5px;
-    padding: 7px 16px;
+    border-radius: 6px;
+    padding: 7px 18px;
     min-height: 18px;
 }
 QPushButton:hover   { background: %HOVER%; border-color: %BORDERSTRONG%; }
 QPushButton:pressed { background: %ACCENTSOFT%; }
+/* Le bouton par defaut se distingue par l'aplat d'accent, pas par une
+   graisse : Qt calcule la taille du bouton dans son etat normal, et un texte
+   engraisse a l'affichage se retrouve rogne. */
 QPushButton:default {
     background: %ACCENT%;
     border-color: %ACCENT%;
     color: %ACCENTTEXT%;
-    font-weight: 600;
+    min-width: 76px;
 }
 QPushButton:default:hover { background: %ACCENTHOVER%; border-color: %ACCENTHOVER%; }
-QPushButton:disabled { color: %MUTED%; background: %WINDOW%; }
+QPushButton:disabled { color: %FAINT%; background: %WINDOW%; border-color: %BORDER%; }
+QPushButton:flat { background: transparent; border-color: transparent; }
+QPushButton:flat:hover { background: %HOVER%; }
 
 QCheckBox, QRadioButton { spacing: 8px; padding: 2px 0; }
 QCheckBox::indicator, QRadioButton::indicator {
@@ -254,133 +352,182 @@ QCheckBox::indicator:checked, QRadioButton::indicator:checked {
     border-color: %ACCENT%;
 }
 
-/* --- listes et tableaux --------------------------------------------- */
+/* --- listes et tableaux ----------------------------------------------
+   Pas de lignes zebrees : elles ajoutent du bruit sans rien apprendre.
+   La ligne choisie est designee par un aplat d'accent tres dilue et son
+   texte prend l'accent — c'est la seule couleur de la liste. */
 QListWidget, QListView, QTreeView, QTableWidget, QTableView {
     background: %SURFACE%;
-    border: 1px solid %BORDER%;
-    border-radius: 5px;
-    alternate-background-color: %ELEVATED%;
-    selection-background-color: %ACCENT%;
-    selection-color: %ACCENTTEXT%;
-    padding: 2px;
+    border: none;
+    alternate-background-color: %SURFACE%;
+    selection-background-color: %ACCENTSOFT%;
+    selection-color: %ACCENT%;
+    padding: 3px;
 }
-QListWidget::item, QListView::item {
-    padding: 6px 8px;
-    border-radius: 5px;
-    margin: 1px 2px;
+QListWidget::item, QListView::item, QTreeView::item {
+    padding: 6px 9px;
+    border: none;
+    border-radius: 6px;
+    margin: 1px 3px;
 }
-QListWidget::item:hover, QListView::item:hover { background: %HOVER%; }
-QListWidget::item:selected, QListView::item:selected {
+QListWidget::item:hover, QListView::item:hover, QTreeView::item:hover {
+    background: %HOVER%;
+}
+QListWidget::item:selected, QListView::item:selected, QTreeView::item:selected {
     background: %ACCENTSOFT%;
-    color: %TEXT%;
-    border: 1px solid %ACCENTBORDER%;
+    color: %ACCENT%;
 }
-QTableView::item { padding: 5px 8px; }
-QTableView::item:selected { background: %ACCENTSOFT%; color: %TEXT%; }
+QTableView { gridline-color: %BORDER%; }
+QTableView::item { padding: 5px 8px; border: none; }
+QTableView::item:selected { background: %ACCENTSOFT%; color: %ACCENT%; }
 
+/* L'en-tete est une etiquette gravee, comme les titres de panneaux. */
+QHeaderView { background: %SURFACE%; }
 QHeaderView::section {
-    background: %ELEVATED%;
-    color: %MUTED%;
+    background: %SURFACE%;
+    color: %FAINT%;
     border: none;
     border-bottom: 1px solid %BORDER%;
-    border-right: 1px solid %BORDER%;
-    padding: 7px 9px;
-    font-weight: 600;
+    padding: 8px 9px;
+    font-size: 8pt;
+    font-weight: 700;
 }
-QHeaderView::section:last { border-right: none; }
-QTableCornerButton::section { background: %ELEVATED%; border: none; }
+QHeaderView::section:hover { color: %MUTED%; }
+QTableCornerButton::section { background: %SURFACE%; border: none; }
 
-/* --- onglets -------------------------------------------------------- */
-QTabWidget::pane { border: none; }
+/* --- onglets ---------------------------------------------------------- */
+QTabWidget::pane { border: none; border-top: 1px solid %BORDER%; }
+QTabBar { background: transparent; }
 QTabBar::tab {
     background: transparent;
     color: %MUTED%;
     border: none;
     border-bottom: 2px solid transparent;
-    padding: 8px 14px;
+    padding: 8px 15px;
     margin-right: 2px;
 }
 QTabBar::tab:hover    { color: %TEXT%; }
 QTabBar::tab:selected { color: %ACCENT%; border-bottom-color: %ACCENT%; font-weight: 600; }
 
-/* --- ascenseurs ----------------------------------------------------- */
-QScrollBar:vertical   { background: transparent; width: 11px; margin: 2px; }
-QScrollBar:horizontal { background: transparent; height: 11px; margin: 2px; }
+/* --- ascenseurs -------------------------------------------------------
+   Fins et sans fleches : dans un logiciel de dessin, la molette et le
+   panoramique font le travail ; l'ascenseur n'est qu'un reperage. */
+QScrollBar:vertical   { background: transparent; width: 9px; margin: 3px 2px; }
+QScrollBar:horizontal { background: transparent; height: 9px; margin: 2px 3px; }
 QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
     background: %SCROLL%;
-    border-radius: 4px;
-    min-height: 28px;
-    min-width: 28px;
+    border-radius: 3px;
+    min-height: 32px;
+    min-width: 32px;
 }
 QScrollBar::handle:hover { background: %BORDERSTRONG%; }
 QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
 QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
 
-/* --- divers --------------------------------------------------------- */
+/* --- regroupements ----------------------------------------------------
+   Un groupe se lit a son titre et au filet qui le precede : le cadre
+   complet enfermait chaque reglage dans une boite de plus. La taille de
+   fonte n'est pas touchee ici — Qt la propagerait a tout le contenu du
+   groupe, et les champs deviendraient minuscules. */
 QGroupBox {
-    border: 1px solid %BORDER%;
-    border-radius: %R%px;
-    margin-top: 14px;
-    padding: 12px 10px 10px 10px;
+    border: none;
+    border-top: 1px solid %BORDER%;
+    border-radius: 0;
+    margin-top: 22px;
+    padding: 12px 2px 4px 2px;
     font-weight: 600;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
-    left: 10px;
-    padding: 0 6px;
+    subcontrol-position: top left;
+    left: 0px;
+    padding: 0 10px 0 0;
     color: %MUTED%;
 }
 
+/* --- barre d'etat ------------------------------------------------------ */
 QStatusBar {
     background: %WINDOW%;
     border-top: 1px solid %BORDER%;
     color: %MUTED%;
+    padding: 1px 6px;
 }
 QStatusBar::item { border: none; }
 QStatusBar QLabel { color: %MUTED%; padding: 2px 10px; }
 
+/* Les mesures : chasse fixe et couleur retenue, pour que le chiffre qui
+   change ne fasse pas sauter la ligne. */
+QLabel[readout="true"] {
+    color: %MUTED%;
+    padding: 2px 12px;
+    border-left: 1px solid %BORDER%;
+}
+
 /* Bascules d'aide au dessin, facon barre d'etat AutoCAD : eteintes elles
    s'effacent, allumees elles portent l'accent. */
 QToolButton[statusToggle="true"] {
-    color: %MUTED%;
+    color: %FAINT%;
     background: transparent;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    padding: 3px 9px;
+    border: none;
+    border-radius: 5px;
+    padding: 4px 10px;
     margin: 0 1px;
-    font-size: 8.5pt;
-    font-weight: 600;
-    letter-spacing: 0.4px;
+    font-size: 8pt;
+    font-weight: 700;
 }
 QToolButton[statusToggle="true"]:hover { background: %HOVER%; color: %TEXT%; }
 QToolButton[statusToggle="true"]:checked {
     background: %ACCENTSOFT%;
-    border-color: %ACCENTBORDER%;
     color: %ACCENT%;
 }
 
-QSplitter::handle { background: %WINDOW%; }
-QSplitter::handle:hover { background: %ACCENTSOFT%; }
+QSplitter::handle { background: %BORDER%; }
+QSplitter::handle:horizontal { width: 1px; }
+QSplitter::handle:vertical { height: 1px; }
+QSplitter::handle:hover { background: %ACCENT%; }
+
+/* --- etiquettes gravees -----------------------------------------------
+   Le titre d'une section, d'une colonne ou d'un champ n'est pas du texte :
+   c'est un reperage. Petit, espace, en retrait — il se lit quand on le
+   cherche et disparait quand on lit le contenu. */
+QLabel[engraved="true"] {
+    color: %FAINT%;
+    font-size: 8pt;
+    font-weight: 700;
+    background: transparent;
+}
+QLabel[hint="true"] { color: %MUTED%; }
 
 QLabel { background: transparent; }
 QScrollArea { background: transparent; border: none; }
 QDialog { background: %WINDOW%; }
+QDialogButtonBox { button-layout: 3; }
+QProgressBar {
+    background: %FIELD%;
+    border: 1px solid %BORDER%;
+    border-radius: 4px;
+    height: 6px;
+    text-align: center;
+}
+QProgressBar::chunk { background: %ACCENT%; border-radius: 3px; }
 )")
             .replace(QStringLiteral("%WINDOW%"), hex(c.window))
             .replace(QStringLiteral("%SURFACE%"), hex(c.surface))
             .replace(QStringLiteral("%ELEVATED%"), hex(c.elevated))
-            .replace(QStringLiteral("%FIELD%"), hex(c.dark ? c.window : c.surface))
+            .replace(QStringLiteral("%FIELDFOCUS%"), hex(c.dark ? c.canvas : c.surface))
+            .replace(QStringLiteral("%FIELD%"), hex(c.dark ? c.canvas : c.window))
             .replace(QStringLiteral("%BORDERSTRONG%"), hex(c.borderStrong))
             .replace(QStringLiteral("%BORDER%"), hex(c.border))
             .replace(QStringLiteral("%TEXT%"), hex(c.text))
             .replace(QStringLiteral("%MUTED%"), hex(c.textMuted))
+            .replace(QStringLiteral("%FAINT%"), hex(c.textFaint))
             .replace(QStringLiteral("%ACCENTHOVER%"), hex(c.accentHover))
             .replace(QStringLiteral("%ACCENTTEXT%"), hex(c.accentText))
-            .replace(QStringLiteral("%ACCENTSOFT%"), rgba(c.accent, c.dark ? 46 : 30))
+            .replace(QStringLiteral("%ACCENTSOFT%"), rgba(c.accent, c.dark ? 40 : 28))
             .replace(QStringLiteral("%ACCENTBORDER%"), rgba(c.accent, 130))
             .replace(QStringLiteral("%ACCENT%"), hex(c.accent))
-            .replace(QStringLiteral("%HOVER%"), rgba(c.text, c.dark ? 20 : 16))
-            .replace(QStringLiteral("%SCROLL%"), rgba(c.text, c.dark ? 48 : 52))
+            .replace(QStringLiteral("%HOVER%"), rgba(c.text, c.dark ? 16 : 14))
+            .replace(QStringLiteral("%SCROLL%"), rgba(c.text, c.dark ? 40 : 46))
             .replace(QStringLiteral("%R%"), QString::number(r));
 }
 
@@ -389,24 +536,64 @@ QDialog { background: %WINDOW%; }
 const ThemeColors &Theme::colors() { return g_colors; }
 bool Theme::isDark() { return g_dark; }
 
+QFont Theme::uiFont(int pointSize, int weight)
+{
+    resolveFamilies();
+    QFont font(g_uiFamily);
+    font.setPointSizeF(pointSize <= 0 ? 10.0 : double(pointSize));
+    font.setWeight(QFont::Weight(weight <= 0 ? int(QFont::Normal) : weight));
+    return font;
+}
+
+QFont Theme::monoFont(double pointSize)
+{
+    resolveFamilies();
+    QFont font(g_monoFamily);
+    font.setStyleHint(QFont::Monospace);
+    font.setPointSizeF(pointSize <= 0.0 ? 9.5 : pointSize);
+    return font;
+}
+
+QFont Theme::engravedFont(double pointSize)
+{
+    // Petites capitales espacees. Qt n'a pas de « text-transform » en feuille
+    // de style : la mise en capitales se fait donc dans le code, et seul
+    // l'espacement se regle ici.
+    QFont font = uiFont(0, int(QFont::DemiBold));
+    font.setPointSizeF(pointSize <= 0.0 ? 8.0 : pointSize);
+    font.setLetterSpacing(QFont::AbsoluteSpacing, 0.9);
+    font.setCapitalization(QFont::AllUppercase);
+    return font;
+}
+
+void Theme::engrave(QWidget *widget)
+{
+    if (!widget)
+        return;
+    widget->setProperty("engraved", true);
+    widget->setFont(engravedFont());
+}
+
 void Theme::apply(QApplication &app, bool dark)
 {
     g_dark = dark;
     g_colors = dark ? darkColors() : lightColors();
     Icons::invalidate();
+    resolveFamilies();
 
     // Fusion sert de base : c'est le seul style Qt dont le rendu ne depend pas
     // du bureau, donc le seul qui donne la meme interface sur les trois
     // systemes vises.
-    app.setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+    app.setStyle(new ArcusStyle(QStyleFactory::create(QStringLiteral("Fusion"))));
+    app.setFont(uiFont(10));
 
     QPalette palette;
     palette.setColor(QPalette::Window, g_colors.window);
     palette.setColor(QPalette::WindowText, g_colors.text);
-    palette.setColor(QPalette::Base, dark ? g_colors.window : g_colors.surface);
-    palette.setColor(QPalette::AlternateBase, g_colors.elevated);
+    palette.setColor(QPalette::Base, dark ? g_colors.canvas : g_colors.window);
+    palette.setColor(QPalette::AlternateBase, g_colors.surface);
     palette.setColor(QPalette::Text, g_colors.text);
-    palette.setColor(QPalette::PlaceholderText, g_colors.textMuted);
+    palette.setColor(QPalette::PlaceholderText, g_colors.textFaint);
     palette.setColor(QPalette::Button, g_colors.elevated);
     palette.setColor(QPalette::ButtonText, g_colors.text);
     palette.setColor(QPalette::Highlight, g_colors.accent);
@@ -414,13 +601,14 @@ void Theme::apply(QApplication &app, bool dark)
     palette.setColor(QPalette::ToolTipBase, g_colors.elevated);
     palette.setColor(QPalette::ToolTipText, g_colors.text);
     palette.setColor(QPalette::Link, g_colors.accent);
-    palette.setColor(QPalette::Disabled, QPalette::Text, g_colors.textMuted);
-    palette.setColor(QPalette::Disabled, QPalette::ButtonText, g_colors.textMuted);
-    palette.setColor(QPalette::Disabled, QPalette::WindowText, g_colors.textMuted);
+    palette.setColor(QPalette::Disabled, QPalette::Text, g_colors.textFaint);
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText, g_colors.textFaint);
+    palette.setColor(QPalette::Disabled, QPalette::WindowText, g_colors.textFaint);
     app.setPalette(palette);
 
     app.setStyleSheet(styleSheet(g_colors));
 }
+
 
 // ==========================================================================
 // Icones
@@ -494,7 +682,9 @@ QIcon Icons::appIcon()
 
 QIcon Icons::icon(Glyph glyph, bool dark)
 {
-    return icon(glyph, dark ? QColor(0xE6, 0xEB, 0xE8) : QColor(0x17, 0x1C, 0x1A));
+    // Les deux encres de l'echelle, prises dans la palette : une icone doit
+    // avoir exactement la couleur du texte a cote d'elle.
+    return icon(glyph, dark ? darkColors().text : lightColors().text);
 }
 
 QIcon Icons::icon(Glyph glyph, const QColor &color)

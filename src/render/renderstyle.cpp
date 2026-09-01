@@ -26,20 +26,23 @@ RenderStyle RenderStyle::print()
 RenderStyle RenderStyle::screenDark()
 {
     RenderStyle s;
-    s.pageBackground = QColor(0x14, 0x18, 0x16);
-    s.sheet = QColor(0x1D, 0x22, 0x20);
-    s.sheetShadow = QColor(0, 0, 0, 120);
-    s.grid = QColor(0x2A, 0x31, 0x2E);
-    s.gridMajor = QColor(0x39, 0x42, 0x3E);
-    s.frame = QColor(0xC8, 0xD0, 0xCB);
-    s.symbol = QColor(0xE2, 0xE8, 0xE4);
-    s.text = QColor(0xE2, 0xE8, 0xE4);
-    s.wire = QColor(0x63, 0xB4, 0xEE);
+    // Les neutres du dessin sont ceux du theme : legerement bleutes, jamais
+    // verts. La feuille est nettement plus claire que le fond — c'est ce qui
+    // la fait flotter — et l'ombre est franche pour la meme raison.
+    s.pageBackground = QColor(0x0A, 0x0D, 0x0F);
+    s.sheet = QColor(0x1A, 0x20, 0x24);
+    s.sheetShadow = QColor(0, 0, 0, 160);
+    s.grid = QColor(0x26, 0x2D, 0x33);
+    s.gridMajor = QColor(0x35, 0x3E, 0x45);
+    s.frame = QColor(0xC5, 0xCF, 0xD5);
+    s.symbol = QColor(0xE4, 0xEA, 0xEE);
+    s.text = QColor(0xE4, 0xEA, 0xEE);
+    s.wire = QColor(0x5F, 0xB6, 0xF0);
     s.tag = QColor(0x8F, 0xC9, 0x62);
     s.label = QColor(0xC0, 0x8B, 0x62);
     s.snapMarker = QColor(0xE2, 0xEE, 0x4A);
     s.snapGuide = QColor(0xB4, 0xC4, 0x3A);
-    s.crosshair = QColor(0x6E, 0x7C, 0x7A);
+    s.crosshair = QColor(0x69, 0x77, 0x80);
     s.lightenDarkWires = true;
     return s;
 }

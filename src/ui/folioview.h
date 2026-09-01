@@ -108,6 +108,15 @@ public:
     // qu'on ajoute un conducteur le long d'un existant.
     void beginOffset(double distanceMm);
 
+    // SCOOT : glisser un appareil le long de son fil, sans jamais le
+    // detacher. C'est le geste de correction le plus frequent d'AutoCAD
+    // Electrical, et il est contraint par construction.
+    void beginScoot();
+
+    // DEPLACER UN APPAREIL : librement, mais en emmenant les fils qui s'y
+    // raccordent. Sans eux l'appareil se retrouve debranche en silence.
+    void beginMoveComponent();
+
     // ETIRER : une fenetre de capture, puis deux points. Les sommets pris
     // dans la fenetre suivent, les autres restent — c'est ainsi qu'on
     // rallonge un barreau sans detacher ce qui y est raccorde.
@@ -247,7 +256,18 @@ private:
 
     // Gestes en deux ou trois clics, a la maniere de la ligne de commande
     // d'AutoCAD : la vue attend un point, puis un autre.
-    enum class Pending { None, MoveBase, MoveTarget, OffsetSide, StretchBase, StretchTarget };
+    enum class Pending {
+        None, MoveBase, MoveTarget, OffsetSide, StretchBase, StretchTarget,
+        ScootTarget, ComponentTarget,
+    };
+    // L'appareil designe par Scoot ou par le deplacement d'appareil, et son
+    // point de depart.
+    QString m_componentId;
+    QPointF m_componentStart;
+    std::optional<QPointF> m_scootAxis;
+
+    // Trouve l'appareil a manipuler dans la selection, ou rien.
+    SymbolInstance *selectedComponent() const;
     bool handlePendingClick(const QPointF &scenePoint);
     // Un point designe, par clic ou par cote tapee. Les deux chemins doivent
     // faire exactement la meme chose, sinon dessiner au clavier et dessiner a

@@ -1,5 +1,6 @@
 #include "folioview.h"
 
+#include "core/componenttools.h"
 #include "core/coordinateentry.h"
 #include "core/documentcommands.h"
 #include "core/wiretools.h"
@@ -707,6 +708,62 @@ void FolioView::beginOffset(double distanceMm)
     update();
 }
 
+SymbolInstance *FolioView::selectedComponent() const
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return nullptr;
+    for (const QString &id : m_selection) {
+        if (auto *symbol = dynamic_cast<SymbolInstance *>(folio->entity(id)))
+            return symbol;
+    }
+    return nullptr;
+}
+
+void FolioView::beginScoot()
+{
+    Folio *folio = m_document->currentFolio();
+    SymbolInstance *symbol = selectedComponent();
+    if (!folio || !symbol) {
+        Q_EMIT statusMessage(tr("Glisser : sélectionner d'abord l'appareil à déplacer."));
+        return;
+    }
+
+    m_scootAxis = ComponentTools::scootAxis(*folio, m_document->project().library, *symbol);
+    if (!m_scootAxis) {
+        // Sans axe, Scoot n'a pas de sens : on le dit plutot que de glisser
+        // dans une direction arbitraire.
+        Q_EMIT statusMessage(tr("Glisser : cet appareil n'est raccordé à aucun fil, "
+                                "ou ses fils tirent dans des directions différentes. "
+                                "Utilisez « Déplacer l'appareil »."));
+        return;
+    }
+
+    setTool(Tool::Select);
+    m_componentId = symbol->id();
+    m_componentStart = symbol->placement.position;
+    m_pending = Pending::ScootTarget;
+    Q_EMIT statusMessage(tr("Glisser le long du fil : cliquer la nouvelle position."));
+    update();
+}
+
+void FolioView::beginMoveComponent()
+{
+    SymbolInstance *symbol = selectedComponent();
+    if (!symbol) {
+        Q_EMIT statusMessage(tr("Déplacer l'appareil : sélectionner d'abord un appareil."));
+        return;
+    }
+    setTool(Tool::Select);
+    m_scootAxis.reset();
+    m_componentId = symbol->id();
+    m_componentStart = symbol->placement.position;
+    m_pending = Pending::ComponentTarget;
+    Q_EMIT statusMessage(tr("Déplacer l'appareil : cliquer la nouvelle position. "
+                            "Les fils raccordés suivent."));
+    update();
+}
+
 void FolioView::beginStretch()
 {
     setTool(Tool::Select);
@@ -895,6 +952,35 @@ bool FolioView::handlePendingClick(const QPointF &scenePoint)
         m_pending = Pending::None;
         update();
         return true;
+    case Pending::ScootTarget:
+    case Pending::ComponentTarget: {
+        Folio *folio = m_document->currentFolio();
+        const bool scoot = m_pending == Pending::ScootTarget;
+        m_pending = Pending::None;
+        if (!folio) {
+            update();
+            return true;
+        }
+        QPointF delta = scenePoint - m_componentStart;
+        if (scoot && m_scootAxis)
+            delta = ComponentTools::constrainToAxis(delta, *m_scootAxis);
+        if (!samePoint(delta, QPointF())) {
+            auto command = std::make_unique<MoveComponentCommand>(
+                    m_document->project(), folio->id(), m_componentId, delta,
+                    m_document->project().library);
+            const int attached = command->attachedCount();
+            m_document->push(std::move(command));
+            rebuildGrips();
+            Q_EMIT statusMessage(attached == 0
+                                         ? tr("Appareil déplacé.")
+                                         : tr("Appareil déplacé, %n fil(s) suivi(s).", "",
+                                              attached));
+        }
+        m_scootAxis.reset();
+        m_componentId.clear();
+        update();
+        return true;
+    }
     case Pending::StretchBase:
         m_moveBase = scenePoint;
         m_pending = Pending::StretchTarget;
@@ -1816,6 +1902,49 @@ void FolioView::paintPendingGesture(QPainter &painter) const
             }
         }
         painter.drawLine(m_moveBase, m_moveBase + delta);
+        painter.restore();
+        return;
+    }
+
+    if (m_pending == Pending::ScootTarget || m_pending == Pending::ComponentTarget) {
+        const auto *symbol = dynamic_cast<const SymbolInstance *>(folio->entity(m_componentId));
+        if (!symbol)
+            return;
+        QPointF delta = snap(m_cursorMm) - m_componentStart;
+        if (m_pending == Pending::ScootTarget && m_scootAxis)
+            delta = ComponentTools::constrainToAxis(delta, *m_scootAxis);
+
+        painter.save();
+        QPen pen(m_style.selection);
+        pen.setWidthF(m_style.wireWidth);
+        pen.setStyle(Qt::DashLine);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRect(symbol->boundingBox().translated(delta));
+
+        // Les fils raccordes suivent : l'apercu doit le montrer, sinon on
+        // croit deplacer l'appareil seul.
+        for (const ComponentTools::WireEnd &end :
+             ComponentTools::attachedWireEnds(*folio, m_document->project().library, *symbol)) {
+            const auto *wire = dynamic_cast<const Wire *>(folio->entity(end.wireId));
+            if (!wire)
+                continue;
+            QVector<QPointF> ghost = wire->points;
+            if (end.vertex >= 0 && end.vertex < ghost.size())
+                ghost[end.vertex] += delta;
+            painter.drawPolyline(ghost.constData(), int(ghost.size()));
+        }
+
+        // L'axe de glissement se montre : c'est lui qui explique pourquoi
+        // l'appareil refuse de quitter sa ligne.
+        if (m_pending == Pending::ScootTarget && m_scootAxis) {
+            QPen guide(m_style.snapGuide);
+            guide.setWidthF(std::max(0.12, 1.0 / m_scale));
+            guide.setStyle(Qt::DotLine);
+            painter.setPen(guide);
+            const QPointF reach = *m_scootAxis * (400.0 / m_scale + 60.0);
+            painter.drawLine(m_componentStart - reach, m_componentStart + reach);
+        }
         painter.restore();
         return;
     }

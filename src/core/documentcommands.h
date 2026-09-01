@@ -215,6 +215,38 @@ private:
     QVector<QPair<QString, QVector<int>>> m_targets;
 };
 
+// Deplace un appareil en emmenant les extremites de fil posees sur ses
+// broches. Sans elles, l'appareil se retrouve debranche sans que rien ne le
+// montre : le trace reste beau, la netlist est fausse.
+//
+// Comme pour l'etirement, les sommets concernes sont figes a la construction.
+// Les rechercher a l'annulation les chercherait dans la geometrie deja
+// deplacee, et le retablissement ne rendrait pas le meme dessin.
+class MoveComponentCommand : public Command
+{
+public:
+    MoveComponentCommand(Project &project, QString folioId, QString symbolId, QPointF delta,
+                         const SymbolLibrary &library);
+
+    void redo() override;
+    void undo() override;
+    QString text() const override;
+    bool mergeWith(const Command &other) override;
+
+    // Nombre d'extremites de fil emmenees. Zero signifie un appareil isole :
+    // le deplacement reste valable, il ne traine simplement rien.
+    int attachedCount() const { return int(m_wireEnds.size()); }
+
+private:
+    void apply(const QPointF &delta);
+
+    Project &m_project;
+    QString m_folioId;
+    QString m_symbolId;
+    QPointF m_delta;
+    QVector<QPair<QString, int>> m_wireEnds;
+};
+
 // Renomme un folio : son numero et son titre, ce que porte le cartouche.
 class RenameFolioCommand : public Command
 {

@@ -60,6 +60,9 @@ private:
     // Composants
     void editComponent(const QString &entityId, bool insertion);
     void editSelectedComponent();
+    void surfSelection();
+    // Ouvre le folio voulu et designe l'entite : c'est ce que fait « y aller ».
+    void locate(const QString &folioId, const QString &entityId);
 
     // Symboles
     void newSymbol();
@@ -135,6 +138,9 @@ private:
     QAction *m_offsetAction = nullptr;
     QAction *m_stretchAction = nullptr;
     QAction *m_editComponentAction = nullptr;
+    QAction *m_scootAction = nullptr;
+    QAction *m_moveComponentAction = nullptr;
+    QAction *m_surferAction = nullptr;
     QAction *m_editOnInsertAction = nullptr;
     QAction *m_zoomFitAction = nullptr;
     QAction *m_zoomPreviousAction = nullptr;

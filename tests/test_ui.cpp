@@ -19,6 +19,7 @@
 #include "ui/draftingsettingsdialog.h"
 #include "ui/pagesetupdialog.h"
 #include "ui/reportpanel.h"
+#include "ui/surferdialog.h"
 #include "ui/symbolpalette.h"
 #include "ui/theme.h"
 #include "testhelpers.h"
@@ -1242,3 +1243,127 @@ TEST_CASE("Hors commande, un chiffre reste libre", "[ui][entry]")
     CHECK_FALSE(view.typing());
 }
 
+
+TEST_CASE("Le Surfer liste les autres blocs et les appareils raccordes",
+          "[ui][surfer]")
+{
+    // Un appareil pose sur trois folios, un fil qui repart deux pages plus
+    // loin : sans outil, les retrouver demande de feuilleter le dossier.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *first = document.currentFolio();
+    first->number = QStringLiteral("1");
+    Folio *second = document.project().addFolio(QStringLiteral("Commande"));
+    second->number = QStringLiteral("2");
+
+    auto *coil = placeSymbol(document.project(), first,
+                             QStringLiteral("iec:contactor-power-3p"), QPointF(100, 60));
+    coil->setDesignation(QStringLiteral("-KM1"));
+    coil->deviceGroup = QStringLiteral("km1");
+    auto *contact = placeSymbol(document.project(), second, QStringLiteral("iec:contact-no"),
+                                QPointF(120, 140));
+    contact->setDesignation(QStringLiteral("-KM1"));
+    contact->deviceGroup = QStringLiteral("km1");
+    document.invalidateNetlist();
+
+    const auto sites = SurferDialog::sitesFor(document.project(), document.netlist(),
+                                              coil->id());
+    REQUIRE(sites.size() >= 1);
+    // Le contact de l'autre folio est bien propose, avec son folio.
+    bool foundContact = false;
+    for (const auto &site : sites) {
+        if (site.entityId == contact->id()) {
+            foundContact = true;
+            CHECK(site.folioId == second->id());
+            CHECK(site.title.contains(QStringLiteral("-KM1")));
+        }
+    }
+    CHECK(foundContact);
+
+    // On ne se propose jamais soi-meme : sauter sur place n'aide personne.
+    for (const auto &site : sites)
+        CHECK(site.entityId != coil->id());
+}
+
+TEST_CASE("Le Surfer relie les deux bouts d'un signal", "[ui][surfer]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *first = document.currentFolio();
+    first->number = QStringLiteral("1");
+    Folio *second = document.project().addFolio();
+    second->number = QStringLiteral("2");
+
+    auto arrow = [&](Folio *folio, const QPointF &at, Label::Role role) {
+        auto label = std::make_unique<Label>();
+        label->point = at;
+        label->name = QStringLiteral("CMD");
+        label->role = role;
+        label->scope = Label::Scope::Project;
+        auto *raw = label.get();
+        folio->addEntity(std::move(label));
+        return raw;
+    };
+    Label *source = arrow(first, QPointF(100, 60), Label::Role::Source);
+    Label *destination = arrow(second, QPointF(140, 90), Label::Role::Destination);
+    document.invalidateNetlist();
+
+    const auto sites = SurferDialog::sitesFor(document.project(), document.netlist(),
+                                              source->id());
+    REQUIRE(sites.size() == 1);
+    CHECK(sites.first().entityId == destination->id());
+    CHECK(sites.first().folioId == second->id());
+    CHECK(sites.first().title.contains(QStringLiteral("destination")));
+}
+
+TEST_CASE("Glisser deplace l'appareil le long de son fil seulement",
+          "[ui][scoot]")
+{
+    // C'est la garantie de Scoot : l'appareil ne quitte jamais sa ligne, donc
+    // ne se detache jamais de son circuit.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    auto *symbol = placeSymbol(document.project(), folio, QStringLiteral("iec:fuse"),
+                               QPointF(120, 100));
+    const QString id = symbol->id();
+    // Deux fils horizontaux qui arrivent sur ses broches.
+    const SymbolDefinition *definition =
+            document.project().library.definition(symbol->definitionId);
+    REQUIRE(definition);
+    REQUIRE(definition->pins.size() >= 2);
+    const QPointF pinA = symbol->placement.map(definition->pins.at(0).position);
+    const QPointF pinB = symbol->placement.map(definition->pins.at(1).position);
+    Wire *up = drawWire(folio, { QPointF(pinA.x(), pinA.y() - 50.0), pinA });
+    Wire *down = drawWire(folio, { pinB, QPointF(pinB.x(), pinB.y() + 50.0) });
+    const QString upId = up->id();
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+    view.setSelection({ id });
+    view.beginScoot();
+    REQUIRE(view.hasPendingGesture());
+
+    // On vise en biais : seule la composante sur l'axe doit compter.
+    const QPointF target(symbol->placement.position.x() + 40.0,
+                         symbol->placement.position.y() + 30.0);
+    const QPointF at = view.mapFromScene(target);
+    QMouseEvent press(QEvent::MouseButtonPress, at, view.mapToGlobal(at), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+
+    const auto *moved = dynamic_cast<const SymbolInstance *>(folio->entity(id));
+    REQUIRE(moved);
+    // Les fils sont verticaux : l'appareil n'a bouge qu'en y.
+    CHECK_THAT(moved->placement.position.x(), WithinAbs(120.0, 1e-6));
+    CHECK(moved->placement.position.y() > 100.0);
+
+    // Et le fil du haut s'est allonge au lieu de se detacher.
+    const auto *stretched = dynamic_cast<const Wire *>(folio->entity(upId));
+    REQUIRE(stretched);
+    CHECK_THAT(stretched->points.first().y(), WithinAbs(pinA.y() - 50.0, 1e-6));
+    CHECK(stretched->points.last().y() > pinA.y());
+}

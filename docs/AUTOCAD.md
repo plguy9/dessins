@@ -74,8 +74,16 @@ Les décomptes « déjà en place » de chaque section datent du relevé. Ce qui
 | Coordonnées absolues, relatives et polaires | `#120,80` absolu, `@10,5` et `10,5` relatifs (le défaut de la saisie dynamique), `50<45` polaire. L'ordonnée se saisit vers le haut, comme sur un plan coté. |
 | Autocomplétion de la ligne de commande | La liste montre ce que fait chaque commande et rappelle le nom complet derrière chaque alias : on apprend le répertoire en s'en servant. |
 
+**Lot 8 — 2026-09-01**
+
+| Repris d'AutoCAD | Chez nous |
+|---|---|
+| Scoot, `AESCOOT` | `FolioView::beginScoot`, commande `GLISSER` / `GL`, touche <kbd>G</kbd>. L'appareil glisse le long de ses fils et ne peut pas les quitter : l'axe est déduit des fils raccordés, et affiché en pointillé pendant le geste. Deux fils qui tirent dans des sens différents ne donnent pas d'axe — on le dit plutôt que de glisser au hasard. |
+| Déplacer un composant, `Move Component` | `MoveComponentCommand`, commande `DEPLACERAPPAREIL` / `DA`, <kbd>Maj</kbd>+<kbd>D</kbd>. Déplacement libre, les extrémités de fil posées sur les broches suivent. Un fil qui croise une broche sans y finir ne suit pas : il la croise, il n'y est pas raccordé. |
+| Surfer, `AESURF` | `ui/surferdialog.*`, commande `SURFER` / `SU`, <kbd>F4</kbd>. Liste les autres blocs de l'appareil, les appareils raccordés au même potentiel, et les deux bouts d'un signal — puis y saute en cadrant dessus. Travaille à l'échelle du projet. |
+
 Reste notamment : gestionnaire de projet multi-dossiers, entrées-sorties API,
-éditeur de borniers, Scoot, Surfer.
+éditeur de borniers.
 
 ## Accrochage aux objets (Object Snap / OSNAP) d'AutoCAD — modes d'accrochage, marqueurs AutoSnap et reglages associes
 31 fonctionnalités relevées — **23 déjà en place**, 8 restantes.

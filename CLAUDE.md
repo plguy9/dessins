@@ -79,6 +79,15 @@ sont délibérés et documentés dans le code :
   déplace, se copie et s'annule comme le reste, et le peintre n'apprend rien.
   Les largeurs de colonnes viennent de `FolioPainter::textWidthMm` quand
   l'interface les mesure — `rules/` ne sait qu'estimer.
+- **`core/componenttools.*`** — déplacer un appareil sans le débrancher. Les
+  extrémités de fil posées sur ses broches suivent ; un fil qui **croise** une
+  broche sans y finir ne suit pas. Scoot contraint le déplacement à l'axe des
+  fils raccordés, et ne propose rien quand ils tirent dans des sens
+  différents. Comme pour ÉTIRER, les sommets sont figés à la construction de
+  la commande.
+- **`ui/surferdialog.*`** — le Surfer d'AutoCAD : ce qui est lié à un élément
+  **dans tout le dossier**, et le saut vers là-bas. Il travaille au projet,
+  pas au folio — c'est tout son intérêt.
 - **`ui/componentdialog.*`** — la boîte « Insérer/Éditer composant », la plus
   utilisée d'AutoCAD Electrical. Elle s'ouvre à la pose **et** au double-clic.
   Annuler à l'insertion défait la pose : c'est pour cela qu'elle est ouverte

@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/componenttools.h"
 #include "core/documentcommands.h"
 #include "testhelpers.h"
 
@@ -350,4 +351,130 @@ TEST_CASE("Etirer puis retablir redonne exactement le meme dessin",
     command.undo();
     command.redo();
     CHECK(dynamic_cast<const Wire *>(folio->entity(id))->points == after);
+}
+
+// --------------------------------------------------------------------------
+// Deplacement d'un appareil, fils compris
+
+namespace {
+
+// Un appareil raccorde a gauche et a droite, comme sur un schema reel.
+Project wiredDevice(SymbolInstance **symbolOut, Wire **leftOut, Wire **rightOut)
+{
+    Project project;
+    project.library.insert(twoPinDevice());
+    Folio *folio = project.addFolio();
+    // Broches a -5 et +5 de l'origine du symbole.
+    *symbolOut = placeSymbol(project, folio, QStringLiteral("iec:device"), QPointF(100, 60));
+    *leftOut = drawWire(folio, { QPointF(40, 60), QPointF(95, 60) });
+    *rightOut = drawWire(folio, { QPointF(105, 60), QPointF(180, 60) });
+    return project;
+}
+
+} // namespace
+
+TEST_CASE("Deplacer un appareil emmene les fils qui s'y raccordent",
+          "[commands][component]")
+{
+    // Laisser les fils derriere debranche l'appareil en silence : le trace
+    // reste beau, la netlist est fausse.
+    SymbolInstance *symbol = nullptr;
+    Wire *left = nullptr;
+    Wire *right = nullptr;
+    Project project = wiredDevice(&symbol, &left, &right);
+    Folio *folio = project.folioAt(0);
+    const QString symbolId = symbol->id();
+    const QString leftId = left->id();
+    const QString rightId = right->id();
+
+    MoveComponentCommand command(project, folio->id(), symbolId, QPointF(0, 30),
+                                 project.library);
+    REQUIRE(command.attachedCount() == 2);
+    command.redo();
+
+    CHECK(dynamic_cast<const SymbolInstance *>(folio->entity(symbolId))->placement.position
+          == QPointF(100, 90));
+    // L'extremite raccordee suit, l'autre reste ou elle est : le fil
+    // s'allonge au lieu de se detacher.
+    const auto *movedLeft = dynamic_cast<const Wire *>(folio->entity(leftId));
+    CHECK(movedLeft->points.first() == QPointF(40, 60));
+    CHECK(movedLeft->points.last() == QPointF(95, 90));
+    const auto *movedRight = dynamic_cast<const Wire *>(folio->entity(rightId));
+    CHECK(movedRight->points.first() == QPointF(105, 90));
+    CHECK(movedRight->points.last() == QPointF(180, 60));
+
+    command.undo();
+    CHECK(dynamic_cast<const Wire *>(folio->entity(leftId))->points.last() == QPointF(95, 60));
+}
+
+TEST_CASE("Un appareil isole se deplace seul", "[commands][component]")
+{
+    Project project;
+    project.library.insert(twoPinDevice());
+    Folio *folio = project.addFolio();
+    auto *symbol = placeSymbol(project, folio, QStringLiteral("iec:device"), QPointF(100, 60));
+
+    MoveComponentCommand command(project, folio->id(), symbol->id(), QPointF(20, 0),
+                                 project.library);
+    CHECK(command.attachedCount() == 0);
+    command.redo();
+    CHECK(symbol->placement.position == QPointF(120, 60));
+}
+
+TEST_CASE("Un fil qui croise une broche sans y finir n'est pas emmene",
+          "[commands][component]")
+{
+    // Un fil qui passe au milieu d'une broche la croise, il n'y est pas
+    // raccorde : le tirer avec l'appareil deformerait le schema.
+    Project project;
+    project.library.insert(twoPinDevice());
+    Folio *folio = project.addFolio();
+    auto *symbol = placeSymbol(project, folio, QStringLiteral("iec:device"), QPointF(100, 60));
+    // Ce fil traverse la broche de gauche (95,60) sans s'y arreter.
+    Wire *crossing = drawWire(folio, { QPointF(95, 20), QPointF(95, 120) });
+    const QString crossingId = crossing->id();
+
+    MoveComponentCommand command(project, folio->id(), symbol->id(), QPointF(0, 40),
+                                 project.library);
+    CHECK(command.attachedCount() == 0);
+    command.redo();
+    const auto *untouched = dynamic_cast<const Wire *>(folio->entity(crossingId));
+    CHECK(untouched->points.first() == QPointF(95, 20));
+    CHECK(untouched->points.last() == QPointF(95, 120));
+}
+
+TEST_CASE("L'axe de glissement suit le fil raccorde", "[commands][scoot]")
+{
+    // Scoot ne bouge un appareil que le long de son fil : c'est ce qui
+    // l'empeche de le detacher de son circuit.
+    SymbolInstance *symbol = nullptr;
+    Wire *left = nullptr;
+    Wire *right = nullptr;
+    Project project = wiredDevice(&symbol, &left, &right);
+    Folio *folio = project.folioAt(0);
+
+    const auto axis = ComponentTools::scootAxis(*folio, project.library, *symbol);
+    REQUIRE(axis);
+    CHECK(std::abs(axis->x()) > 0.99);   // horizontal, comme ses deux fils
+    CHECK(std::abs(axis->y()) < 0.01);
+
+    // Un deplacement quelconque est ramene sur l'axe.
+    const QPointF constrained = ComponentTools::constrainToAxis(QPointF(20, 35), *axis);
+    CHECK(constrained.x() == 20.0);
+    CHECK(constrained.y() == 0.0);
+}
+
+TEST_CASE("Deux fils tirant dans des axes differents ne donnent pas d'axe",
+          "[commands][scoot]")
+{
+    // Glisser un appareil raccorde a l'horizontale et a la verticale n'a pas
+    // de direction unique : mieux vaut ne rien contraindre.
+    Project project;
+    project.library.insert(twoPinDevice());
+    Folio *folio = project.addFolio();
+    auto *symbol = placeSymbol(project, folio, QStringLiteral("iec:device"), QPointF(100, 60));
+    drawWire(folio, { QPointF(40, 60), QPointF(95, 60) });    // arrive a l'horizontale
+    drawWire(folio, { QPointF(105, 60), QPointF(105, 120) }); // repart a la verticale
+
+    CHECK_FALSE(ComponentTools::scootAxis(*folio, project.library, *symbol).has_value());
 }

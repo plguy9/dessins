@@ -1,4 +1,5 @@
 #include "documentcommands.h"
+#include "componenttools.h"
 #include "entities.h"
 
 namespace dsn {
@@ -378,6 +379,57 @@ bool StretchEntitiesCommand::mergeWith(const Command &other)
     const auto *o = dynamic_cast<const StretchEntitiesCommand *>(&other);
     if (!o || o->m_folioId != m_folioId || o->m_targets != m_targets)
         return false;
+    m_delta += o->m_delta;
+    return true;
+}
+
+// --------------------------------------------------------------------------
+// MoveComponentCommand
+
+MoveComponentCommand::MoveComponentCommand(Project &project, QString folioId, QString symbolId,
+                                           QPointF delta, const SymbolLibrary &library)
+    : m_project(project), m_folioId(std::move(folioId)), m_symbolId(std::move(symbolId)),
+      m_delta(delta)
+{
+    const Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+    const auto *symbol = dynamic_cast<const SymbolInstance *>(folio->entity(m_symbolId));
+    if (!symbol)
+        return;
+    for (const ComponentTools::WireEnd &end :
+         ComponentTools::attachedWireEnds(*folio, library, *symbol)) {
+        m_wireEnds.append({ end.wireId, end.vertex });
+    }
+}
+
+void MoveComponentCommand::apply(const QPointF &delta)
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+    if (Entity *symbol = folio->entity(m_symbolId))
+        symbol->translate(delta);
+    for (const auto &end : m_wireEnds) {
+        auto *wire = dynamic_cast<Wire *>(folio->entity(end.first));
+        if (wire && end.second >= 0 && end.second < wire->points.size())
+            wire->points[end.second] += delta;
+    }
+}
+
+void MoveComponentCommand::redo() { apply(m_delta); }
+
+void MoveComponentCommand::undo() { apply(-m_delta); }
+
+QString MoveComponentCommand::text() const { return QStringLiteral("Deplacer un appareil"); }
+
+bool MoveComponentCommand::mergeWith(const Command &other)
+{
+    const auto *o = dynamic_cast<const MoveComponentCommand *>(&other);
+    if (!o || o->m_folioId != m_folioId || o->m_symbolId != m_symbolId
+        || o->m_wireEnds != m_wireEnds) {
+        return false;
+    }
     m_delta += o->m_delta;
     return true;
 }

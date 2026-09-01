@@ -18,6 +18,7 @@
 #include "symboleditor.h"
 #include "symbolpalette.h"
 #include "componentdialog.h"
+#include "surferdialog.h"
 #include "wiretypedialog.h"
 #include "theme.h"
 #include "symbols/librarystore.h"
@@ -261,6 +262,7 @@ void MainWindow::createDocks()
                 tr("Cliquez pour poser le symbole. R fait pivoter, M retourne, Échap annule."),
                 6000);
     });
+    connect(m_reports, &ReportPanel::locateRequested, this, &MainWindow::locate);
     connect(m_navigator, &FolioNavigator::pageSetupRequested, this, &MainWindow::editPageSetup);
     connect(m_navigator, &FolioNavigator::statusMessage, this,
             [this](const QString &message) { statusBar()->showMessage(message, 4000); });
@@ -624,6 +626,20 @@ void MainWindow::createActions()
                                  tr("Repère, description, catalogue et rattachement de "
                                     "l'appareil sélectionné"),
                                  &MainWindow::editSelectedComponent);
+    m_scootAction = make(symbolMenu, false, G::Select, tr("&Glisser le long du fil"),
+                         QKeySequence(Qt::Key_G),
+                         tr("Déplacer l'appareil sur son fil, sans jamais le détacher"),
+                         [this] { m_view->beginScoot(); });
+    m_moveComponentAction = make(symbolMenu, false, G::Select, tr("Déplacer l'&appareil"),
+                                 QKeySequence(Qt::SHIFT | Qt::Key_D),
+                                 tr("Déplacer librement : les fils raccordés suivent"),
+                                 [this] { m_view->beginMoveComponent(); });
+    m_surferAction = make(symbolMenu, false, G::Highlight, tr("&Surfer les renvois…"),
+                          QKeySequence(Qt::Key_F4),
+                          tr("Lister ce qui est lié à la sélection dans tout le dossier, "
+                             "et y aller"),
+                          &MainWindow::surfSelection);
+    symbolMenu->addSeparator();
     m_editOnInsertAction = new QAction(tr("Éditer le composant à l'&insertion"), this);
     m_editOnInsertAction->setCheckable(true);
     m_editOnInsertAction->setStatusTip(
@@ -693,6 +709,46 @@ void MainWindow::editSelectedComponent()
         }
     }
     statusBar()->showMessage(tr("Sélectionner un appareil pour l'éditer"), 4000);
+}
+
+void MainWindow::surfSelection()
+{
+    QString target;
+    for (const QString &id : m_view->selection()) {
+        target = id;
+        break;
+    }
+    if (target.isEmpty()) {
+        statusBar()->showMessage(tr("Surfer : sélectionner d'abord un élément"), 4000);
+        return;
+    }
+
+    SurferDialog dialog(m_document, target, this);
+    connect(&dialog, &SurferDialog::locateRequested, this, &MainWindow::locate);
+    if (!dialog.hasSites()) {
+        statusBar()->showMessage(tr("Rien de lié à cet élément dans le dossier"), 5000);
+        return;
+    }
+    dialog.exec();
+}
+
+void MainWindow::locate(const QString &folioId, const QString &entityId)
+{
+    const int index = m_document->project().indexOf(folioId);
+    if (index < 0)
+        return;
+    m_document->setCurrentFolioIndex(index);
+    // La selection vient apres le changement de folio : la vue vide la sienne
+    // en changeant de page.
+    m_view->setSelection({ entityId });
+    if (const Folio *folio = m_document->project().folio(folioId)) {
+        if (const Entity *entity = folio->entity(entityId)) {
+            // On cadre autour de l'element plutot que de laisser l'utilisateur
+            // le chercher : sauter sans montrer ne sert a rien.
+            m_view->zoomToRect(entity->boundingBox().adjusted(-40, -30, 40, 30));
+        }
+    }
+    m_view->setFocus();
 }
 
 void MainWindow::newSymbol()
@@ -998,6 +1054,14 @@ void MainWindow::registerCommands()
     simple(QStringLiteral("ETIRER"), { QStringLiteral("ETI") },
            tr("Étirer les sommets pris dans une fenêtre de capture"),
            [this] { m_view->beginStretch(); });
+    simple(QStringLiteral("GLISSER"), { QStringLiteral("GL"), QStringLiteral("SC") },
+           tr("Glisser un appareil le long de son fil"), [this] { m_view->beginScoot(); });
+    simple(QStringLiteral("DEPLACERAPPAREIL"), { QStringLiteral("DA") },
+           tr("Déplacer un appareil avec ses fils"),
+           [this] { m_view->beginMoveComponent(); });
+    simple(QStringLiteral("SURFER"), { QStringLiteral("SU") },
+           tr("Lister les renvois de la sélection et y aller"),
+           [this] { surfSelection(); });
     simple(QStringLiteral("COMPOSANT"), { QStringLiteral("CO2"), QStringLiteral("EDC") },
            tr("Éditer l'appareil sélectionné"), [this] { editSelectedComponent(); });
     simple(QStringLiteral("POSERRAPPORT"), { QStringLiteral("PRA") },
@@ -1186,6 +1250,9 @@ void MainWindow::showCanvasContextMenu(const QPoint &globalPos)
         menu.addAction(m_deleteAction);
         menu.addSeparator();
         menu.addAction(m_editComponentAction);
+        menu.addAction(m_scootAction);
+        menu.addAction(m_moveComponentAction);
+        menu.addAction(m_surferAction);
         menu.addAction(m_moveAction);
         menu.addAction(m_rotateAction);
         menu.addAction(m_mirrorAction);

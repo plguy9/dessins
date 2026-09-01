@@ -13,6 +13,7 @@ add_library(dessins_ui STATIC
     ladderdialog.h    ladderdialog.cpp
     wiretypedialog.h  wiretypedialog.cpp
     componentdialog.h componentdialog.cpp
+    surferdialog.h    surferdialog.cpp
     mainwindow.h      mainwindow.cpp
 )
 

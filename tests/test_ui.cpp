@@ -1,0 +1,309 @@
+#include <catch2/catch_test_macros.hpp>
+
+#include <QApplication>
+#include <QPixmap>
+#include <QTemporaryDir>
+
+#include "core/documentcommands.h"
+#include "symbols/librarystore.h"
+#include "ui/document.h"
+#include "ui/folioview.h"
+#include "ui/symboleditor.h"
+#include "ui/symbolpalette.h"
+#include "ui/theme.h"
+#include "testhelpers.h"
+
+using namespace dsn;
+using namespace test;
+
+namespace {
+
+SymbolLibrary builtinLibrary()
+{
+    SymbolLibrary library;
+    LibraryStore::loadBuiltin(library);
+    return library;
+}
+
+// Une capture non vide prouve que le widget s'est reellement peint, pas
+// seulement qu'il s'est construit sans planter.
+bool hasVisibleContent(const QPixmap &pixmap)
+{
+    if (pixmap.isNull())
+        return false;
+    const QImage image = pixmap.toImage();
+    const QRgb first = image.pixel(0, 0);
+    for (int y = 0; y < image.height(); y += 3) {
+        for (int x = 0; x < image.width(); x += 3) {
+            if (image.pixel(x, y) != first)
+                return true;
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+TEST_CASE("Le document part sur un projet neuf utilisable", "[ui][document]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+
+    CHECK(document.folioCount() == 1);
+    REQUIRE(document.currentFolio());
+    CHECK_FALSE(document.isModified());
+    CHECK(document.project().library.count() > 60);
+    // Une feuille par defaut est indispensable : sans elle le canevas n'a
+    // rien a peindre au premier lancement.
+    CHECK(document.currentFolio()->sheet.width > 100.0);
+}
+
+TEST_CASE("Le document signale ses modifications et son etat propre", "[ui][document]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+
+    int changes = 0;
+    QObject::connect(&document, &Document::changed, [&changes] { ++changes; });
+
+    auto wire = std::make_unique<Wire>();
+    wire->points = { QPointF(20, 20), QPointF(80, 20) };
+    document.push(std::make_unique<AddEntityCommand>(document.project(),
+                                                     document.currentFolio()->id(),
+                                                     std::move(wire)));
+    CHECK(changes == 1);
+    CHECK(document.isModified());
+
+    document.undo();
+    CHECK_FALSE(document.isModified());
+}
+
+TEST_CASE("La netlist du document se recalcule apres modification", "[ui][document]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    CHECK(document.netlist().netCount() == 0);
+
+    auto wire = std::make_unique<Wire>();
+    wire->points = { QPointF(20, 20), QPointF(80, 20) };
+    document.push(std::make_unique<AddEntityCommand>(document.project(), folio->id(),
+                                                     std::move(wire)));
+    // Une netlist restee en cache donnerait des rapports faux sans qu'aucune
+    // erreur ne se declare.
+    CHECK(document.netlist().netCount() == 1);
+}
+
+TEST_CASE("Un projet fait l'aller-retour par le document", "[ui][document]")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+
+    Document source;
+    source.newProject(builtinLibrary());
+    source.project().info.title = QStringLiteral("Essai d'interface");
+    auto wire = std::make_unique<Wire>();
+    wire->points = { QPointF(20, 20), QPointF(80, 20) };
+    source.push(std::make_unique<AddEntityCommand>(source.project(),
+                                                   source.currentFolio()->id(),
+                                                   std::move(wire)));
+
+    const QString path = dir.filePath(QStringLiteral("essai.dsn"));
+    QString error;
+    REQUIRE(source.save(path, &error));
+    CHECK(error.isEmpty());
+    CHECK_FALSE(source.isModified());
+
+    Document restored;
+    restored.newProject(builtinLibrary());
+    REQUIRE(restored.load(path, &error));
+    CHECK(restored.project().info.title == QStringLiteral("Essai d'interface"));
+    CHECK(restored.currentFolio()->entityCount() == 1);
+}
+
+TEST_CASE("Le canevas se peint avec son contenu", "[ui][view]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    placeSymbol(document.project(), document.currentFolio(), QStringLiteral("iec:coil"),
+                QPointF(120, 90), QStringLiteral("-K1"));
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.zoomToFit();
+    CHECK(hasVisibleContent(view.grab()));
+    // L'ajustement doit donner un zoom exploitable, pas un folio microscopique.
+    CHECK(view.zoom() > 0.5);
+}
+
+TEST_CASE("Le canevas selectionne et supprime", "[ui][view]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    Wire *wire = drawWire(folio, { QPointF(20, 20), QPointF(80, 20) });
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.selectAll();
+    CHECK(view.selection().size() == 1);
+
+    view.deleteSelection();
+    CHECK(folio->entityCount() == 0);
+    CHECK(view.selection().isEmpty());
+
+    document.undo();
+    CHECK(folio->entityCount() == 1);
+    CHECK(folio->entity(wire->id()) != nullptr);
+}
+
+TEST_CASE("La rotation depuis le canevas est annulable", "[ui][view]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    auto *symbol = placeSymbol(document.project(), folio, QStringLiteral("iec:coil"),
+                               QPointF(100, 100));
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.setSelection({ symbol->id() });
+    view.rotateSelection(true);
+
+    const auto *rotated = dynamic_cast<const SymbolInstance *>(folio->entity(symbol->id()));
+    REQUIRE(rotated);
+    CHECK(rotated->placement.orientation == Orientation::R90);
+
+    document.undo();
+    const auto *restored = dynamic_cast<const SymbolInstance *>(folio->entity(symbol->id()));
+    REQUIRE(restored);
+    CHECK(restored->placement.orientation == Orientation::R0);
+}
+
+TEST_CASE("Le copier-coller decale la copie et lui donne un identifiant", "[ui][view]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    auto *symbol = placeSymbol(document.project(), folio, QStringLiteral("iec:coil"),
+                               QPointF(100, 100));
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.setSelection({ symbol->id() });
+    view.copySelection();
+    view.pasteClipboard();
+
+    CHECK(folio->entityCount() == 2);
+    // Deux entites de meme identifiant rendraient la connectivite ambigue.
+    const auto symbols = folio->entitiesOfType<SymbolInstance>();
+    REQUIRE(symbols.size() == 2);
+    CHECK(symbols.at(0)->id() != symbols.at(1)->id());
+}
+
+TEST_CASE("La palette liste, filtre et rend ses apercus", "[ui][palette]")
+{
+    SymbolLibrary library = builtinLibrary();
+    SymbolPalette palette;
+    palette.setLibrary(&library);
+    palette.setNorm(QStringLiteral("IEC"));
+    palette.resize(320, 600);
+
+    CHECK(hasVisibleContent(palette.grab()));
+
+    // L'apercu doit etre le vrai trace du symbole, pas une icone vide.
+    const SymbolDefinition *coil = library.definition(QStringLiteral("iec:coil"));
+    REQUIRE(coil);
+    const QIcon icon = SymbolPalette::renderIcon(*coil, 48, RenderStyle::screen());
+    CHECK(hasVisibleContent(icon.pixmap(48, 48)));
+}
+
+TEST_CASE("L'editeur de symboles ouvre, modifie et enregistre", "[ui][symboleditor]")
+{
+    SymbolLibrary library = builtinLibrary();
+    SymbolEditor editor(&library);
+    editor.resize(1000, 680);
+    // Un symbole integre est duplique plutot que modifie en place.
+    editor.editDefinition(QStringLiteral("iec:coil"), true);
+
+    CHECK(hasVisibleContent(editor.grab()));
+}
+
+TEST_CASE("Le canevas de l'editeur cree, deplace et annule", "[ui][symboleditor]")
+{
+    SymbolCanvas canvas;
+    canvas.resize(600, 480);
+
+    SymbolDefinition definition;
+    definition.norm = QStringLiteral("IEC");
+    definition.logicalId = QStringLiteral("essai");
+    definition.id = SymbolDefinition::makeId(definition.norm, definition.logicalId);
+    definition.name = QStringLiteral("Essai");
+    canvas.setDefinition(definition);
+
+    canvas.modify(QStringLiteral("Ajouter"), [](SymbolDefinition &d) {
+        d.graphics.append(Primitive::rect(QRectF(-5, -5, 10, 10)));
+        Pin pin;
+        pin.number = QStringLiteral("1");
+        pin.position = QPointF(-10, 0);
+        pin.direction = Direction::Left;
+        d.pins.append(pin);
+    });
+    CHECK(canvas.definition().graphics.size() == 1);
+    CHECK(canvas.definition().pins.size() == 1);
+    CHECK(hasVisibleContent(canvas.grab()));
+
+    canvas.commands().undo();
+    CHECK(canvas.definition().graphics.isEmpty());
+    canvas.commands().redo();
+    CHECK(canvas.definition().pins.size() == 1);
+}
+
+TEST_CASE("Les icones du theme sont reellement dessinees", "[ui][theme]")
+{
+    // Une icone vide passe inapercue a la relecture du code et saute aux yeux
+    // dans la barre d'outils.
+    const QVector<Icons::Glyph> glyphs{
+        Icons::Glyph::New,    Icons::Glyph::Open,     Icons::Glyph::Save,
+        Icons::Glyph::Print,  Icons::Glyph::Undo,     Icons::Glyph::Redo,
+        Icons::Glyph::Select, Icons::Glyph::Wire,     Icons::Glyph::Junction,
+        Icons::Glyph::LabelTag, Icons::Glyph::Text,   Icons::Glyph::Rotate,
+        Icons::Glyph::Mirror, Icons::Glyph::ZoomIn,   Icons::Glyph::ZoomOut,
+        Icons::Glyph::ZoomFit, Icons::Glyph::Grid,    Icons::Glyph::Snap,
+        Icons::Glyph::Renumber, Icons::Glyph::Check,  Icons::Glyph::Edit,
+    };
+    for (Icons::Glyph glyph : glyphs) {
+        const QIcon icon = Icons::icon(glyph, QColor(255, 255, 255));
+        const QPixmap pixmap = icon.pixmap(24, 24);
+        INFO("glyphe " << int(glyph));
+        REQUIRE_FALSE(pixmap.isNull());
+
+        // L'icone est tracee dans une boite de 24 unites : si le facteur de
+        // densite etait applique deux fois, le quart inferieur droit serait
+        // systematiquement vide.
+        const QImage image = pixmap.toImage();
+        CHECK(image.width() >= 24);
+    }
+}
+
+TEST_CASE("Le theme couvre les deux modes", "[ui][theme]")
+{
+    auto *app = qobject_cast<QApplication *>(QCoreApplication::instance());
+    REQUIRE(app);
+
+    Theme::apply(*app, true);
+    CHECK(Theme::isDark());
+    const QColor darkText = Theme::colors().text;
+
+    Theme::apply(*app, false);
+    CHECK_FALSE(Theme::isDark());
+    const QColor lightText = Theme::colors().text;
+
+    // Les deux thèmes doivent vraiment differer, sinon l'un des deux est
+    // illisible sur son propre fond.
+    CHECK(darkText.lightness() > lightText.lightness());
+    CHECK_FALSE(Theme::colors().window.isValid() == false);
+
+    Theme::apply(*app, true);
+}

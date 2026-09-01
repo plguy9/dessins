@@ -26,6 +26,13 @@ public:
     virtual EntityType type() const = 0;
     virtual QString typeTag() const = 0;
     virtual std::unique_ptr<Entity> clone() const = 0;
+
+    // Recopie l'etat d'une autre entite du meme type dans celle-ci, sans
+    // changer d'objet. Les commandes d'annulation s'en servent pour restaurer
+    // un etat : remplacer l'objet invaliderait tous les pointeurs detenus par
+    // les vues et les panneaux, ce qui est une source de plantage silencieux.
+    // Renvoie faux si l'autre entite n'est pas du meme type.
+    virtual bool assign(const Entity &other) = 0;
     virtual QRectF boundingBox() const = 0;
     virtual void translate(const QPointF &delta) = 0;
 

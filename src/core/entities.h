@@ -23,6 +23,7 @@ public:
     EntityType type() const override { return EntityType::Symbol; }
     QString typeTag() const override { return QStringLiteral("symbol"); }
     EntityPtr clone() const override;
+    bool assign(const Entity &other) override;
     QRectF boundingBox() const override;
     void translate(const QPointF &delta) override;
     QJsonObject toJson() const override;
@@ -66,6 +67,7 @@ public:
     EntityType type() const override { return EntityType::Wire; }
     QString typeTag() const override { return QStringLiteral("wire"); }
     EntityPtr clone() const override;
+    bool assign(const Entity &other) override;
     QRectF boundingBox() const override;
     void translate(const QPointF &delta) override;
     QJsonObject toJson() const override;
@@ -97,6 +99,7 @@ public:
     EntityType type() const override { return EntityType::Junction; }
     QString typeTag() const override { return QStringLiteral("junction"); }
     EntityPtr clone() const override;
+    bool assign(const Entity &other) override;
     QRectF boundingBox() const override;
     void translate(const QPointF &delta) override;
     QJsonObject toJson() const override;
@@ -116,6 +119,7 @@ public:
     EntityType type() const override { return EntityType::Text; }
     QString typeTag() const override { return QStringLiteral("text"); }
     EntityPtr clone() const override;
+    bool assign(const Entity &other) override;
     QRectF boundingBox() const override;
     void translate(const QPointF &delta) override;
     QJsonObject toJson() const override;
@@ -138,6 +142,7 @@ public:
     EntityType type() const override { return EntityType::Graphic; }
     QString typeTag() const override { return QStringLiteral("graphic"); }
     EntityPtr clone() const override;
+    bool assign(const Entity &other) override;
     QRectF boundingBox() const override;
     void translate(const QPointF &delta) override;
     QJsonObject toJson() const override;
@@ -163,6 +168,7 @@ public:
     EntityType type() const override { return EntityType::Label; }
     QString typeTag() const override { return QStringLiteral("label"); }
     EntityPtr clone() const override;
+    bool assign(const Entity &other) override;
     QRectF boundingBox() const override;
     void translate(const QPointF &delta) override;
     QJsonObject toJson() const override;

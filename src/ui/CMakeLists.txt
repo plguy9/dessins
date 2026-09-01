@@ -1,10 +1,12 @@
 add_library(dessins_ui STATIC
+    theme.h           theme.cpp
     document.h        document.cpp
     folioview.h       folioview.cpp
     symbolpalette.h   symbolpalette.cpp
     propertiespanel.h propertiespanel.cpp
     folionavigator.h  folionavigator.cpp
     reportpanel.h     reportpanel.cpp
+    symboleditor.h    symboleditor.cpp
     mainwindow.h      mainwindow.cpp
 )
 

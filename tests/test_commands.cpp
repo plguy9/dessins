@@ -182,6 +182,45 @@ TEST_CASE("La modification d'une entite se rejoue par instantane", "[command]")
     CHECK(dynamic_cast<Wire *>(folio->entity(wire->id()))->number.isEmpty());
 }
 
+TEST_CASE("Une modification garde l'entite au meme emplacement memoire", "[command]")
+{
+    Project project;
+    Folio *folio = project.addFolio();
+    CommandStack stack;
+
+    Wire *wire = drawWire(folio, { QPointF(0, 0), QPointF(10, 0) });
+    const Wire *address = wire;
+
+    for (int i = 0; i < 3; ++i) {
+        auto before = wire->clone();
+        auto after = wire->clone();
+        static_cast<Wire *>(after.get())->number = QStringLiteral("W%1").arg(i);
+        stack.push(std::make_unique<ModifyEntityCommand>(project, folio->id(), std::move(before),
+                                                         std::move(after)));
+        // Les vues et les panneaux detiennent des pointeurs vers les entites
+        // qu'ils editent. Remplacer l'objet a chaque modification les
+        // invaliderait, et le plantage n'arriverait qu'a la modification
+        // suivante — loin de sa cause.
+        CHECK(folio->entity(wire->id()) == address);
+        CHECK(wire->number == QStringLiteral("W%1").arg(i));
+    }
+
+    stack.undo();
+    CHECK(folio->entity(wire->id()) == address);
+    CHECK(wire->number == QLatin1String("W1"));
+}
+
+TEST_CASE("La recopie d'etat refuse un type different", "[command]")
+{
+    Wire wire;
+    wire.points = { QPointF(0, 0), QPointF(10, 0) };
+    Junction junction;
+    // Recopier une jonction dans un fil produirait un objet incoherent :
+    // le refus doit etre explicite, pas silencieux.
+    CHECK_FALSE(wire.assign(junction));
+    CHECK(wire.points.size() == 2);
+}
+
 TEST_CASE("Le retrait d'un folio restaure son contenu", "[command]")
 {
     Project project;

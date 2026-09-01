@@ -34,6 +34,9 @@ SymbolPalette::SymbolPalette(QWidget *parent) : QWidget(parent)
     m_list->setUniformItemSizes(false);
     m_list->setAlternatingRowColors(true);
     m_list->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_list->setTextElideMode(Qt::ElideRight);
+    m_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_list->setWordWrap(false);
     layout->addWidget(m_list, 1);
 
     connect(m_search, &QLineEdit::textChanged, this, &SymbolPalette::rebuildList);

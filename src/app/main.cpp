@@ -1,10 +1,12 @@
 #include "ui/mainwindow.h"
+#include "ui/theme.h"
 
 #include <QApplication>
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QLocale>
 #include <QPixmap>
+#include <QSettings>
 #include <QTimer>
 
 int main(int argc, char *argv[])
@@ -14,6 +16,11 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("Dessins"));
     QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0"));
     QApplication::setApplicationDisplayName(QStringLiteral("Dessins"));
+
+    // Le theme est pose avant la premiere fenetre : sans cela le premier
+    // affichage clignote au style du systeme avant de basculer.
+    QSettings settings;
+    dsn::Theme::apply(app, settings.value(QStringLiteral("ui/darkTheme"), true).toBool());
 
     QCommandLineParser parser;
     parser.setApplicationDescription(

@@ -124,6 +124,7 @@ private:
     void paintPendingSymbol(QPainter &painter) const;
     void paintSnapMarker(QPainter &painter) const;
     void paintRubberBand(QPainter &painter) const;
+    void paintEmptyHint(QPainter &painter, const Folio &folio) const;
 
     void updateUnconnectedPins();
     void emitCursor();

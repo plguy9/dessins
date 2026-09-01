@@ -1016,6 +1016,40 @@ void FolioView::paintEvent(QPaintEvent *event)
     paintPendingSymbol(painter);
     paintSnapMarker(painter);
     paintRubberBand(painter);
+    painter.resetTransform();
+    paintEmptyHint(painter, *folio);
+}
+
+void FolioView::paintEmptyHint(QPainter &painter, const Folio &folio) const
+{
+    // Un folio vide n'apprend rien a qui ouvre le logiciel pour la premiere
+    // fois. Deux lignes suffisent a indiquer par ou commencer, et elles
+    // disparaissent des le premier element pose.
+    if (folio.entityCount() > 0 || !m_pendingSymbol.isEmpty())
+        return;
+
+    const QRectF area(0, height() * 0.62, width(), height() * 0.3);
+    QFont title = font();
+    title.setPointSizeF(font().pointSizeF() * 1.5);
+    title.setWeight(QFont::DemiBold);
+
+    QColor strong = m_style.text;
+    strong.setAlpha(190);
+    QColor faint = m_style.text;
+    faint.setAlpha(120);
+
+    painter.setFont(title);
+    painter.setPen(strong);
+    painter.drawText(QRectF(area.left(), area.top(), area.width(), 30),
+                     Qt::AlignHCenter | Qt::AlignTop, tr("Ce folio est vide"));
+
+    painter.setFont(font());
+    painter.setPen(faint);
+    painter.drawText(
+            QRectF(area.left(), area.top() + 34, area.width(), 60),
+            Qt::AlignHCenter | Qt::AlignTop,
+            tr("Choisissez un symbole dans la palette pour le poser,\n"
+               "ou appuyez sur W pour tracer un fil."));
 }
 
 } // namespace dsn

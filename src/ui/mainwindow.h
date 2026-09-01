@@ -4,6 +4,7 @@
 #include "document.h"
 #include "folioview.h"
 
+#include <QHash>
 #include <QMainWindow>
 
 class QLabel;
@@ -51,8 +52,13 @@ private:
     void setProfile(const QString &profileId);
     void checkSchematic();
 
+    // Symboles
+    void newSymbol();
+    void editCurrentSymbol(bool asCopy);
+
     // Affichage
     void applyTheme(bool dark);
+    void refreshIcons();
 
     bool maybeSave();
     QString suggestedFileName(const QString &extension) const;
@@ -73,7 +79,9 @@ private:
     QAction *m_redoAction = nullptr;
     QAction *m_darkAction = nullptr;
     QList<QAction *> m_toolActions;
-    bool m_dark = false;
+    QHash<QAction *, int> m_actionGlyphs; // action -> Icons::Glyph, pour le rehabillage
+    class QToolBar *m_toolBar = nullptr;
+    bool m_dark = true;
 };
 
 } // namespace dsn

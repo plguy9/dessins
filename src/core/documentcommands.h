@@ -69,6 +69,8 @@ public:
     void setMergeId(int id) { m_mergeId = id; }
 
 private:
+    void apply(const EntityPtr &state);
+
     Project &m_project;
     QString m_folioId;
     EntityPtr m_before;

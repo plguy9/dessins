@@ -78,21 +78,23 @@ ModifyEntityCommand::ModifyEntityCommand(Project &project, QString folioId, Enti
         m_text = QStringLiteral("Modifier un element");
 }
 
-void ModifyEntityCommand::redo()
+void ModifyEntityCommand::apply(const EntityPtr &state)
 {
     Folio *folio = m_project.folio(m_folioId);
-    if (!folio || !m_after)
+    if (!folio || !state)
         return;
-    folio->replaceEntity(m_after->clone());
+    // L'etat est recopie dans l'entite existante plutot que de la remplacer :
+    // les vues et les panneaux gardent des pointeurs vers elle, et les
+    // invalider provoquerait un plantage a la modification suivante.
+    if (Entity *target = folio->entity(state->id()))
+        target->assign(*state);
+    else
+        folio->addEntity(state->clone());
 }
 
-void ModifyEntityCommand::undo()
-{
-    Folio *folio = m_project.folio(m_folioId);
-    if (!folio || !m_before)
-        return;
-    folio->replaceEntity(m_before->clone());
-}
+void ModifyEntityCommand::redo() { apply(m_after); }
+
+void ModifyEntityCommand::undo() { apply(m_before); }
 
 bool ModifyEntityCommand::mergeWith(const Command &other)
 {

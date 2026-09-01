@@ -1,0 +1,80 @@
+name: Compilation et tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  linux:
+    name: Linux — Qt 6, GCC
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Qt 6, Catch2 et zlib
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            qt6-base-dev qt6-svg-dev libgl1-mesa-dev \
+            catch2 ninja-build zlib1g-dev
+
+      - name: Configurer
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compiler
+        run: cmake --build build
+
+      # La plateforme « offscreen » permet de peindre sans serveur graphique :
+      # le rendu et les fenetres restent donc couverts en integration continue,
+      # au lieu d'etre le seul endroit du logiciel que personne ne verifie.
+      - name: Tester
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Vérifier la chaîne complète sur le projet d'exemple
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          ./build/bin/dessins_sample /tmp/exemple
+          test -s /tmp/exemple/demarrage-direct.dsn
+          test -s /tmp/exemple/demarrage-direct.pdf
+          test -s /tmp/exemple/nomenclature.csv
+          test -s /tmp/exemple/demarrage-direct-1.dxf
+          # Une fenetre qui ne se monte plus passe inapercue a la compilation.
+          ./build/bin/dessins --screenshot=/tmp/exemple/fenetre.png \
+                              /tmp/exemple/demarrage-direct.dsn
+          test -s /tmp/exemple/fenetre.png
+
+      - name: Conserver les sorties
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sorties-exemple
+          path: /tmp/exemple
+          if-no-files-found: ignore
+
+  bibliotheque:
+    name: Bibliothèque de symboles
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # Les fichiers de libraries/ sont la source de verite. Le generateur ne
+      # sert qu'a les amorcer : s'il diverge, c'est lui qu'il faut corriger.
+      - name: Vérifier que les symboles sont du JSON valide
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, sys
+          total = 0
+          for path in sorted(pathlib.Path('libraries').rglob('*.json')):
+              data = json.loads(path.read_text(encoding='utf-8'))
+              assert data.get('format') == 'dessins-symbol-library', path
+              for symbol in data['symbols']:
+                  for key in ('id', 'logicalId', 'norm', 'name', 'category'):
+                      assert symbol.get(key), (path, key)
+                  assert symbol.get('pins'), ('symbole sans broche', symbol['id'])
+                  total += 1
+          print('%d symboles valides' % total)
+          assert total >= 60
+          PY

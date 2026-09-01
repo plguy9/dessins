@@ -25,6 +25,8 @@ FolioNavigator::FolioNavigator(Document *document, QWidget *parent)
     m_list = new QListWidget(this);
     m_list->setIconSize(QSize(kThumbWidth, kThumbWidth * 3 / 4));
     m_list->setSpacing(2);
+    m_list->setTextElideMode(Qt::ElideRight);
+    m_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     layout->addWidget(m_list, 1);
 
     auto *buttons = new QHBoxLayout;

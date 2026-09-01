@@ -23,3 +23,16 @@ target_link_libraries(dessins_tests PRIVATE
 
 include(Catch)
 catch_discover_tests(dessins_tests)
+
+# --------------------------------------------------------------------------
+# Tests d'interface. Ils construisent de vraies fenetres, donc un binaire
+# separe avec QApplication plutot que QGuiApplication.
+if(TARGET dessins_ui)
+    add_executable(dessins_ui_tests
+        uimain.cpp
+        test_ui.cpp
+    )
+    set_target_properties(dessins_ui_tests PROPERTIES AUTOMOC ON)
+    target_link_libraries(dessins_ui_tests PRIVATE dessins_ui Catch2::Catch2)
+    catch_discover_tests(dessins_ui_tests)
+endif()

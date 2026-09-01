@@ -9,7 +9,9 @@
 #include "render/pdfexport.h"
 #include "reportpanel.h"
 #include "rules/numbering.h"
+#include "symboleditor.h"
 #include "symbolpalette.h"
+#include "theme.h"
 #include "symbols/librarystore.h"
 
 #include <QActionGroup>
@@ -29,6 +31,7 @@
 #include <QPlainTextEdit>
 #include <QPrintDialog>
 #include <QPrinter>
+#include <QPushButton>
 #include <QSettings>
 #include <QStatusBar>
 #include <QToolBar>
@@ -67,6 +70,8 @@ public:
         form->addRow(tr("Notes"), m_notes);
 
         auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+        buttons->button(QDialogButtonBox::Ok)->setText(tr("Appliquer"));
+        buttons->button(QDialogButtonBox::Cancel)->setText(tr("Annuler"));
         form->addRow(buttons);
         connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
         connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
@@ -137,7 +142,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     connect(m_document, &Document::undoStateChanged, this, &MainWindow::updateActions);
     connect(m_document, &Document::currentFolioChanged, this, &MainWindow::updateTitle);
 
-    resize(1500, 950);
+    // Le theme est applique en dernier : il redessine les icones et
+    // reharmonise le fond du canevas avec le chrome de la fenetre.
+    QSettings settings;
+    const bool dark = settings.value(QStringLiteral("ui/darkTheme"), true).toBool();
+    m_darkAction->blockSignals(true);
+    m_darkAction->setChecked(dark);
+    m_darkAction->blockSignals(false);
+    applyTheme(dark);
+
+    resize(1560, 980);
     updateTitle();
     updateActions();
 
@@ -178,6 +192,14 @@ void MainWindow::createDocks()
     addDockWidget(Qt::BottomDockWidgetArea, reportDock);
     reportDock->hide(); // ouvert a la demande : il n'encombre pas le dessin
 
+    // Largeurs de depart. Les noms de symboles et les titres de folios sont
+    // longs : un panneau trop etroit les tronque des le premier affichage.
+    paletteDock->setMinimumWidth(260);
+    navigatorDock->setMinimumWidth(260);
+    propertiesDock->setMinimumWidth(280);
+    resizeDocks({ paletteDock, propertiesDock }, { 320, 340 }, Qt::Horizontal);
+    resizeDocks({ paletteDock, navigatorDock }, { 3, 2 }, Qt::Vertical);
+
     connect(m_palette, &SymbolPalette::symbolChosen, this, [this](const QString &id) {
         m_view->setPendingSymbol(id);
         statusBar()->showMessage(
@@ -192,108 +214,139 @@ void MainWindow::createDocks()
 
 void MainWindow::createActions()
 {
-    // ---- Fichier -------------------------------------------------------
-    QMenu *fileMenu = menuBar()->addMenu(tr("&Fichier"));
-    auto *fileBar = addToolBar(tr("Fichier"));
-    fileBar->setObjectName(QStringLiteral("toolbar.file"));
+    using G = Icons::Glyph;
 
-    auto addAction = [&](QMenu *menu, QToolBar *bar, const QString &text,
-                         const QKeySequence &shortcut, auto slot) {
-        auto *action = new QAction(text, this);
+    // Une seule barre d'outils, en icones, groupee par separateurs. Trois
+    // barres empilees mangent une bande de fenetre que le dessin utilise mieux.
+    m_toolBar = addToolBar(tr("Barre d'outils"));
+    m_toolBar->setObjectName(QStringLiteral("toolbar.main"));
+    m_toolBar->setIconSize(QSize(20, 20));
+    m_toolBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    m_toolBar->setMovable(false);
+    m_toolBar->setFloatable(false);
+
+    // L'action porte son glyphe : au changement de theme, on redessine les
+    // icones sans reconstruire les menus.
+    auto make = [&](QMenu *menu, bool onToolBar, G glyph, const QString &text,
+                    const QKeySequence &shortcut, const QString &tip, auto slot) {
+        auto *action = new QAction(Icons::icon(glyph), text, this);
         if (!shortcut.isEmpty())
             action->setShortcut(shortcut);
+        if (!tip.isEmpty()) {
+            action->setToolTip(shortcut.isEmpty()
+                                       ? tip
+                                       : QStringLiteral("%1  ·  %2").arg(tip,
+                                                 shortcut.toString(QKeySequence::NativeText)));
+            action->setStatusTip(tip);
+        }
         connect(action, &QAction::triggered, this, slot);
         if (menu)
             menu->addAction(action);
-        if (bar)
-            bar->addAction(action);
+        if (onToolBar)
+            m_toolBar->addAction(action);
+        m_actionGlyphs.insert(action, int(glyph));
         return action;
     };
 
-    addAction(fileMenu, fileBar, tr("&Nouveau"), QKeySequence::New, &MainWindow::newProject);
-    addAction(fileMenu, fileBar, tr("&Ouvrir…"), QKeySequence::Open, &MainWindow::openProject);
-    addAction(fileMenu, fileBar, tr("&Enregistrer"), QKeySequence::Save,
-              [this] { saveProject(); });
-    addAction(fileMenu, nullptr, tr("Enregistrer &sous…"), QKeySequence::SaveAs,
-              [this] { saveProjectAs(); });
+    // ---- Fichier -------------------------------------------------------
+    QMenu *fileMenu = menuBar()->addMenu(tr("&Fichier"));
+    make(fileMenu, true, G::New, tr("&Nouveau projet"), QKeySequence::New,
+         tr("Créer un projet vide"), &MainWindow::newProject);
+    make(fileMenu, true, G::Open, tr("&Ouvrir…"), QKeySequence::Open,
+         tr("Ouvrir un projet .dsn"), &MainWindow::openProject);
+    make(fileMenu, true, G::Save, tr("&Enregistrer"), QKeySequence::Save,
+         tr("Enregistrer le projet"), [this] { saveProject(); });
+    make(fileMenu, false, G::Save, tr("Enregistrer &sous…"), QKeySequence::SaveAs,
+         tr("Enregistrer sous un autre nom"), [this] { saveProjectAs(); });
     fileMenu->addSeparator();
-    addAction(fileMenu, nullptr, tr("Exporter en &PDF…"), QKeySequence(),
-              &MainWindow::exportPdf);
-    addAction(fileMenu, nullptr, tr("Exporter en &DXF…"), QKeySequence(),
-              &MainWindow::exportDxf);
-    addAction(fileMenu, nullptr, tr("Exporter le rapport en &CSV…"), QKeySequence(),
-              &MainWindow::exportCurrentReport);
-    addAction(fileMenu, nullptr, tr("Im&primer…"), QKeySequence::Print,
-              &MainWindow::printProject);
+    make(fileMenu, false, G::ExportPdf, tr("Exporter en &PDF…"), QKeySequence(),
+         tr("Le dossier complet, un folio par page"), &MainWindow::exportPdf);
+    make(fileMenu, false, G::ExportDxf, tr("Exporter en &DXF…"), QKeySequence(),
+         tr("Un fichier DXF par folio, pour AutoCAD"), &MainWindow::exportDxf);
+    make(fileMenu, false, G::ExportCsv, tr("Exporter le rapport en &CSV…"), QKeySequence(),
+         tr("Le rapport affiché, pour un tableur"), &MainWindow::exportCurrentReport);
+    make(fileMenu, true, G::Print, tr("Im&primer…"), QKeySequence::Print,
+         tr("Imprimer le dossier"), &MainWindow::printProject);
     fileMenu->addSeparator();
-    addAction(fileMenu, nullptr, tr("&Quitter"), QKeySequence::Quit, [this] { close(); });
+    make(fileMenu, false, G::Delete, tr("&Quitter"), QKeySequence::Quit, QString(),
+         [this] { close(); });
+
+    m_toolBar->addSeparator();
 
     // ---- Edition -------------------------------------------------------
     QMenu *editMenu = menuBar()->addMenu(tr("&Édition"));
-    m_undoAction = addAction(editMenu, nullptr, tr("&Annuler"), QKeySequence::Undo,
-                             [this] { m_document->undo(); });
-    m_redoAction = addAction(editMenu, nullptr, tr("&Rétablir"), QKeySequence::Redo,
-                             [this] { m_document->redo(); });
+    m_undoAction = make(editMenu, true, G::Undo, tr("&Annuler"), QKeySequence::Undo,
+                        tr("Annuler la dernière action"), [this] { m_document->undo(); });
+    m_redoAction = make(editMenu, true, G::Redo, tr("&Rétablir"), QKeySequence::Redo,
+                        tr("Rétablir l'action annulée"), [this] { m_document->redo(); });
     editMenu->addSeparator();
-    addAction(editMenu, nullptr, tr("&Copier"), QKeySequence::Copy,
-              [this] { m_view->copySelection(); });
-    addAction(editMenu, nullptr, tr("C&oller"), QKeySequence::Paste,
-              [this] { m_view->pasteClipboard(); });
-    addAction(editMenu, nullptr, tr("&Supprimer"), QKeySequence::Delete,
-              [this] { m_view->deleteSelection(); });
-    addAction(editMenu, nullptr, tr("&Tout sélectionner"), QKeySequence::SelectAll,
-              [this] { m_view->selectAll(); });
+    make(editMenu, false, G::Copy, tr("&Copier"), QKeySequence::Copy, tr("Copier la sélection"),
+         [this] { m_view->copySelection(); });
+    make(editMenu, false, G::Paste, tr("C&oller"), QKeySequence::Paste,
+         tr("Coller sous le curseur"), [this] { m_view->pasteClipboard(); });
+    make(editMenu, false, G::Delete, tr("&Supprimer"), QKeySequence::Delete,
+         tr("Supprimer la sélection"), [this] { m_view->deleteSelection(); });
+    make(editMenu, false, G::Select, tr("&Tout sélectionner"), QKeySequence::SelectAll,
+         QString(), [this] { m_view->selectAll(); });
     editMenu->addSeparator();
-    addAction(editMenu, nullptr, tr("&Pivoter"), QKeySequence(Qt::Key_R),
-              [this] { m_view->rotateSelection(true); });
-    addAction(editMenu, nullptr, tr("Re&tourner"), QKeySequence(Qt::Key_M),
-              [this] { m_view->mirrorSelection(); });
-    addAction(editMenu, nullptr, tr("Mettre le potentiel en évidence"),
-              QKeySequence(Qt::CTRL | Qt::Key_H), [this] { m_view->highlightNetOfSelection(); });
+    make(editMenu, true, G::Rotate, tr("&Pivoter"), QKeySequence(Qt::Key_R),
+         tr("Pivoter d'un quart de tour"), [this] { m_view->rotateSelection(true); });
+    make(editMenu, true, G::Mirror, tr("Re&tourner"), QKeySequence(Qt::Key_M),
+         tr("Retourner selon l'axe vertical"), [this] { m_view->mirrorSelection(); });
+    make(editMenu, true, G::Highlight, tr("Mettre le potentiel en évidence"),
+         QKeySequence(Qt::CTRL | Qt::Key_H),
+         tr("Suivre un potentiel à travers le folio"),
+         [this] { m_view->highlightNetOfSelection(); });
 
-    // ---- Insertion : les outils ----------------------------------------
+    m_toolBar->addSeparator();
+
+    // ---- Outils --------------------------------------------------------
     QMenu *toolMenu = menuBar()->addMenu(tr("&Outils"));
-    auto *toolBar = addToolBar(tr("Outils"));
-    toolBar->setObjectName(QStringLiteral("toolbar.tools"));
     auto *toolGroup = new QActionGroup(this);
     toolGroup->setExclusive(true);
 
     struct ToolSpec {
         FolioView::Tool tool;
+        G glyph;
         const char *label;
         Qt::Key key;
         const char *hint;
     };
     const ToolSpec tools[] = {
-        { FolioView::Tool::Select, QT_TR_NOOP("&Sélection"), Qt::Key_S,
+        { FolioView::Tool::Select, G::Select, QT_TR_NOOP("&Sélection"), Qt::Key_S,
           QT_TR_NOOP("Sélectionner, déplacer, encadrer") },
-        { FolioView::Tool::Wire, QT_TR_NOOP("&Fil"), Qt::Key_W,
+        { FolioView::Tool::Wire, G::Wire, QT_TR_NOOP("&Fil"), Qt::Key_W,
           QT_TR_NOOP("Tracer un fil orthogonal") },
-        { FolioView::Tool::Junction, QT_TR_NOOP("&Jonction"), Qt::Key_J,
+        { FolioView::Tool::Junction, G::Junction, QT_TR_NOOP("&Jonction"), Qt::Key_J,
           QT_TR_NOOP("Poser un point de connexion") },
-        { FolioView::Tool::Label, QT_TR_NOOP("&Étiquette"), Qt::Key_L,
+        { FolioView::Tool::Label, G::LabelTag, QT_TR_NOOP("&Étiquette"), Qt::Key_L,
           QT_TR_NOOP("Nommer un potentiel") },
-        { FolioView::Tool::Text, QT_TR_NOOP("&Texte"), Qt::Key_T, QT_TR_NOOP("Annoter le folio") },
+        { FolioView::Tool::Text, G::Text, QT_TR_NOOP("&Texte"), Qt::Key_T,
+          QT_TR_NOOP("Annoter le folio") },
     };
     for (const ToolSpec &spec : tools) {
-        auto *action = new QAction(tr(spec.label), this);
+        auto *action = new QAction(Icons::icon(spec.glyph), tr(spec.label), this);
         action->setCheckable(true);
         action->setShortcut(QKeySequence(spec.key));
+        action->setToolTip(QStringLiteral("%1  ·  %2")
+                                   .arg(tr(spec.hint), QKeySequence(spec.key)
+                                                               .toString(QKeySequence::NativeText)));
         action->setStatusTip(tr(spec.hint));
         action->setData(int(spec.tool));
         toolGroup->addAction(action);
         toolMenu->addAction(action);
-        toolBar->addAction(action);
+        m_toolBar->addAction(action);
         m_toolActions.append(action);
-        connect(action, &QAction::triggered, this,
-                [this, spec] { m_view->setTool(spec.tool); });
+        m_actionGlyphs.insert(action, int(spec.glyph));
+        connect(action, &QAction::triggered, this, [this, spec] { m_view->setTool(spec.tool); });
     }
     m_toolActions.first()->setChecked(true);
 
     toolMenu->addSeparator();
     auto *crossReference = new QAction(tr("Étiquette = renvoi de folio"), this);
     crossReference->setCheckable(true);
-    crossReference->setStatusTip(tr("Un renvoi relie le même potentiel à travers tout le dossier"));
+    crossReference->setStatusTip(
+            tr("Un renvoi relie le même potentiel à travers tout le dossier"));
     toolMenu->addAction(crossReference);
     connect(crossReference, &QAction::toggled, this, [this](bool on) {
         m_view->setLabelScope(on ? Label::Scope::Project : Label::Scope::Folio);
@@ -306,57 +359,75 @@ void MainWindow::createActions()
         }
     });
 
+    m_toolBar->addSeparator();
+
     // ---- Affichage -----------------------------------------------------
     QMenu *viewMenu = menuBar()->addMenu(tr("&Affichage"));
-    auto *viewBar = addToolBar(tr("Affichage"));
-    viewBar->setObjectName(QStringLiteral("toolbar.view"));
-
-    addAction(viewMenu, viewBar, tr("Zoom &avant"), QKeySequence::ZoomIn,
-              [this] { m_view->zoomIn(); });
-    addAction(viewMenu, viewBar, tr("Zoom a&rrière"), QKeySequence::ZoomOut,
-              [this] { m_view->zoomOut(); });
-    addAction(viewMenu, viewBar, tr("&Ajuster au folio"), QKeySequence(Qt::CTRL | Qt::Key_0),
-              [this] { m_view->zoomToFit(); });
-    addAction(viewMenu, nullptr, tr("&Taille réelle"), QKeySequence(Qt::CTRL | Qt::Key_1),
-              [this] { m_view->zoomActual(); });
+    make(viewMenu, true, G::ZoomIn, tr("Zoom &avant"), QKeySequence::ZoomIn, tr("Zoom avant"),
+         [this] { m_view->zoomIn(); });
+    make(viewMenu, true, G::ZoomOut, tr("Zoom a&rrière"), QKeySequence::ZoomOut,
+         tr("Zoom arrière"), [this] { m_view->zoomOut(); });
+    make(viewMenu, true, G::ZoomFit, tr("&Ajuster au folio"), QKeySequence(Qt::CTRL | Qt::Key_0),
+         tr("Voir le folio entier"), [this] { m_view->zoomToFit(); });
+    make(viewMenu, false, G::ZoomFit, tr("&Taille réelle"), QKeySequence(Qt::CTRL | Qt::Key_1),
+         tr("Un millimètre du dessin pour un millimètre à l'écran"),
+         [this] { m_view->zoomActual(); });
     viewMenu->addSeparator();
 
-    auto addToggle = [&](QMenu *menu, const QString &text, bool checked, auto slot) {
-        auto *action = new QAction(text, this);
+    auto addToggle = [&](QMenu *menu, bool onToolBar, G glyph, const QString &text, bool checked,
+                         const QString &tip, auto slot) {
+        auto *action = new QAction(Icons::icon(glyph), text, this);
         action->setCheckable(true);
         action->setChecked(checked);
+        if (!tip.isEmpty()) {
+            action->setToolTip(tip);
+            action->setStatusTip(tip);
+        }
         connect(action, &QAction::toggled, this, slot);
         menu->addAction(action);
+        if (onToolBar)
+            m_toolBar->addAction(action);
+        m_actionGlyphs.insert(action, int(glyph));
         return action;
     };
 
-    addToggle(viewMenu, tr("&Grille"), true, [this](bool on) { m_view->setGridVisible(on); });
-    addToggle(viewMenu, tr("&Magnétisme"), true, [this](bool on) { m_view->setSnapEnabled(on); });
-    addToggle(viewMenu, tr("&Numéros de broches"), false, [this](bool on) {
-        RenderStyle style = m_view->style();
-        style.showPinNumbers = on;
-        m_view->setStyle(style);
-    });
-    addToggle(viewMenu, tr("&Broches non raccordées"), true, [this](bool on) {
-        RenderStyle style = m_view->style();
-        style.showUnconnectedPins = on;
-        m_view->setStyle(style);
-    });
+    addToggle(viewMenu, true, G::Grid, tr("&Grille"), true, tr("Afficher la grille"),
+              [this](bool on) { m_view->setGridVisible(on); });
+    addToggle(viewMenu, true, G::Snap, tr("&Magnétisme"), true,
+              tr("Accrocher à la grille et aux broches"),
+              [this](bool on) { m_view->setSnapEnabled(on); });
+    addToggle(viewMenu, false, G::SymbolPlace, tr("&Numéros de broches"), false, QString(),
+              [this](bool on) {
+                  RenderStyle style = m_view->style();
+                  style.showPinNumbers = on;
+                  m_view->setStyle(style);
+              });
+    addToggle(viewMenu, false, G::Check, tr("&Broches non raccordées"), true,
+              tr("Marquer d'une croix les broches en l'air"), [this](bool on) {
+                  RenderStyle style = m_view->style();
+                  style.showUnconnectedPins = on;
+                  m_view->setStyle(style);
+              });
     viewMenu->addSeparator();
-    m_darkAction = addToggle(viewMenu, tr("Thème &sombre"), false,
+    m_darkAction = addToggle(viewMenu, false, G::Theme, tr("Thème &sombre"), true, QString(),
                              [this](bool on) { applyTheme(on); });
     viewMenu->addSeparator();
     for (QDockWidget *dock : findChildren<QDockWidget *>())
         viewMenu->addAction(dock->toggleViewAction());
 
+    m_toolBar->addSeparator();
+
     // ---- Projet --------------------------------------------------------
     QMenu *projectMenu = menuBar()->addMenu(tr("&Projet"));
-    addAction(projectMenu, nullptr, tr("&Informations du projet…"), QKeySequence(),
-              &MainWindow::editProjectInfo);
-    addAction(projectMenu, nullptr, tr("&Repérage automatique"),
-              QKeySequence(Qt::CTRL | Qt::Key_R), &MainWindow::renumberAll);
-    addAction(projectMenu, nullptr, tr("&Contrôler le schéma"), QKeySequence(Qt::Key_F8),
-              &MainWindow::checkSchematic);
+    make(projectMenu, false, G::Info, tr("&Informations du projet…"), QKeySequence(),
+         tr("Titre, client, référence — ce que porte le cartouche"),
+         &MainWindow::editProjectInfo);
+    make(projectMenu, true, G::Renumber, tr("&Repérage automatique"),
+         QKeySequence(Qt::CTRL | Qt::Key_R),
+         tr("Désigner les appareils et repérer les fils"), &MainWindow::renumberAll);
+    make(projectMenu, true, G::Check, tr("&Contrôler le schéma"), QKeySequence(Qt::Key_F8),
+         tr("Chercher les fils en l'air et les symboles manquants"),
+         &MainWindow::checkSchematic);
     projectMenu->addSeparator();
 
     QMenu *profileMenu = projectMenu->addMenu(tr("&Profil métier"));
@@ -372,9 +443,20 @@ void MainWindow::createActions()
         connect(action, &QAction::triggered, this, [this, id] { setProfile(id); });
     }
 
+    // ---- Symboles ------------------------------------------------------
+    QMenu *symbolMenu = menuBar()->addMenu(tr("&Symboles"));
+    make(symbolMenu, false, G::Plus, tr("&Nouveau symbole…"), QKeySequence(),
+         tr("Dessiner un symbole et l'ajouter à la bibliothèque"), &MainWindow::newSymbol);
+    make(symbolMenu, true, G::Edit, tr("&Modifier le symbole de la palette…"), QKeySequence(),
+         tr("Ouvrir l'éditeur sur le symbole sélectionné dans la palette"),
+         [this] { editCurrentSymbol(false); });
+    make(symbolMenu, false, G::Duplicate, tr("&Dupliquer puis modifier…"), QKeySequence(),
+         tr("Partir d'un symbole existant sans toucher à l'original"),
+         [this] { editCurrentSymbol(true); });
+
     // ---- Aide ----------------------------------------------------------
     QMenu *helpMenu = menuBar()->addMenu(tr("&Aide"));
-    addAction(helpMenu, nullptr, tr("À &propos"), QKeySequence(), [this] {
+    make(helpMenu, false, G::Info, tr("À &propos"), QKeySequence(), QString(), [this] {
         QMessageBox::about(
                 this, tr("À propos de Dessins"),
                 tr("<h3>Dessins %1</h3>"
@@ -385,6 +467,43 @@ void MainWindow::createActions()
                    "<p>Qt %2</p>")
                         .arg(QApplication::applicationVersion(), QT_VERSION_STR));
     });
+}
+
+void MainWindow::refreshIcons()
+{
+    for (auto it = m_actionGlyphs.constBegin(); it != m_actionGlyphs.constEnd(); ++it)
+        it.key()->setIcon(Icons::icon(Icons::Glyph(it.value())));
+}
+
+void MainWindow::newSymbol()
+{
+    SymbolEditor editor(&m_document->project().library, this);
+    editor.newDefinition();
+    if (editor.exec() == QDialog::Accepted) {
+        m_palette->setLibrary(&m_document->project().library);
+        statusBar()->showMessage(tr("Symbole enregistré dans votre bibliothèque : %1")
+                                         .arg(editor.savedDefinitionId()),
+                                 6000);
+    }
+}
+
+void MainWindow::editCurrentSymbol(bool asCopy)
+{
+    const QString id = m_palette->currentDefinitionId();
+    if (id.isEmpty()) {
+        statusBar()->showMessage(tr("Choisissez d'abord un symbole dans la palette"), 4000);
+        return;
+    }
+    SymbolEditor editor(&m_document->project().library, this);
+    editor.editDefinition(id, asCopy);
+    if (editor.exec() == QDialog::Accepted) {
+        m_palette->setLibrary(&m_document->project().library);
+        m_document->invalidateNetlist();
+        m_document->project().resolveSymbolBounds();
+        m_view->update();
+        statusBar()->showMessage(tr("Symbole enregistré : %1").arg(editor.savedDefinitionId()),
+                                 6000);
+    }
 }
 
 void MainWindow::createStatusBar()
@@ -437,9 +556,28 @@ void MainWindow::updateActions()
 void MainWindow::applyTheme(bool dark)
 {
     m_dark = dark;
-    m_view->setStyle(dark ? RenderStyle::screenDark() : RenderStyle::screen());
-    m_view->setGridStep(m_document->profile().gridStep);
+    if (auto *app = qobject_cast<QApplication *>(QCoreApplication::instance()))
+        Theme::apply(*app, dark);
+    refreshIcons();
+
+    // La feuille reste blanche en theme clair et gris tres sombre en theme
+    // sombre : le dessin doit rester lisible, mais un rectangle blanc eclatant
+    // au milieu d'une interface sombre fatigue en fin de journee.
+    RenderStyle style = dark ? RenderStyle::screenDark() : RenderStyle::screen();
+    style.gridStep = m_view->style().gridStep;
+    style.showGrid = m_view->style().showGrid;
+    style.showPinNumbers = m_view->style().showPinNumbers;
+    style.showUnconnectedPins = m_view->style().showUnconnectedPins;
+    // Le pourtour du canevas prend la couleur du chrome : la feuille flotte
+    // alors dans la fenetre au lieu d'etre posee sur un gris etranger.
+    style.pageBackground = Theme::colors().window;
+    m_view->setStyle(style);
+
+    // Les apercus de la palette sont redessines dans les couleurs du theme.
     m_palette->setLibrary(&m_document->project().library);
+
+    QSettings settings;
+    settings.setValue(QStringLiteral("ui/darkTheme"), dark);
 }
 
 // --------------------------------------------------------------------------

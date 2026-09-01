@@ -32,6 +32,15 @@ void translatePoints(QVector<QPointF> &points, const QPointF &delta)
 
 EntityPtr SymbolInstance::clone() const { return std::make_unique<SymbolInstance>(*this); }
 
+bool SymbolInstance::assign(const Entity &other)
+{
+    const auto *typed = dynamic_cast<const SymbolInstance *>(&other);
+    if (!typed)
+        return false;
+    *this = *typed;
+    return true;
+}
+
 QRectF SymbolInstance::boundingBox() const { return placement.mapRect(m_localBounds); }
 
 void SymbolInstance::translate(const QPointF &delta) { placement.position += delta; }
@@ -68,6 +77,15 @@ bool SymbolInstance::readJson(const QJsonObject &object)
 // Wire
 
 EntityPtr Wire::clone() const { return std::make_unique<Wire>(*this); }
+
+bool Wire::assign(const Entity &other)
+{
+    const auto *typed = dynamic_cast<const Wire *>(&other);
+    if (!typed)
+        return false;
+    *this = *typed;
+    return true;
+}
 
 QRectF Wire::boundingBox() const { return boundsOf(points, 0.5); }
 
@@ -125,6 +143,15 @@ bool Wire::readJson(const QJsonObject &object)
 
 EntityPtr Junction::clone() const { return std::make_unique<Junction>(*this); }
 
+bool Junction::assign(const Entity &other)
+{
+    const auto *typed = dynamic_cast<const Junction *>(&other);
+    if (!typed)
+        return false;
+    *this = *typed;
+    return true;
+}
+
 QRectF Junction::boundingBox() const
 {
     const double r = diameter / 2.0;
@@ -154,6 +181,15 @@ bool Junction::readJson(const QJsonObject &object)
 // TextItem
 
 EntityPtr TextItem::clone() const { return std::make_unique<TextItem>(*this); }
+
+bool TextItem::assign(const Entity &other)
+{
+    const auto *typed = dynamic_cast<const TextItem *>(&other);
+    if (!typed)
+        return false;
+    *this = *typed;
+    return true;
+}
 
 QRectF TextItem::boundingBox() const
 {
@@ -201,6 +237,15 @@ bool TextItem::readJson(const QJsonObject &object)
 
 EntityPtr GraphicItem::clone() const { return std::make_unique<GraphicItem>(*this); }
 
+bool GraphicItem::assign(const Entity &other)
+{
+    const auto *typed = dynamic_cast<const GraphicItem *>(&other);
+    if (!typed)
+        return false;
+    *this = *typed;
+    return true;
+}
+
 QRectF GraphicItem::boundingBox() const { return shape.bounds(); }
 
 void GraphicItem::translate(const QPointF &delta) { shape.translate(delta); }
@@ -223,6 +268,15 @@ bool GraphicItem::readJson(const QJsonObject &object)
 // Label
 
 EntityPtr Label::clone() const { return std::make_unique<Label>(*this); }
+
+bool Label::assign(const Entity &other)
+{
+    const auto *typed = dynamic_cast<const Label *>(&other);
+    if (!typed)
+        return false;
+    *this = *typed;
+    return true;
+}
 
 QRectF Label::boundingBox() const
 {

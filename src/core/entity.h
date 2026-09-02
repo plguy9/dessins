@@ -52,17 +52,9 @@ public:
     bool isLocked() const noexcept { return m_locked; }
     void setLocked(bool locked) { m_locked = locked; }
 
-    // Groupe (GROUP d'AutoCAD) : des entites qui se selectionnent ensemble.
-    // Un identifiant partage plutot qu'une liste rangee dans le folio — une
-    // liste devrait etre tenue a jour a chaque suppression, et une entite
-    // effacee y laisserait une reference morte. Vide = pas de groupe.
-    const QString &group() const noexcept { return m_group; }
-    void setGroup(QString group) { m_group = std::move(group); }
-    bool isGrouped() const noexcept { return !m_group.isEmpty(); }
 
 protected:
     QString m_id;
-    QString m_group;
     bool m_locked = false;
 };
 

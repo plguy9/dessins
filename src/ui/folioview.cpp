@@ -143,7 +143,6 @@ bool FolioView::directionConstrained() const
     case Tool::Rectangle:
     case Tool::Circle:
     case Tool::Arc:
-    case Tool::Polygon:
         return false;
     default:
         return true;
@@ -351,32 +350,6 @@ bool FolioView::entityTouchesRect(const Entity &entity, const QRectF &rect) cons
     return !bounds.isNull() && rect.intersects(bounds);
 }
 
-QSet<QString> FolioView::expandToGroup(const QSet<QString> &ids) const
-{
-    Folio *folio = m_document->currentFolio();
-    if (!folio)
-        return ids;
-
-    // Un groupe se prend en entier. On collecte d'abord les groupes touches,
-    // puis tous leurs membres : designer un seul element d'un cartouche
-    // dessine a la main doit emmener le cartouche.
-    QSet<QString> groups;
-    for (const QString &id : ids) {
-        const Entity *entity = folio->entity(id);
-        if (entity && entity->isGrouped())
-            groups.insert(entity->group());
-    }
-    if (groups.isEmpty())
-        return ids;
-
-    QSet<QString> out = ids;
-    for (const EntityPtr &entity : folio->entities()) {
-        if (entity->isGrouped() && groups.contains(entity->group()))
-            out.insert(entity->id());
-    }
-    return out;
-}
-
 QSet<QString> FolioView::entitiesIn(const QRectF &sceneRect, bool crossing) const
 {
     QSet<QString> found;
@@ -392,10 +365,7 @@ QSet<QString> FolioView::entitiesIn(const QRectF &sceneRect, bool crossing) cons
         if (hit)
             found.insert(entity->id());
     }
-    // Un groupe effleure par une capture vient en entier, comme au clic :
-    // deux gestes de designation qui ne rendent pas le meme groupe seraient
-    // impossibles a expliquer.
-    return expandToGroup(found);
+    return found;
 }
 
 void FolioView::rebuildGrips()
@@ -729,7 +699,6 @@ void FolioView::zoomIn() { setZoom(m_scale * 1.25, mapFromGlobal(QCursor::pos())
 
 void FolioView::zoomOut() { setZoom(m_scale / 1.25, mapFromGlobal(QCursor::pos())); }
 
-void FolioView::zoomActual() { setZoom(physicalDpiX() / kMmPerInch); }
 
 void FolioView::zoomToFit()
 {
@@ -1027,20 +996,6 @@ std::optional<Primitive> FolioView::pendingShape(const QPointF &cursor) const
         p.radius = radius;
         return p;
     }
-    case Tool::Polygon: {
-        const double radius = std::hypot(cursor.x() - first.x(), cursor.y() - first.y());
-        if (radius < kConnectTolerance || m_polygonSides < 3)
-            return std::nullopt;
-        // Polygone regulier inscrit, premier sommet sous le curseur : on
-        // choisit ainsi l'orientation en meme temps que la taille.
-        const double start = angleFrom(first, cursor) * std::numbers::pi / 180.0;
-        QVector<QPointF> points;
-        for (int i = 0; i <= m_polygonSides; ++i) {
-            const double a = start + 2.0 * std::numbers::pi * i / m_polygonSides;
-            points.append(first + QPointF(std::cos(a) * radius, -std::sin(a) * radius));
-        }
-        return Primitive::polyline(points);
-    }
     case Tool::Arc: {
         if (m_shapePoints.size() < 2)
             return std::nullopt;
@@ -1102,10 +1057,6 @@ void FolioView::placeShapePoint(const QPointF &point)
         break;
     case Tool::Circle:
         Q_EMIT statusMessage(tr("Cercle : cliquer un point du contour, ou taper le rayon."));
-        break;
-    case Tool::Polygon:
-        Q_EMIT statusMessage(tr("Polygone à %n côtés : cliquer un sommet, ou taper le rayon.",
-                                "", m_polygonSides));
         break;
     case Tool::Arc:
         Q_EMIT statusMessage(m_shapePoints.size() == 1
@@ -1215,15 +1166,6 @@ void FolioView::beginMeasureDistance()
     update();
 }
 
-void FolioView::beginMeasureArea()
-{
-    setTool(Tool::Select);
-    m_measurePoints.clear();
-    m_pending = Pending::MeasureArea;
-    Q_EMIT statusMessage(tr("Surface : cliquer les sommets, Entrée pour fermer le contour."));
-    update();
-}
-
 QString FolioView::measureReport() const
 {
     if (m_measurePoints.size() < 2)
@@ -1280,17 +1222,8 @@ void FolioView::paintMeasure(QPainter &painter) const
     pen.setWidthF(m_style.wireWidth);
     pen.setStyle(Qt::DashLine);
     painter.setPen(pen);
-    if (m_pending == Pending::MeasureArea && path.size() > 2) {
-        // Le contour se ferme a l'ecran des trois sommets : c'est la surface
-        // qu'on mesure, et on doit la voir avant de valider.
-        QColor fill = m_style.snapGuide;
-        fill.setAlpha(40);
-        painter.setBrush(fill);
-        painter.drawPolygon(path.constData(), int(path.size()));
-    } else {
-        painter.setBrush(Qt::NoBrush);
-        painter.drawPolyline(path.constData(), int(path.size()));
-    }
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPolyline(path.constData(), int(path.size()));
 
     QPen marks(m_style.snapMarker);
     marks.setWidthF(m_style.wireWidth * 1.2);
@@ -1449,7 +1382,6 @@ void FolioView::placeAt(const QPointF &scenePoint)
     case Tool::Circle:
     case Tool::Arc:
     case Tool::Polyline:
-    case Tool::Polygon:
         placeShapePoint(scenePoint);
         return;
     case Tool::Trim:
@@ -1531,8 +1463,7 @@ bool FolioView::handleTypedKey(QKeyEvent *event)
             || m_pending != Pending::None || m_tool == Tool::Symbol
             || m_tool == Tool::Junction || m_tool == Tool::Label || m_tool == Tool::Text
             || m_tool == Tool::Wire || m_tool == Tool::Line || m_tool == Tool::Rectangle
-            || m_tool == Tool::Circle || m_tool == Tool::Arc || m_tool == Tool::Polyline
-            || m_tool == Tool::Polygon;
+            || m_tool == Tool::Circle || m_tool == Tool::Arc || m_tool == Tool::Polyline;
 
     if (m_typing) {
         switch (event->key()) {
@@ -1683,17 +1614,6 @@ bool FolioView::handlePendingClick(const QPointF &scenePoint)
         update();
         return true;
     }
-    case Pending::MeasureArea:
-        // Le contour continue jusqu'a Entree : le nombre de sommets n'est pas
-        // connu d'avance, contrairement a une distance.
-        m_measurePoints.append(scenePoint);
-        if (m_measurePoints.size() >= 3)
-            Q_EMIT statusMessage(measureReport());
-        else
-            Q_EMIT statusMessage(tr("Surface : %n sommet(s), continuer ou Entrée pour "
-                                    "fermer.", "", int(m_measurePoints.size())));
-        update();
-        return true;
     case Pending::CutTarget: {
         Folio *folio = m_document->currentFolio();
         m_pending = Pending::None;
@@ -2478,7 +2398,6 @@ void FolioView::mousePressEvent(QMouseEvent *event)
     case Tool::Circle:
     case Tool::Arc:
     case Tool::Polyline:
-    case Tool::Polygon:
         placeAt(snapped);
         return;
 
@@ -2516,7 +2435,7 @@ void FolioView::mousePressEvent(QMouseEvent *event)
 
     if (hit) {
         const QSet<QString> touched = intoGroup ? QSet<QString>{ hit->id() }
-                                                : expandToGroup({ hit->id() });
+                                                : QSet<QString>{ hit->id() };
         if (additive) {
             QSet<QString> updated = m_selection;
             if (updated.contains(hit->id()))
@@ -2733,15 +2652,6 @@ void FolioView::keyPressEvent(QKeyEvent *event)
         return;
     case Qt::Key_Return:
     case Qt::Key_Enter:
-        if (m_pending == Pending::MeasureArea && m_measurePoints.size() >= 3) {
-            const QString report = measureReport();
-            m_pending = Pending::None;
-            m_measurePoints.clear();
-            Q_EMIT statusMessage(report);
-            Q_EMIT measured(report);
-            update();
-            return;
-        }
         if (m_tool == Tool::Polyline && m_shapePoints.size() >= 2) {
             commitShape();
             return;
@@ -2884,7 +2794,7 @@ void FolioView::paintPendingGesture(QPainter &painter) const
     if (!folio)
         return;
 
-    if (m_pending == Pending::MeasureDistance || m_pending == Pending::MeasureArea) {
+    if (m_pending == Pending::MeasureDistance) {
         paintMeasure(painter);
         return;
     }

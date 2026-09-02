@@ -31,55 +31,40 @@ namespace dsn {
 // --------------------------------------------------------------------------
 // RESEAU
 
+// Le reseau est rectangulaire, et seulement rectangulaire. Le reseau polaire
+// d'AutoCAD — repartir des copies en cercle — n'a aucun usage sur un schema
+// electrique : il a ete retire plutot que garde « au cas ou » (decision
+// utilisateur, 2026-09-02).
 struct ArraySpec {
-    enum class Kind { Rectangular, Polar };
-
-    Kind kind = Kind::Rectangular;
-
-    // Rectangulaire : nombre de colonnes et de lignes, pas entre elles. Un
-    // pas negatif construit le reseau vers la gauche ou vers le haut, ce qui
-    // evite d'avoir a dessiner le motif du bon cote.
+    // Nombre de colonnes et de lignes, pas entre elles. Un pas negatif
+    // construit le reseau vers la gauche ou vers le haut, ce qui evite
+    // d'avoir a dessiner le motif du bon cote.
     int columns = 2;
     int rows = 1;
     double columnSpacing = 20.0;
     double rowSpacing = 20.0;
-
-    // Polaire : centre, nombre d'elements et angle total balaye. Les elements
-    // pivotent avec le rayon, sauf a demander le contraire — un appareil
-    // couche sur le flanc n'est plus lisible.
-    QPointF center;
-    int count = 4;
-    double totalAngle = 360.0;
-    bool rotateItems = true;
 
     // Nombre total de copies produites, l'original compris.
     int itemCount() const;
     bool isValid() const;
 };
 
-// La transformation d'une copie du reseau. `angle` est nul pour un reseau
-// rectangulaire : c'est le cas courant, et un schema ne pivote pas ses
-// appareils sans raison.
+// La transformation d'une copie du reseau.
 struct ArrayPlacement {
-    QPointF offset;    // deplacement du point de base vers la copie
-    double angle = 0.0; // rotation autour du centre, en degres
+    QPointF offset; // deplacement du point de base vers la copie
     int column = 0;
     int row = 0;
-    int index = 0;     // rang dans le reseau, 0 pour l'original
+    int index = 0;  // rang dans le reseau, 0 pour l'original
 };
 
 class ArrayTools
 {
 public:
-    // Les placements du reseau, l'original inclus en premier. `anchor` est le
-    // point de reference du motif : son barycentre pour un reseau polaire,
-    // sans importance pour un rectangulaire.
-    static QVector<ArrayPlacement> placements(const ArraySpec &spec, const QPointF &anchor);
+    // Les placements du reseau, l'original inclus en premier.
+    static QVector<ArrayPlacement> placements(const ArraySpec &spec);
 
-    // Applique un placement a une copie deja clonee. La rotation d'un reseau
-    // polaire est arrondie au quart de tour pour les symboles, parce que le
-    // modele n'accepte que ceux-la — et c'est voulu (voir Orientation).
-    static void apply(Entity &entity, const ArrayPlacement &placement, const QPointF &center);
+    // Applique un placement a une copie deja clonee.
+    static void apply(Entity &entity, const ArrayPlacement &placement);
 };
 
 // --------------------------------------------------------------------------

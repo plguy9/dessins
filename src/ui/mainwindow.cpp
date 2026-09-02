@@ -578,8 +578,6 @@ void MainWindow::createActions()
           QT_TR_NOOP("Le centre, puis un point du contour"), true, true },
         { FolioView::Tool::Arc, G::Arc, QT_TR_NOOP("&Arc"), Qt::Key_B,
           QT_TR_NOOP("Départ, point de passage, arrivée"), true, true },
-        { FolioView::Tool::Polygon, G::Polygon, QT_TR_NOOP("Pol&ygone…"), Qt::Key_F,
-          QT_TR_NOOP("Polygone régulier : le centre, puis un sommet"), true, false },
         { FolioView::Tool::Trim, G::Trim, QT_TR_NOOP("&Ajuster"), Qt::Key_A,
           QT_TR_NOOP("Couper un fil entre deux croisements"), false, true },
         { FolioView::Tool::Extend, G::Extend, QT_TR_NOOP("Pro&longer"), Qt::Key_P,
@@ -598,36 +596,18 @@ void MainWindow::createActions()
         (spec.draw ? drawMenu : toolMenu)->addAction(action);
         m_toolActions.append(action);
         m_actionGlyphs.insert(action, int(spec.glyph));
-        connect(action, &QAction::triggered, this, [this, spec] {
-            // Le polygone demande son nombre de cotes avant de tracer :
-            // AutoCAD le demande aussi, et un hexagone impose d'office
-            // obligerait a en dessiner un pour decouvrir qu'on ne peut pas
-            // en changer.
-            if (spec.tool == FolioView::Tool::Polygon && !askPolygonSides())
-                return;
-            m_view->setTool(spec.tool);
-        });
+        connect(action, &QAction::triggered, this,
+                [this, spec] { m_view->setTool(spec.tool); });
     }
     m_toolActions.first()->setChecked(true);
 
-    // Grouper, degrouper et mesurer : le reste du panneau « Utilitaires ».
+    // Les mesures : le reste du panneau « Utilitaires ».
     drawMenu->addSeparator();
-    m_groupAction = make(drawMenu, G::Group, tr("Gr&ouper"),
-                         QKeySequence(Qt::CTRL | Qt::Key_G),
-                         tr("Faire de la sélection un ensemble qui se désigne d'un clic"),
-                         [this] { groupSelection(true); });
-    m_ungroupAction = make(drawMenu, G::Ungroup, tr("&Dégrouper"),
-                           QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G),
-                           tr("Rendre leur indépendance aux éléments du groupe"),
-                           [this] { groupSelection(false); });
 
     toolMenu->addSeparator();
     make(toolMenu, G::MeasureLength, tr("Mesurer une &distance"), QKeySequence(),
          tr("Deux points : longueur, écarts et angle — rien n'est posé sur le dessin"),
          &MainWindow::measureDistance);
-    make(toolMenu, G::MeasureArea, tr("Mesurer une &surface"), QKeySequence(),
-         tr("Un contour fermé : surface et périmètre — rien n'est posé sur le dessin"),
-         &MainWindow::measureArea);
     toolMenu->addSeparator();
 
     // Nature de l'etiquette a poser. Les fleches de signal d'AutoCAD
@@ -724,10 +704,6 @@ void MainWindow::createActions()
              m_commandDock->raise();
              m_command->focusInput();
          });
-    make(viewMenu, G::ZoomFit, tr("&Taille réelle"),
-         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_0),
-         tr("Un millimètre du dessin pour un millimètre à l'écran"),
-         [this] { m_view->zoomActual(); });
     viewMenu->addSeparator();
 
     // Raccourcis de palettes d'AutoCAD : Ctrl+1 les proprietes, Ctrl+3 les
@@ -1208,54 +1184,8 @@ void MainWindow::matchProperties()
                              5000);
 }
 
-bool MainWindow::askPolygonSides()
-{
-    bool ok = false;
-    const int sides = QInputDialog::getInt(this, tr("Polygone"), tr("Nombre de côtés"),
-                                           m_view->polygonSides(), 3, 64, 1, &ok);
-    if (!ok)
-        return false;
-    m_view->setPolygonSides(sides);
-    return true;
-}
-
-void MainWindow::groupSelection(bool group)
-{
-    Folio *folio = m_document->currentFolio();
-    if (!folio)
-        return;
-    const QStringList ids(m_view->selection().cbegin(), m_view->selection().cend());
-    if (ids.isEmpty()) {
-        statusBar()->showMessage(group
-                                         ? tr("Grouper : sélectionner d'abord les éléments.")
-                                         : tr("Dégrouper : sélectionner d'abord un groupe."),
-                                 4000);
-        return;
-    }
-
-    auto command = std::make_unique<GroupEntitiesCommand>(m_document->project(), folio->id(),
-                                                          ids, group);
-    const int count = command->affectedCount();
-    if (count == 0) {
-        statusBar()->showMessage(group ? tr("Grouper : il en faut au moins deux.")
-                                       : tr("Dégrouper : rien de groupé dans la sélection."),
-                                 4000);
-        return;
-    }
-    const QStringList touched = command->affectedIds();
-    m_document->push(std::move(command));
-    // La selection suit le groupe : degrouper puis regrouper doit reprendre
-    // exactement les memes elements.
-    m_view->setSelection(QSet<QString>(touched.cbegin(), touched.cend()));
-    m_view->update();
-    statusBar()->showMessage(group ? tr("%n élément(s) groupé(s).", "", count)
-                                   : tr("%n élément(s) dégroupé(s).", "", count),
-                             4000);
-}
-
 void MainWindow::measureDistance() { m_view->beginMeasureDistance(); }
 
-void MainWindow::measureArea() { m_view->beginMeasureArea(); }
 
 void MainWindow::locate(const QString &folioId, const QString &entityId)
 {
@@ -1469,11 +1399,6 @@ void MainWindow::zoomCommand(const QStringList &arguments)
         m_command->write(tr("   Zoom étendu."));
         return;
     }
-    if (option.startsWith(QLatin1Char('R'))) {
-        m_view->zoomActual();
-        m_command->write(tr("   Zoom à l'échelle réelle."));
-        return;
-    }
     if (option.startsWith(QLatin1Char('F')) || option.startsWith(QLatin1Char('W'))) {
         m_view->beginZoomWindow();
         return;
@@ -1670,15 +1595,9 @@ void MainWindow::registerCommands()
     // deplacer allongerait un fil. D'ou PAN, et pas d'alias d'une lettre.
     simple(QStringLiteral("PANORAMIQUE"), { QStringLiteral("PAN") },
            tr("Déplacer la vue en tirant"), [this] { m_view->beginPan(); });
-    simple(QStringLiteral("GROUPE"), { QStringLiteral("GR2") },
-           tr("Grouper la sélection"), [this] { groupSelection(true); });
-    simple(QStringLiteral("DEGROUPER"), { QStringLiteral("DG") },
-           tr("Dégrouper la sélection"), [this] { groupSelection(false); });
     simple(QStringLiteral("DISTANCE"), { QStringLiteral("DI") },
            tr("Mesurer une distance entre deux points"),
            [this] { measureDistance(); });
-    simple(QStringLiteral("SURFACE"), { QStringLiteral("AIRE") },
-           tr("Mesurer la surface d'un contour"), [this] { measureArea(); });
     simple(QStringLiteral("RECTANGLE"), { QStringLiteral("REC") },
            tr("Tracer un rectangle"),
            [this] { m_view->setTool(FolioView::Tool::Rectangle); });
@@ -1690,11 +1609,6 @@ void MainWindow::registerCommands()
     simple(QStringLiteral("POLYLIGNE"), { QStringLiteral("PL") },
            tr("Tracer une ligne brisée"),
            [this] { m_view->setTool(FolioView::Tool::Polyline); });
-    simple(QStringLiteral("POLYGONE"), { QStringLiteral("PG") },
-           tr("Tracer un polygone régulier"), [this] {
-               if (askPolygonSides())
-                   m_view->setTool(FolioView::Tool::Polygon);
-           });
     simple(QStringLiteral("ECHELLE"), { QStringLiteral("EC"), QStringLiteral("HO") },
            tr("Grossir ou réduire la sélection autour d'un point fixe"),
            [this] { m_view->beginScale(); });
@@ -2096,13 +2010,10 @@ void MainWindow::createRibbon()
         { "Accueil", "Dessin", false, "Rectangle", "" },
         { "Accueil", "Dessin", false, "Cercle", "" },
         { "Accueil", "Dessin", false, "Arc", "" },
-        { "Accueil", "Dessin", false, "Polygone", "" },
 
         { "Accueil", "Annotation", false, "Étiquette", "" },
         { "Accueil", "Annotation", false, "Renvoi de folio", "" },
         { "Accueil", "Annotation", false, "Texte", "" },
-        { "Accueil", "Annotation", false, "Grouper", "" },
-        { "Accueil", "Annotation", false, "Dégrouper", "" },
 
         { "Accueil", "Numérotation", true, "Repérage automatique", "Repérer" },
         { "Accueil", "Numérotation", false, "Format des repères", "" },
@@ -2134,9 +2045,7 @@ void MainWindow::createRibbon()
         { "Annoter", "Formes", false, "Rectangle", "" },
         { "Annoter", "Formes", false, "Cercle", "" },
         { "Annoter", "Formes", false, "Arc", "" },
-        { "Annoter", "Formes", false, "Polygone", "" },
         { "Annoter", "Mesures", false, "Mesurer une distance", "" },
-        { "Annoter", "Mesures", false, "Mesurer une surface", "" },
         { "Annoter", "Tableaux", true, "Poser le rapport dans le dessin", "Poser" },
 
         // ---- Projet -----------------------------------------------------

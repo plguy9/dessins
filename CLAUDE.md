@@ -102,14 +102,11 @@ sont délibérés et documentés dans le code :
   rapport valait 3,99. L'annulation restaure l'état
   figé plutôt que d'appliquer l'homothétie inverse — dix aller-retours ne
   doivent pas éloigner le symbole de sa taille.
-- **`core/edittools.*`** — RÉSEAU (ARRAY), ALIGNER/RÉPARTIR, JOINDRE, COUPER.
-  Un réseau polaire fait pivoter ses symboles **au quart de tour le plus
-  proche** (le modèle n'accepte que ceux-là) et laisse le reste tourner
-  librement. Un tour complet divise l'angle par le nombre d'éléments, un
-  secteur par les intervalles — sinon le dernier ne tombe pas sur la borne
-  demandée. RÉPARTIR aligne les **centres**, pas les bords : des éléments de
-  tailles différentes paraissent sinon mal espacés. JOINDRE refuse deux types
-  de fils différents, sous peine de perdre une couleur en silence.
+- **`core/edittools.*`** — RÉSEAU (ARRAY, rectangulaire seulement),
+  ALIGNER/RÉPARTIR, JOINDRE, COUPER. RÉPARTIR aligne les **centres**, pas les
+  bords : des éléments de tailles différentes paraissent sinon mal espacés.
+  JOINDRE refuse deux types de fils différents, sous peine de perdre une
+  couleur en silence.
 - **ÉTIRER (STRETCH)** : `StretchEntitiesCommand`. Les sommets pris dans la
   fenêtre de capture sont figés **à la construction** de la commande ; les
   recalculer à l'annulation les chercherait dans la géométrie déjà déplacée.
@@ -415,6 +412,30 @@ Deux pièges de Qt, payés une fois :
   de sa propre règle (`ribbonSmall`, `dockClose`…). Un test vérifie
   désormais que l'icône est **réellement encrée**, pas seulement présente :
   compter les pixels peints est la seule vérification qui l'aurait attrapé.
+
+## Ce qui a été retiré, et pourquoi (bloc A, 2026-09-02)
+
+Le logiciel avait 66 commandes de menu et une centaine d'entrées cliquables.
+Un dessinateur en utilise dix par jour. **On a jeté avant de réparer**, sur un
+seul critère : *personne ne s'en servira sur un schéma électrique* — jamais
+« c'est cassé ».
+
+- **Polygone régulier** — un hexagone à n côtés n'a aucun usage en schéma. Il
+  était là parce qu'AutoCAD l'a.
+- **Mesurer une surface** — une aire ne veut rien dire sur un schéma ; ce
+  n'est pas un plan d'implantation. La mesure de distance reste (entraxes).
+- **Réseau polaire** — répartir des copies en cercle : jamais sur un folio.
+  `ArraySpec` n'a plus de `Kind`, et `ArrayPlacement` plus d'angle.
+- **Grouper / Dégrouper** — double emploi avec `deviceGroup` (bobine + ses
+  contacts), qui est le vrai concept du métier. Deux notions de « groupe »
+  dans le même logiciel, c'est une confusion, pas une fonction. Le champ
+  `Entity::m_group` a disparu du modèle ; un ancien fichier qui porte `group`
+  voit le champ ignoré, comme n'importe quel champ inconnu.
+- **Taille réelle (zoom 100 %)** — n'a de sens que sur un écran calibré en
+  DPI ; sinon c'est un zoom arbitraire déguisé en certitude.
+
+**Aucun test ne couvrait Grouper/Dégrouper** — la suite est restée verte à
+leur suppression. C'est en soi le signe qu'on avait construit large et plat.
 
 ## Invariants à ne pas casser
 

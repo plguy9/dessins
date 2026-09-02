@@ -23,8 +23,6 @@ QJsonObject Entity::toJson() const
     o[QStringLiteral("id")] = m_id;
     if (m_locked)
         o[QStringLiteral("locked")] = true;
-    if (!m_group.isEmpty())
-        o[QStringLiteral("group")] = m_group;
     return o;
 }
 
@@ -33,7 +31,6 @@ bool Entity::readJson(const QJsonObject &object)
     const QString id = object.value(QStringLiteral("id")).toString();
     m_id = id.isEmpty() ? newId() : id;
     m_locked = object.value(QStringLiteral("locked")).toBool(false);
-    m_group = object.value(QStringLiteral("group")).toString();
     return true;
 }
 

@@ -366,33 +366,4 @@ private:
     QVector<QPair<QString, QPointF>> m_offsets;
 };
 
-// GROUPE (GROUP / UNGROUP). Des entites qui se selectionnent ensemble : un
-// cartouche dessine a la main, un depart moteur complet, un encadre et son
-// texte. Le groupe est un identifiant partage porte par chaque entite, pas une
-// liste rangee dans le folio — une liste devrait etre tenue a jour a chaque
-// suppression, et une entite effacee y laisserait une reference morte.
-class GroupEntitiesCommand : public Command
-{
-public:
-    // `group` faux degroupe : toutes les entites qui partagent un groupe avec
-    // la selection le perdent, y compris celles qui n'etaient pas designees.
-    // Degrouper la moitie d'un groupe ne veut rien dire.
-    GroupEntitiesCommand(Project &project, QString folioId, const QStringList &entityIds,
-                         bool group);
-
-    void redo() override;
-    void undo() override;
-    QString text() const override;
-
-    int affectedCount() const { return int(m_before.size()); }
-    QStringList affectedIds() const;
-
-private:
-    Project &m_project;
-    QString m_folioId;
-    bool m_grouping = true;
-    QString m_group;
-    QVector<QPair<QString, QString>> m_before; // entite -> groupe d'avant
-};
-
 } // namespace dsn

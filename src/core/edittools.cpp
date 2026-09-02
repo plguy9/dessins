@@ -57,15 +57,11 @@ bool collinear(const QPointF &a, const QPointF &b, const QPointF &c)
 
 int ArraySpec::itemCount() const
 {
-    if (kind == Kind::Polar)
-        return std::max(1, count);
     return std::max(1, columns) * std::max(1, rows);
 }
 
 bool ArraySpec::isValid() const
 {
-    if (kind == Kind::Polar)
-        return count >= 2;
     if (columns < 1 || rows < 1 || columns * rows < 2)
         return false;
     // Un reseau rectangulaire a pas nul empilerait toutes les copies au meme
@@ -77,91 +73,31 @@ bool ArraySpec::isValid() const
     return true;
 }
 
-QVector<ArrayPlacement> ArrayTools::placements(const ArraySpec &spec, const QPointF &anchor)
+QVector<ArrayPlacement> ArrayTools::placements(const ArraySpec &spec)
 {
     QVector<ArrayPlacement> out;
     if (!spec.isValid())
         return out;
 
-    if (spec.kind == ArraySpec::Kind::Rectangular) {
-        out.reserve(spec.columns * spec.rows);
-        int index = 0;
-        for (int row = 0; row < spec.rows; ++row) {
-            for (int column = 0; column < spec.columns; ++column) {
-                ArrayPlacement p;
-                p.offset = QPointF(column * spec.columnSpacing, row * spec.rowSpacing);
-                p.column = column;
-                p.row = row;
-                p.index = index++;
-                out.append(p);
-            }
+    out.reserve(spec.columns * spec.rows);
+    int index = 0;
+    for (int row = 0; row < spec.rows; ++row) {
+        for (int column = 0; column < spec.columns; ++column) {
+            ArrayPlacement p;
+            p.offset = QPointF(column * spec.columnSpacing, row * spec.rowSpacing);
+            p.column = column;
+            p.row = row;
+            p.index = index++;
+            out.append(p);
         }
-        return out;
-    }
-
-    // Polaire. Un tour complet ne repete pas la position de depart : le pas
-    // est l'angle total divise par le nombre d'elements. Sur un secteur, il
-    // est divise par les intervalles, pour que le dernier element tombe
-    // exactement sur la borne demandee.
-    const bool fullTurn = std::abs(std::abs(spec.totalAngle) - 360.0) <= kEpsilon;
-    const int divisor = fullTurn ? spec.count : std::max(1, spec.count - 1);
-    const double step = spec.totalAngle / divisor;
-
-    out.reserve(spec.count);
-    for (int i = 0; i < spec.count; ++i) {
-        ArrayPlacement p;
-        p.angle = step * i;
-        p.offset = rotatedAbout(anchor, spec.center, p.angle) - anchor;
-        p.index = i;
-        out.append(p);
     }
     return out;
 }
 
-void ArrayTools::apply(Entity &entity, const ArrayPlacement &placement, const QPointF &center)
+void ArrayTools::apply(Entity &entity, const ArrayPlacement &placement)
 {
-    if (fuzzyZero(placement.angle)) {
-        entity.translate(placement.offset);
-        return;
-    }
-
-    // Rotation autour du centre du reseau, puis reprise de l'orientation pour
-    // les entites qui en portent une.
-    if (auto *symbol = dynamic_cast<SymbolInstance *>(&entity)) {
-        symbol->placement.position = rotatedAbout(symbol->placement.position, center,
-                                                  placement.angle);
-        symbol->placement.orientation =
-                addedTo(symbol->placement.orientation, nearestQuarter(placement.angle));
-        return;
-    }
-    if (auto *text = dynamic_cast<TextItem *>(&entity)) {
-        text->placement.position = rotatedAbout(text->placement.position, center,
-                                                placement.angle);
-        text->placement.orientation =
-                addedTo(text->placement.orientation, nearestQuarter(placement.angle));
-        return;
-    }
-    if (auto *wire = dynamic_cast<Wire *>(&entity)) {
-        for (QPointF &p : wire->points)
-            p = rotatedAbout(p, center, placement.angle);
-        return;
-    }
-    if (auto *junction = dynamic_cast<Junction *>(&entity)) {
-        junction->point = rotatedAbout(junction->point, center, placement.angle);
-        return;
-    }
-    if (auto *label = dynamic_cast<Label *>(&entity)) {
-        label->point = rotatedAbout(label->point, center, placement.angle);
-        label->direction = directionFromDegrees(
-                (toDegrees(label->direction) + toDegrees(nearestQuarter(placement.angle))) % 360);
-        return;
-    }
-    if (auto *graphic = dynamic_cast<GraphicItem *>(&entity)) {
-        for (QPointF &p : graphic->shape.points)
-            p = rotatedAbout(p, center, placement.angle);
-        graphic->shape.startAngle -= placement.angle; // convention Qt : sens trigonometrique
-        return;
-    }
+    // Un reseau rectangulaire ne fait que deplacer : aucune entite n'a besoin
+    // de savoir qu'elle est une copie.
     entity.translate(placement.offset);
 }
 

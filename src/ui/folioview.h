@@ -36,7 +36,7 @@ public:
     // produisent des GraphicItem, jamais des fils.
     enum class Tool {
         Select, Wire, Symbol, Junction, Label, Text, Trim, Extend,
-        Line, Rectangle, Circle, Arc, Polyline, Polygon
+        Line, Rectangle, Circle, Arc, Polyline
     };
     Q_ENUM(Tool)
 
@@ -109,7 +109,6 @@ public:
     void zoomIn();
     void zoomOut();
     void zoomToFit();
-    void zoomActual();
 
     // Zoom fenetre et zoom precedent, comme ZOOM W et ZOOM P d'AutoCAD.
     // Le zoom precedent depile les vues successives : c'est le filet de
@@ -176,9 +175,6 @@ public:
     // laisse rien : elle se lit dans la barre d'etat et dans l'historique de
     // la ligne de commande, puis disparait. Coter un plan est un autre geste,
     // qui pose une entite.
-    int polygonSides() const { return m_polygonSides; }
-    void setPolygonSides(int sides) { m_polygonSides = qBound(3, sides, 64); }
-
     // PANORAMIQUE (PAN). Le bouton du milieu et la barre d'espace le font
     // deja, mais l'un et l'autre sont des gestes qu'on ne devine pas. Armer
     // le mode donne au panoramique une commande, comme chez AutoCAD — et
@@ -186,7 +182,6 @@ public:
     void beginPan();
 
     void beginMeasureDistance();
-    void beginMeasureArea();
 
     bool hasPendingGesture() const { return m_pending != Pending::None; }
 
@@ -320,7 +315,6 @@ private:
     QSet<QString> entitiesIn(const QRectF &sceneRect, bool crossing) const;
     bool entityTouchesRect(const Entity &entity, const QRectF &rect) const;
     // Etend une selection a tous les membres des groupes qu'elle touche.
-    QSet<QString> expandToGroup(const QSet<QString> &ids) const;
 
     void beginWireAt(const QPointF &point);
 
@@ -328,7 +322,6 @@ private:
     // termine par une entite electrique, une forme par une entite graphique,
     // et melanger les deux etats ferait poser un fil avec l'outil cercle.
     QVector<QPointF> m_shapePoints;
-    int m_polygonSides = 6;
     void placeShapePoint(const QPointF &point);
     void commitShape();
     void paintShapePreview(QPainter &painter) const;
@@ -409,7 +402,7 @@ private:
     enum class Pending {
         None, MoveBase, MoveTarget, OffsetSide, StretchBase, StretchTarget,
         ScootTarget, ComponentTarget, ScaleBase, ScaleTarget, CutTarget,
-        MeasureDistance, MeasureArea,
+        MeasureDistance,
     };
     // L'appareil designe par Scoot ou par le deplacement d'appareil, et son
     // point de depart.

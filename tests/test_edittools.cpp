@@ -154,13 +154,12 @@ TEST_CASE("L'echelle survit a l'enregistrement", "[edition][echelle][io]")
 TEST_CASE("Le reseau rectangulaire pose une grille de copies", "[edition][reseau]")
 {
     ArraySpec spec;
-    spec.kind = ArraySpec::Kind::Rectangular;
     spec.columns = 3;
     spec.rows = 2;
     spec.columnSpacing = 25.0;
     spec.rowSpacing = 40.0;
 
-    const QVector<ArrayPlacement> placements = ArrayTools::placements(spec, QPointF(0, 0));
+    const QVector<ArrayPlacement> placements = ArrayTools::placements(spec);
     REQUIRE(placements.size() == 6);
     // L'original est le premier et ne bouge pas : le reseau s'ajoute au
     // dessin, il ne le refait pas.
@@ -180,30 +179,7 @@ TEST_CASE("Un reseau a pas nul est refuse", "[edition][reseau]")
     spec.rows = 1;
     spec.columnSpacing = 0.0;
     CHECK_FALSE(spec.isValid());
-    CHECK(ArrayTools::placements(spec, QPointF(0, 0)).isEmpty());
-}
-
-TEST_CASE("Le reseau polaire repartit sur le tour", "[edition][reseau]")
-{
-    ArraySpec spec;
-    spec.kind = ArraySpec::Kind::Polar;
-    spec.center = QPointF(100, 100);
-    spec.count = 4;
-    spec.totalAngle = 360.0;
-
-    const QVector<ArrayPlacement> placements = ArrayTools::placements(spec, QPointF(120, 100));
-    REQUIRE(placements.size() == 4);
-    // Un tour complet ne repete pas la position de depart : le pas est
-    // l'angle total divise par le nombre d'elements, pas par les intervalles.
-    CHECK_THAT(placements.at(1).angle, WithinAbs(90.0, 1e-9));
-    CHECK_THAT(placements.last().angle, WithinAbs(270.0, 1e-9));
-
-    // Sur un secteur en revanche, le dernier element tombe exactement sur la
-    // borne demandee.
-    spec.totalAngle = 90.0;
-    const QVector<ArrayPlacement> sector = ArrayTools::placements(spec, QPointF(120, 100));
-    REQUIRE(sector.size() == 4);
-    CHECK_THAT(sector.last().angle, WithinAbs(90.0, 1e-9));
+    CHECK(ArrayTools::placements(spec).isEmpty());
 }
 
 TEST_CASE("Le reseau se defait d'une seule annulation", "[edition][reseau]")

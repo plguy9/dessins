@@ -1268,34 +1268,6 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
             p.drawEllipse(v, 1.5, 1.5);
         strokeOnly();
         break;
-    case Glyph::Polygon: {
-        // Un hexagone regulier : la forme que le mot evoque, et celle que
-        // l'outil propose par defaut.
-        QPolygonF hexagon;
-        for (int i = 0; i < 6; ++i) {
-            const double a = std::numbers::pi / 6.0 + i * std::numbers::pi / 3.0;
-            hexagon << QPointF(12 + std::cos(a) * 9.0, 12 - std::sin(a) * 9.0);
-        }
-        p.drawPolygon(hexagon);
-        break;
-    }
-    case Glyph::Group:
-        // Deux elements et le cadre en equerres qui les tient ensemble.
-        p.drawRect(QRectF(6.5, 6.5, 5, 5));
-        p.drawRect(QRectF(12.5, 12.5, 5, 5));
-        p.drawPolyline(QPolygonF({ { 6, 2.5 }, { 2.5, 2.5 }, { 2.5, 6 } }));
-        p.drawPolyline(QPolygonF({ { 18, 2.5 }, { 21.5, 2.5 }, { 21.5, 6 } }));
-        p.drawPolyline(QPolygonF({ { 6, 21.5 }, { 2.5, 21.5 }, { 2.5, 18 } }));
-        p.drawPolyline(QPolygonF({ { 18, 21.5 }, { 21.5, 21.5 }, { 21.5, 18 } }));
-        break;
-    case Glyph::Ungroup:
-        // Les memes elements, mais les equerres se sont ecartees : le lien
-        // est rompu, et cela se voit sans lire le libelle.
-        p.drawRect(QRectF(4.5, 6.5, 5, 5));
-        p.drawRect(QRectF(14.5, 12.5, 5, 5));
-        p.drawPolyline(QPolygonF({ { 7, 2.5 }, { 3.5, 2.5 }, { 3.5, 5.5 } }));
-        p.drawPolyline(QPolygonF({ { 17, 21.5 }, { 20.5, 21.5 }, { 20.5, 18.5 } }));
-        break;
     case Glyph::MeasureLength:
         // Une ligne de cote : deux traits d'attache, une fleche a chaque bout.
         p.drawLine(QPointF(4, 4), QPointF(4, 20));
@@ -1304,23 +1276,6 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawPolyline(QPolygonF({ { 7.5, 9 }, { 4, 12 }, { 7.5, 15 } }));
         p.drawPolyline(QPolygonF({ { 16.5, 9 }, { 20, 12 }, { 16.5, 15 } }));
         break;
-    case Glyph::MeasureArea: {
-        // Un contour quelconque et ses hachures paralleles : c'est la surface
-        // qu'on mesure, pas son pourtour. Le contour est volontairement
-        // irregulier — une surface se prend sur n'importe quelle forme, et un
-        // rectangle se confondrait avec le glyphe du rectangle.
-        p.drawPolygon(QPolygonF({ { 4, 7 }, { 20, 5 }, { 19, 19 }, { 5, 17 } }));
-        QPen light = p.pen();
-        light.setWidthF(0.9);
-        p.setPen(light);
-        // Quatre diagonales a quarante-cinq degres, calees dans le contour.
-        p.drawLine(QPointF(6, 11), QPointF(10, 7));
-        p.drawLine(QPointF(6, 15), QPointF(14, 7));
-        p.drawLine(QPointF(8, 17), QPointF(18, 7));
-        p.drawLine(QPointF(12, 17), QPointF(18, 11));
-        p.setPen(pen);
-        break;
-    }
     case Glyph::Join:
         // Deux traits qui se rejoignent, et le point de soudure.
         p.drawLine(QPointF(3, 12), QPointF(10.5, 12));

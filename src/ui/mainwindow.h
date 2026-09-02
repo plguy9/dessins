@@ -86,11 +86,8 @@ private:
     void editTerminalStrips();
     // Modification : le groupe « Modifier » du ruban d'AutoCAD.
     void arraySelection();
-    void groupSelection(bool group);
     // Demande le nombre de cotes du polygone. Faux si l'utilisateur renonce.
-    bool askPolygonSides();
     void measureDistance();
-    void measureArea();
     void alignSelection(AlignMode mode);
     void matchProperties();
     // Automates : la meme boite pose une carte et reprend une carte posee.
@@ -192,8 +189,6 @@ private:
     QAction *m_unlockTagsAction = nullptr;
     QAction *m_cutAction = nullptr;
     QAction *m_matchAction = nullptr;
-    QAction *m_groupAction = nullptr;
-    QAction *m_ungroupAction = nullptr;
     QList<QAction *> m_alignActions;
     QAction *m_scootAction = nullptr;
     QAction *m_moveComponentAction = nullptr;

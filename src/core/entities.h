@@ -26,6 +26,7 @@ public:
     bool assign(const Entity &other) override;
     QRectF boundingBox() const override;
     void translate(const QPointF &delta) override;
+    void scale(const QPointF &base, double factor) override;
     QJsonObject toJson() const override;
     bool readJson(const QJsonObject &object) override;
 
@@ -70,6 +71,7 @@ public:
     bool assign(const Entity &other) override;
     QRectF boundingBox() const override;
     void translate(const QPointF &delta) override;
+    void scale(const QPointF &base, double factor) override;
     QJsonObject toJson() const override;
     bool readJson(const QJsonObject &object) override;
 
@@ -106,6 +108,7 @@ public:
     bool assign(const Entity &other) override;
     QRectF boundingBox() const override;
     void translate(const QPointF &delta) override;
+    void scale(const QPointF &base, double factor) override;
     QJsonObject toJson() const override;
     bool readJson(const QJsonObject &object) override;
 
@@ -126,6 +129,7 @@ public:
     bool assign(const Entity &other) override;
     QRectF boundingBox() const override;
     void translate(const QPointF &delta) override;
+    void scale(const QPointF &base, double factor) override;
     QJsonObject toJson() const override;
     bool readJson(const QJsonObject &object) override;
 
@@ -149,6 +153,7 @@ public:
     bool assign(const Entity &other) override;
     QRectF boundingBox() const override;
     void translate(const QPointF &delta) override;
+    void scale(const QPointF &base, double factor) override;
     QJsonObject toJson() const override;
     bool readJson(const QJsonObject &object) override;
 
@@ -183,6 +188,7 @@ public:
     bool assign(const Entity &other) override;
     QRectF boundingBox() const override;
     void translate(const QPointF &delta) override;
+    void scale(const QPointF &base, double factor) override;
     QJsonObject toJson() const override;
     bool readJson(const QJsonObject &object) override;
 

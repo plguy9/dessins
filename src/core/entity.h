@@ -36,6 +36,13 @@ public:
     virtual QRectF boundingBox() const = 0;
     virtual void translate(const QPointF &delta) = 0;
 
+    // Homothetie autour d'un centre. Symetrique de translate : chaque type
+    // sait ce que grossir veut dire pour lui — un symbole change de facteur
+    // de placement, un fil deplace ses sommets, un texte grandit sa hauteur.
+    // Mettre cette connaissance ailleurs obligerait a un dynamic_cast par
+    // type a chaque appel, et un type neuf serait oublie en silence.
+    virtual void scale(const QPointF &base, double factor) = 0;
+
     virtual QJsonObject toJson() const;
     virtual bool readJson(const QJsonObject &object);
 

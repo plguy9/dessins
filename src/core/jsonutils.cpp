@@ -43,6 +43,11 @@ QJsonObject placementToJson(const Placement &p)
         o[QStringLiteral("rot")] = toDegrees(p.orientation);
     if (p.mirrored)
         o[QStringLiteral("mirror")] = true;
+    // L'echelle n'est ecrite que si elle differe de un : un dossier qui
+    // n'utilise pas l'homothetie doit produire exactement le meme fichier
+    // qu'avant qu'elle existe.
+    if (!fuzzyEqual(p.scale, 1.0))
+        o[QStringLiteral("scale")] = p.scale;
     return o;
 }
 
@@ -53,6 +58,12 @@ Placement placementFromJson(const QJsonValue &v)
     p.position = pointFromJson(o.value(QStringLiteral("at")));
     p.orientation = orientationFromDegrees(o.value(QStringLiteral("rot")).toInt(0));
     p.mirrored = o.value(QStringLiteral("mirror")).toBool(false);
+    p.scale = o.value(QStringLiteral("scale")).toDouble(1.0);
+    // Une echelle nulle ou negative viderait le symbole sans rien dire : on
+    // retombe sur un, comme un identifiant de type de fil inconnu retombe sur
+    // le type par defaut.
+    if (p.scale <= kEpsilon)
+        p.scale = 1.0;
     return p;
 }
 

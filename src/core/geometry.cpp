@@ -150,6 +150,11 @@ Transform2D Placement::transform() const
     Transform2D t;
     if (mirrored)
         t = Transform2D::scaling(-1.0, 1.0);
+    // L'homothetie est uniforme : elle commute avec la rotation, et l'ordre
+    // n'a donc pas d'importance ici. On la pose avec le miroir pour garder
+    // une seule multiplication.
+    if (!fuzzyEqual(scale, 1.0))
+        t = t.then(Transform2D::scaling(scale, scale));
     return t.then(Transform2D::rotation(toDegrees(orientation)))
             .then(Transform2D::translation(position.x(), position.y()));
 }

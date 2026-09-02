@@ -89,6 +89,13 @@ struct Placement {
     Orientation orientation = Orientation::R0;
     bool mirrored = false; // miroir selon l'axe vertical local, applique avant la rotation
 
+    // Homothetie uniforme. Un seul facteur et non deux : un symbole
+    // electrique etire dans un seul axe cesse d'etre le symbole normalise
+    // qu'un lecteur reconnait, et ses broches ne tomberaient plus sur la
+    // grille. Grossir un appareil pour le rendre lisible est legitime ;
+    // l'aplatir ne l'est pas.
+    double scale = 1.0;
+
     Transform2D transform() const;
     QPointF map(const QPointF &local) const;
     QRectF mapRect(const QRectF &local) const;
@@ -96,9 +103,16 @@ struct Placement {
     bool operator==(const Placement &o) const
     {
         return samePoint(position, o.position, kEpsilon) && orientation == o.orientation
-               && mirrored == o.mirrored;
+               && mirrored == o.mirrored && fuzzyEqual(scale, o.scale);
     }
 };
+
+// Homothetie d'un point autour d'un centre. Sert a tout ce que l'echelle
+// touche : positions d'entites, sommets de fils, points d'accrochage.
+inline QPointF scaledAbout(const QPointF &p, const QPointF &base, double factor)
+{
+    return base + (p - base) * factor;
+}
 
 // --------------------------------------------------------------------------
 // Utilitaires de segments, utilises par la detection de connexions.

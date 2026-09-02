@@ -30,6 +30,10 @@ struct Primitive {
 
     QRectF bounds() const;
     void translate(const QPointF &delta);
+    // Homothetie autour d'un centre : les sommets, mais aussi le rayon, la
+    // hauteur de texte et l'epaisseur de trait. Grossir une forme sans
+    // grossir son trait donnerait un contour de plus en plus fin.
+    void scale(const QPointF &base, double factor);
 
     QJsonObject toJson() const;
     static Primitive fromJson(const QJsonValue &v);

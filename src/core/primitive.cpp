@@ -84,6 +84,17 @@ void Primitive::translate(const QPointF &delta)
         p += delta;
 }
 
+void Primitive::scale(const QPointF &base, double factor)
+{
+    if (fuzzyEqual(factor, 1.0) || factor <= kEpsilon)
+        return;
+    for (QPointF &p : points)
+        p = scaledAbout(p, base, factor);
+    radius *= factor;
+    textHeight *= factor;
+    lineWidth *= factor;
+}
+
 QJsonObject Primitive::toJson() const
 {
     QJsonObject o;

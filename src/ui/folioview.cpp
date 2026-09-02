@@ -5,6 +5,7 @@
 #include "core/componenttools.h"
 #include "core/coordinateentry.h"
 #include "core/documentcommands.h"
+#include "core/edittools.h"
 #include "core/wiretools.h"
 #include "render/foliopainter.h"
 #include "rules/crossref.h"
@@ -716,6 +717,123 @@ void FolioView::beginOffset(double distanceMm)
     update();
 }
 
+void FolioView::beginScale()
+{
+    if (m_selection.isEmpty()) {
+        Q_EMIT statusMessage(tr("Échelle : sélectionner d'abord ce qu'il faut grossir."));
+        return;
+    }
+    setTool(Tool::Select);
+    m_pending = Pending::ScaleBase;
+    m_scaleFactor = 1.0;
+    Q_EMIT statusMessage(tr("Échelle : cliquer le point fixe, celui qui ne bougera pas."));
+    update();
+}
+
+void FolioView::beginCut()
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return;
+    bool hasWire = false;
+    for (const QString &id : std::as_const(m_selection))
+        hasWire = hasWire || dynamic_cast<const Wire *>(folio->entity(id)) != nullptr;
+    if (!hasWire) {
+        Q_EMIT statusMessage(tr("Coupure : sélectionner d'abord le fil à couper."));
+        return;
+    }
+    setTool(Tool::Select);
+    m_pending = Pending::CutTarget;
+    Q_EMIT statusMessage(tr("Coupure : cliquer l'endroit où couper le fil."));
+    update();
+}
+
+void FolioView::joinSelectedWires()
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio) {
+        return;
+    }
+    QStringList wires;
+    for (const QString &id : std::as_const(m_selection)) {
+        if (dynamic_cast<const Wire *>(folio->entity(id)))
+            wires.append(id);
+    }
+    if (wires.size() < 2) {
+        Q_EMIT statusMessage(tr("Joindre : sélectionner au moins deux fils qui se touchent."));
+        return;
+    }
+
+    // On soude de proche en proche : chaque soudure peut en rendre une autre
+    // possible, et l'utilisateur attend qu'une selection de quatre morceaux
+    // n'en laisse qu'un.
+    int joined = 0;
+    m_document->pushMacro(tr("Joindre les fils"), [&] {
+        bool again = true;
+        while (again) {
+            again = false;
+            for (int i = 0; i < wires.size() && !again; ++i) {
+                for (int j = i + 1; j < wires.size() && !again; ++j) {
+                    const auto join = EditTools::joinable(*folio, wires.at(i), wires.at(j));
+                    if (!join)
+                        continue;
+                    const auto *pattern = dynamic_cast<const Wire *>(folio->entity(join->firstId));
+                    if (!pattern)
+                        continue;
+                    // Le fil soude herite du premier : repere, conducteurs et
+                    // type. Souder ne doit pas faire perdre son identite au fil.
+                    auto merged = std::make_unique<Wire>(*pattern);
+                    merged->setId(newId());
+                    merged->points = join->merged;
+                    const QString mergedId = merged->id();
+
+                    m_document->push(std::make_unique<RemoveEntityCommand>(
+                            m_document->project(), folio->id(), join->firstId,
+                            tr("Joindre les fils")));
+                    m_document->push(std::make_unique<RemoveEntityCommand>(
+                            m_document->project(), folio->id(), join->secondId,
+                            tr("Joindre les fils")));
+                    m_document->push(std::make_unique<AddEntityCommand>(
+                            m_document->project(), folio->id(), std::move(merged),
+                            tr("Joindre les fils")));
+
+                    wires.removeAt(j);
+                    wires.removeAt(i);
+                    wires.append(mergedId);
+                    ++joined;
+                    again = true;
+                }
+            }
+        }
+    });
+
+    if (joined == 0) {
+        Q_EMIT statusMessage(tr("Joindre : ces fils ne se touchent pas, ou n'ont pas le même "
+                                "type."));
+        return;
+    }
+    setSelection(QSet<QString>{ wires.last() });
+    Q_EMIT statusMessage(tr("%n soudure(s).", "", joined));
+}
+
+void FolioView::applyScale(double factor)
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return;
+    auto command = std::make_unique<ScaleEntitiesCommand>(
+            m_document->project(), folio->id(), QStringList(m_selection.cbegin(),
+                                                            m_selection.cend()),
+            m_moveBase, factor);
+    if (command->affectedCount() == 0) {
+        Q_EMIT statusMessage(tr("Échelle : rien à grossir."));
+        return;
+    }
+    m_document->push(std::move(command));
+    rebuildGrips();
+    Q_EMIT statusMessage(tr("Échelle appliquée : ×%1.").arg(factor, 0, 'g', 3));
+}
+
 SymbolInstance *FolioView::selectedComponent() const
 {
     Folio *folio = m_document->currentFolio();
@@ -868,6 +986,29 @@ bool FolioView::commitTypedEntry()
 {
     if (!m_typing)
         return false;
+
+    // Pendant l'echelle, un nombre tape est un facteur, pas une cote : « 2 »
+    // doit doubler, pas deplacer de deux millimetres. C'est le seul moyen
+    // d'obtenir exactement 0,5 — la souris ne le donnera jamais.
+    if (m_pending == Pending::ScaleTarget) {
+        bool ok = false;
+        QString text = m_typed.trimmed();
+        text.replace(QLatin1Char(','), QLatin1Char('.'));
+        const double factor = text.toDouble(&ok);
+        m_typing = false;
+        m_typed.clear();
+        if (!ok || factor <= 0.0) {
+            Q_EMIT statusMessage(tr("Facteur incompris : « %1 ». Un nombre positif, "
+                                    "par exemple 2 ou 0,5.").arg(text));
+            update();
+            return false;
+        }
+        m_pending = Pending::None;
+        applyScale(factor);
+        update();
+        return true;
+    }
+
     const QPointF *from = gestureOrigin();
     const auto point = CoordinateEntry::resolve(m_typed, from, snap(m_cursorMm));
     if (!point) {
@@ -986,6 +1127,81 @@ bool FolioView::handlePendingClick(const QPointF &scenePoint)
         }
         m_scootAxis.reset();
         m_componentId.clear();
+        update();
+        return true;
+    }
+    case Pending::ScaleBase: {
+        m_moveBase = scenePoint;
+        m_pending = Pending::ScaleTarget;
+        // Le rayon de reference est la distance du point fixe au coin le plus
+        // eloigne de la selection : poser le curseur la donne le facteur 1.
+        QRectF hull;
+        if (Folio *folio = m_document->currentFolio()) {
+            for (const QString &id : std::as_const(m_selection)) {
+                if (const Entity *entity = folio->entity(id)) {
+                    hull = hull.isNull() ? entity->boundingBox()
+                                         : hull.united(entity->boundingBox());
+                }
+            }
+        }
+        m_scaleRadius = 0.0;
+        for (const QPointF &corner : { hull.topLeft(), hull.topRight(), hull.bottomLeft(),
+                                       hull.bottomRight() }) {
+            m_scaleRadius = std::max(m_scaleRadius,
+                                     std::hypot(corner.x() - scenePoint.x(),
+                                                corner.y() - scenePoint.y()));
+        }
+        if (m_scaleRadius <= kConnectTolerance)
+            m_scaleRadius = 10.0;
+        m_scaleFactor = 1.0;
+        Q_EMIT statusMessage(tr("Échelle : éloigner pour grossir, ou taper le facteur "
+                                "(2 · 0,5)."));
+        update();
+        return true;
+    }
+    case Pending::ScaleTarget: {
+        const double distance = std::hypot(scenePoint.x() - m_moveBase.x(),
+                                           scenePoint.y() - m_moveBase.y());
+        m_pending = Pending::None;
+        applyScale(distance / m_scaleRadius);
+        update();
+        return true;
+    }
+    case Pending::CutTarget: {
+        Folio *folio = m_document->currentFolio();
+        m_pending = Pending::None;
+        if (!folio) {
+            update();
+            return true;
+        }
+        for (const QString &id : std::as_const(m_selection)) {
+            const auto cut = EditTools::cut(*folio, id, scenePoint);
+            if (!cut)
+                continue;
+            const auto *pattern = dynamic_cast<const Wire *>(folio->entity(id));
+            if (!pattern)
+                continue;
+            // Les deux morceaux heritent du fil coupe : couper ne fait pas
+            // perdre son repere ni son type au conducteur.
+            const Wire model = *pattern;
+            m_document->pushMacro(tr("Couper le fil"), [&] {
+                m_document->push(std::make_unique<RemoveEntityCommand>(
+                        m_document->project(), folio->id(), id, tr("Couper le fil")));
+                for (const QVector<QPointF> &piece : { cut->before, cut->after }) {
+                    auto part = std::make_unique<Wire>(model);
+                    part->setId(newId());
+                    part->points = piece;
+                    m_document->push(std::make_unique<AddEntityCommand>(
+                            m_document->project(), folio->id(), std::move(part),
+                            tr("Couper le fil")));
+                }
+            });
+            setSelection({});
+            Q_EMIT statusMessage(tr("Fil coupé."));
+            update();
+            return true;
+        }
+        Q_EMIT statusMessage(tr("Coupure : ce point n'est pas sur le fil sélectionné."));
         update();
         return true;
     }
@@ -1965,6 +2181,50 @@ void FolioView::paintPendingGesture(QPainter &painter) const
             }
         }
         painter.drawLine(m_moveBase, m_moveBase + delta);
+        painter.restore();
+        return;
+    }
+
+    if (m_pending == Pending::ScaleTarget) {
+        // Fantome homothetique de la selection, plus le facteur en clair.
+        // Grossir a l'aveugle et regarder ensuite oblige a annuler une fois
+        // sur deux.
+        const QPointF cursor = snap(m_cursorMm);
+        const double distance = std::hypot(cursor.x() - m_moveBase.x(),
+                                           cursor.y() - m_moveBase.y());
+        const double factor = m_scaleRadius > kConnectTolerance ? distance / m_scaleRadius : 1.0;
+
+        painter.save();
+        QPen pen(m_style.selection);
+        pen.setWidthF(m_style.wireWidth);
+        pen.setStyle(Qt::DashLine);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        for (const QString &id : m_selection) {
+            const Entity *entity = folio->entity(id);
+            if (!entity)
+                continue;
+            if (const auto *wire = dynamic_cast<const Wire *>(entity)) {
+                QVector<QPointF> ghost = wire->points;
+                for (QPointF &p : ghost)
+                    p = scaledAbout(p, m_moveBase, factor);
+                painter.drawPolyline(ghost.constData(), int(ghost.size()));
+            } else {
+                const QRectF box = entity->boundingBox();
+                painter.drawRect(QRectF(scaledAbout(box.topLeft(), m_moveBase, factor),
+                                        scaledAbout(box.bottomRight(), m_moveBase, factor)));
+            }
+        }
+
+        // Le point fixe, marque comme tel : c'est lui qu'on choisit, et il
+        // n'a aucune raison d'etre au centre de la selection.
+        QPen anchor(m_style.snapMarker);
+        anchor.setWidthF(m_style.wireWidth * 1.2);
+        painter.setPen(anchor);
+        const double r = 1.6;
+        painter.drawLine(m_moveBase + QPointF(-r, 0), m_moveBase + QPointF(r, 0));
+        painter.drawLine(m_moveBase + QPointF(0, -r), m_moveBase + QPointF(0, r));
+        painter.drawLine(m_moveBase, cursor);
         painter.restore();
         return;
     }

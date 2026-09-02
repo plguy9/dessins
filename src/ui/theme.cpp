@@ -542,6 +542,13 @@ QFont Theme::uiFont(int pointSize, int weight)
     QFont font(g_uiFamily);
     font.setPointSizeF(pointSize <= 0 ? 10.0 : double(pointSize));
     font.setWeight(QFont::Weight(weight <= 0 ? int(QFont::Normal) : weight));
+    // Capitales et espacement remis a plat explicitement. Qt ne propage a un
+    // enfant que les attributs poses sur sa fonte : poser la fonte gravee sur
+    // un panneau et la fonte d'interface sur son contenu ne suffit pas — la
+    // mise en capitales, que uiFont ne mentionnait pas, continuait de
+    // descendre, et toute la liste des symboles se lisait en majuscules.
+    font.setCapitalization(QFont::MixedCase);
+    font.setLetterSpacing(QFont::PercentageSpacing, 100.0);
     return font;
 }
 
@@ -958,6 +965,46 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         fill(stroke);
         p.drawChord(QRectF(4.5, 4.5, 15, 15), 90 * 16, 180 * 16);
         strokeOnly();
+        break;
+    case Glyph::Scale:
+        // Un petit carre, un grand carre, et la diagonale qui les relie :
+        // l'homothetie se lit d'un coup, y compris a seize pixels.
+        p.drawRect(QRectF(3, 13, 8, 8));
+        p.drawRect(QRectF(9, 3, 12, 12));
+        p.drawLine(QPointF(3, 21), QPointF(21, 3));
+        break;
+    case Glyph::Stretch:
+        // Une forme dont un seul cote est tire : c'est exactement ce que fait
+        // la commande, et ce qui la distingue du deplacement.
+        p.drawPolyline(QPolygonF({ { 3, 7 }, { 13, 7 }, { 13, 17 }, { 3, 17 }, { 3, 7 } }));
+        p.drawLine(QPointF(13, 12), QPointF(21, 12));
+        p.drawPolyline(QPolygonF({ { 18, 9 }, { 21, 12 }, { 18, 15 } }));
+        break;
+    case Glyph::Array:
+        // La matrice de copies : deux lignes de trois.
+        for (int row = 0; row < 2; ++row) {
+            for (int column = 0; column < 3; ++column)
+                p.drawRect(QRectF(3 + column * 7, 5 + row * 8, 5, 6));
+        }
+        break;
+    case Glyph::Align:
+        // Un bord de reference, et trois barres qui viennent s'y poser.
+        p.drawLine(QPointF(4, 3), QPointF(4, 21));
+        p.drawRect(QRectF(4, 5, 14, 4));
+        p.drawRect(QRectF(4, 11, 9, 4));
+        p.drawRect(QRectF(4, 17, 17, 4));
+        break;
+    case Glyph::Trim:
+        // Un trait coupe net, et la limite qui l'a coupe.
+        p.drawLine(QPointF(3, 16), QPointF(11, 16));
+        p.drawLine(QPointF(15, 4), QPointF(15, 20));
+        p.drawLine(QPointF(18, 8), QPointF(21, 8));
+        break;
+    case Glyph::Extend:
+        // Le meme trait, mais allonge jusqu'a la limite.
+        p.drawLine(QPointF(3, 16), QPointF(15, 16));
+        p.drawPolyline(QPolygonF({ { 12, 13 }, { 15, 16 }, { 12, 19 } }));
+        p.drawLine(QPointF(19, 4), QPointF(19, 20));
         break;
     }
 

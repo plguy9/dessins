@@ -129,6 +129,17 @@ public:
     // rallonge un barreau sans detacher ce qui y est raccorde.
     void beginStretch();
 
+    // ECHELLE (SCALE) : point de base, puis facteur. Le facteur se prend a la
+    // souris — la selection suit le curseur — ou se tape, ce qui est le seul
+    // moyen d'obtenir exactement 2 ou 0,5.
+    void beginScale();
+
+    // COUPURE (BREAK) : couper un fil au point clique.
+    void beginCut();
+
+    // JOINDRE (JOIN) : souder les fils colineaires de la selection.
+    void joinSelectedWires();
+
     bool hasPendingGesture() const { return m_pending != Pending::None; }
     void mirrorSelection();
     void nudgeSelection(const QPointF &deltaMm);
@@ -265,13 +276,21 @@ private:
     // d'AutoCAD : la vue attend un point, puis un autre.
     enum class Pending {
         None, MoveBase, MoveTarget, OffsetSide, StretchBase, StretchTarget,
-        ScootTarget, ComponentTarget,
+        ScootTarget, ComponentTarget, ScaleBase, ScaleTarget, CutTarget,
     };
     // L'appareil designe par Scoot ou par le deplacement d'appareil, et son
     // point de depart.
     QString m_componentId;
     QPointF m_componentStart;
     std::optional<QPointF> m_scootAxis;
+
+    // Echelle : le rayon de reference, fige au clic du point de base. Poser
+    // le curseur sur le coin de la selection donne le facteur 1, deux fois
+    // plus loin donne 2 — un reperage previsible, contrairement au facteur
+    // en unites de dessin d'AutoCAD, qui depend de l'echelle du folio.
+    double m_scaleRadius = 0.0;
+    double m_scaleFactor = 1.0;
+    void applyScale(double factor);
 
     // Trouve l'appareil a manipuler dans la selection, ou rien.
     SymbolInstance *selectedComponent() const;

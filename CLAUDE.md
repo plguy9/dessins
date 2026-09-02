@@ -67,6 +67,24 @@ sont délibérés et documentés dans le code :
 - **DÉCALER (OFFSET) et DÉPLACER (MOVE)** : `FolioView::beginOffset` et
   `beginMoveSelection`. Ce sont des gestes en deux clics, comme la ligne de
   commande d'AutoCAD ; l'état vit dans `FolioView::Pending`.
+- **ÉCHELLE (SCALE)** — `Placement::scale`, et `Entity::scale(base, facteur)`
+  virtuelle à côté de `translate`. Chaque type sait ce que grossir veut dire
+  pour lui : un symbole change de facteur de placement (ses **broches suivent
+  donc toutes seules**, peintre et netlist passant par la même
+  transformation), un fil déplace ses sommets, un texte grandit sa **hauteur
+  de capitale** — pas son facteur de placement, sinon les deux se
+  multiplieraient. Le facteur est **uniforme** : un symbole aplati n'est plus
+  le symbole normalisé qu'un lecteur reconnaît. L'annulation restaure l'état
+  figé plutôt que d'appliquer l'homothétie inverse — dix aller-retours ne
+  doivent pas éloigner le symbole de sa taille.
+- **`core/edittools.*`** — RÉSEAU (ARRAY), ALIGNER/RÉPARTIR, JOINDRE, COUPER.
+  Un réseau polaire fait pivoter ses symboles **au quart de tour le plus
+  proche** (le modèle n'accepte que ceux-là) et laisse le reste tourner
+  librement. Un tour complet divise l'angle par le nombre d'éléments, un
+  secteur par les intervalles — sinon le dernier ne tombe pas sur la borne
+  demandée. RÉPARTIR aligne les **centres**, pas les bords : des éléments de
+  tailles différentes paraissent sinon mal espacés. JOINDRE refuse deux types
+  de fils différents, sous peine de perdre une couleur en silence.
 - **ÉTIRER (STRETCH)** : `StretchEntitiesCommand`. Les sommets pris dans la
   fenêtre de capture sont figés **à la construction** de la commande ; les
   recalculer à l'annulation les chercherait dans la géométrie déjà déplacée.
@@ -172,6 +190,16 @@ Nous prenons les deux bouts sans le ruban :
 - Les icônes sont dessinées à l'exécution (`Icons::Glyph`) : deux commandes
   différentes ne doivent jamais partager un glyphe, sinon la barre d'outils
   devient illisible.
+- **Sept menus** : Fichier, Édition, **Modification**, Outils, Affichage,
+  Projet, Symboles, Aide. Modification est le groupe « Modifier » du ruban
+  d'AutoCAD ; il était dilué dans Édition, où il voisinait le presse-papiers.
+- **Quatre barres d'outils sur deux rangées**, la seconde collée au canevas
+  parce que c'est celle qui touche le dessin. Une rangée unique tenait à
+  vingt commandes ; à quarante elle déborde et **Qt masque la fin sans rien
+  dire** — un test (`[ui][theme]`) vérifie qu'aucun bouton n'est caché.
+- **Aucun nom ni alias de commande en double** — un doublon ne casse rien
+  visiblement : la seconde inscription masque la première et une commande
+  devient injoignable. Un test le vérifie sur les 157 jetons.
 
 ## Le système visuel (`ui/theme.*`)
 
@@ -208,6 +236,12 @@ Deux pièges de Qt, payés une fois :
   boutons, et Qt s'en sert pour **réécrire la taille minimale du widget** :
   un `setMinimumHeight` posé sur un bouton est effacé sans bruit. Passer par
   `sizeHint()` et une politique verticale `Fixed` (voir `ActionCard`).
+- Qt ne propage à un enfant que **les attributs posés sur sa fonte**. Poser
+  la fonte gravée sur un panneau et la fonte d'interface sur son contenu ne
+  suffit pas : la mise en capitales, que `uiFont` ne mentionnait pas,
+  continuait de descendre et toute la liste des symboles se lisait en
+  majuscules. `uiFont()` remet donc capitales et espacement à plat
+  explicitement.
 - Un `font-weight` posé sur `QPushButton:default` rogne le texte : Qt
   calcule la taille du bouton dans son état normal. Le bouton par défaut se
   distingue par son aplat, pas par sa graisse.

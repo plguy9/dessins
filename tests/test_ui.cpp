@@ -9,6 +9,9 @@
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QFontMetricsF>
+#include <QSet>
+#include <QDockWidget>
+#include <QToolBar>
 #include <QTemporaryDir>
 
 #include "core/documentcommands.h"
@@ -1674,4 +1677,69 @@ TEST_CASE("L'etiquette gravee est en capitales et espacee", "[ui][theme]")
     const QFontMetricsF metrics(Theme::monoFont());
     CHECK_THAT(metrics.horizontalAdvance(QStringLiteral("0")),
                WithinAbs(metrics.horizontalAdvance(QStringLiteral("8")), 0.01));
+}
+
+TEST_CASE("Aucun nom ni alias de commande n'est enregistre deux fois", "[ui][commandline]")
+{
+    // Un doublon ne casse rien visiblement : la seconde inscription masque la
+    // premiere, et une commande devient injoignable sans que personne ne le
+    // remarque. C'est arrive une fois — « ECHELLE » designait a la fois
+    // l'homothetie et l'echelle de commande, et « SU » a la fois supprimer et
+    // le Surfer.
+    MainWindow window;
+    CommandLine *line = window.findChild<CommandLine *>();
+    REQUIRE(line);
+
+    QSet<QString> seen;
+    for (const CommandDefinition &command : line->commands()) {
+        QStringList tokens{ command.name };
+        tokens += command.aliases;
+        for (const QString &token : tokens) {
+            const QString key = token.toUpper();
+            CAPTURE(command.name, key);
+            CHECK_FALSE(seen.contains(key));
+            seen.insert(key);
+        }
+    }
+}
+
+TEST_CASE("La fonte gravee ne descend pas dans le contenu des panneaux", "[ui][theme]")
+{
+    // Qt ne propage a un enfant que les attributs poses sur sa fonte. Poser
+    // la fonte gravee sur un panneau et la fonte d'interface sur son contenu
+    // ne suffisait pas : la mise en capitales, que uiFont ne mentionnait pas,
+    // continuait de descendre — et toute la liste des symboles se lisait en
+    // majuscules.
+    MainWindow window;
+    const QList<QDockWidget *> docks = window.findChildren<QDockWidget *>();
+    REQUIRE_FALSE(docks.isEmpty());
+
+    for (QDockWidget *dock : docks) {
+        CAPTURE(dock->objectName());
+        CHECK(dock->font().capitalization() == QFont::AllUppercase);
+        if (QWidget *content = dock->widget())
+            CHECK(content->font().capitalization() == QFont::MixedCase);
+    }
+}
+
+TEST_CASE("Toutes les barres d'outils tiennent dans la fenetre", "[ui][theme]")
+{
+    // Une barre qui deborde ne le dit pas : Qt masque simplement la fin, et
+    // des commandes deviennent introuvables sans que rien ne le signale.
+    MainWindow window;
+    window.resize(1280, 800);
+    window.show();
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+
+    for (QToolBar *bar : window.findChildren<QToolBar *>()) {
+        CAPTURE(bar->objectName());
+        int hidden = 0;
+        for (QAction *action : bar->actions()) {
+            const QWidget *button = bar->widgetForAction(action);
+            if (button && !button->isVisible())
+                ++hidden;
+        }
+        CHECK(hidden == 0);
+    }
 }

@@ -19,6 +19,7 @@ add_library(arcus_ui STATIC
     terminalstripdialog.h terminalstripdialog.cpp
     plcdialog.h       plcdialog.cpp
     auditdialog.h     auditdialog.cpp
+    arraydialog.h     arraydialog.cpp
     mainwindow.h      mainwindow.cpp
 )
 

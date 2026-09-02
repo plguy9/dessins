@@ -86,6 +86,7 @@ public:
         Rotate, Mirror, Highlight,
         ZoomIn, ZoomOut, ZoomFit, Grid, Snap, Tracking, Palette2,
         Renumber, Check, Info, Palette, Folios, Properties, Reports,
+        Scale, Stretch, Array, Align, Trim, Extend,
         Plus, Minus, Duplicate, Up, Down, Edit, Theme
     };
 

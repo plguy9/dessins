@@ -3,6 +3,7 @@
 
 #include "document.h"
 #include "folioview.h"
+#include "core/edittools.h"
 #include "rules/catalog.h"
 #include "rules/plc.h"
 
@@ -71,6 +72,10 @@ private:
     void editSelectedComponent();
     void surfSelection();
     void editTerminalStrips();
+    // Modification : le groupe « Modifier » du ruban d'AutoCAD.
+    void arraySelection();
+    void alignSelection(AlignMode mode);
+    void matchProperties();
     // Automates : la meme boite pose une carte et reprend une carte posee.
     void insertPlcModule();
     void editPlcModule(const QString &entityId);
@@ -156,6 +161,15 @@ private:
     QAction *m_offsetAction = nullptr;
     QAction *m_stretchAction = nullptr;
     QAction *m_editComponentAction = nullptr;
+    QToolBar *m_modifyToolBar = nullptr;
+    QToolBar *m_toolsToolBar = nullptr;
+    QToolBar *m_viewToolBar = nullptr;
+    QAction *m_scaleAction = nullptr;
+    QAction *m_arrayAction = nullptr;
+    QAction *m_joinAction = nullptr;
+    QAction *m_cutAction = nullptr;
+    QAction *m_matchAction = nullptr;
+    QList<QAction *> m_alignActions;
     QAction *m_scootAction = nullptr;
     QAction *m_moveComponentAction = nullptr;
     QAction *m_surferAction = nullptr;

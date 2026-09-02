@@ -45,6 +45,17 @@ QRectF SymbolInstance::boundingBox() const { return placement.mapRect(m_localBou
 
 void SymbolInstance::translate(const QPointF &delta) { placement.position += delta; }
 
+void SymbolInstance::scale(const QPointF &base, double factor)
+{
+    if (fuzzyEqual(factor, 1.0) || factor <= kEpsilon)
+        return;
+    // Le symbole ne redessine pas son graphisme : il porte un facteur, et le
+    // peintre comme la connectivite passent par le meme placement. Les
+    // broches suivent donc sans que personne d'autre l'apprenne.
+    placement.position = scaledAbout(placement.position, base, factor);
+    placement.scale *= factor;
+}
+
 QJsonObject SymbolInstance::toJson() const
 {
     QJsonObject o = Entity::toJson();
@@ -90,6 +101,14 @@ bool Wire::assign(const Entity &other)
 QRectF Wire::boundingBox() const { return boundsOf(points, 0.5); }
 
 void Wire::translate(const QPointF &delta) { translatePoints(points, delta); }
+
+void Wire::scale(const QPointF &base, double factor)
+{
+    if (fuzzyEqual(factor, 1.0) || factor <= kEpsilon)
+        return;
+    for (QPointF &p : points)
+        p = scaledAbout(p, base, factor);
+}
 
 QString Wire::conductorName(int index) const
 {
@@ -163,6 +182,14 @@ QRectF Junction::boundingBox() const
 
 void Junction::translate(const QPointF &delta) { point += delta; }
 
+void Junction::scale(const QPointF &base, double factor)
+{
+    if (fuzzyEqual(factor, 1.0) || factor <= kEpsilon)
+        return;
+    point = scaledAbout(point, base, factor);
+    diameter *= factor;
+}
+
 QJsonObject Junction::toJson() const
 {
     QJsonObject o = Entity::toJson();
@@ -210,6 +237,16 @@ QRectF TextItem::boundingBox() const
 
 void TextItem::translate(const QPointF &delta) { placement.position += delta; }
 
+void TextItem::scale(const QPointF &base, double factor)
+{
+    if (fuzzyEqual(factor, 1.0) || factor <= kEpsilon)
+        return;
+    // C'est la hauteur de capitale qui grossit, pas le facteur du placement :
+    // les deux se multiplieraient, et le texte doublerait au carre.
+    placement.position = scaledAbout(placement.position, base, factor);
+    height *= factor;
+}
+
 QJsonObject TextItem::toJson() const
 {
     QJsonObject o = Entity::toJson();
@@ -253,6 +290,8 @@ QRectF GraphicItem::boundingBox() const { return shape.bounds(); }
 
 void GraphicItem::translate(const QPointF &delta) { shape.translate(delta); }
 
+void GraphicItem::scale(const QPointF &base, double factor) { shape.scale(base, factor); }
+
 QJsonObject GraphicItem::toJson() const
 {
     QJsonObject o = Entity::toJson();
@@ -288,6 +327,14 @@ QRectF Label::boundingBox() const
 }
 
 void Label::translate(const QPointF &delta) { point += delta; }
+
+void Label::scale(const QPointF &base, double factor)
+{
+    if (fuzzyEqual(factor, 1.0) || factor <= kEpsilon)
+        return;
+    point = scaledAbout(point, base, factor);
+    height *= factor;
+}
 
 QJsonObject Label::toJson() const
 {

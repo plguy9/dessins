@@ -470,4 +470,163 @@ void ChangeWireTypesCommand::undo() { m_project.wireTypes = m_before; }
 
 QString ChangeWireTypesCommand::text() const { return QStringLiteral("Modifier les types de fils"); }
 
+// --------------------------------------------------------------------------
+// ECHELLE
+
+ScaleEntitiesCommand::ScaleEntitiesCommand(Project &project, QString folioId,
+                                           QStringList entityIds, QPointF base, double factor)
+    : m_project(project), m_folioId(std::move(folioId)), m_base(base), m_factor(factor)
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio || factor <= kEpsilon || fuzzyEqual(factor, 1.0))
+        return;
+    for (const QString &id : entityIds) {
+        const Entity *entity = folio->entity(id);
+        if (!entity || entity->isLocked())
+            continue;
+        m_before.emplace_back(id, entity->clone());
+    }
+}
+
+void ScaleEntitiesCommand::redo()
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+    for (const auto &pair : m_before) {
+        if (Entity *entity = folio->entity(pair.first))
+            entity->scale(m_base, m_factor);
+    }
+}
+
+void ScaleEntitiesCommand::undo()
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+    // On restaure l'etat fige plutot que d'appliquer l'homothetie inverse :
+    // dix aller-retours ne doivent pas eloigner le symbole de sa taille.
+    for (const auto &pair : m_before) {
+        if (Entity *entity = folio->entity(pair.first))
+            entity->assign(*pair.second);
+    }
+}
+
+QString ScaleEntitiesCommand::text() const
+{
+    return QStringLiteral("Echelle x%1").arg(m_factor, 0, 'g', 3);
+}
+
+// --------------------------------------------------------------------------
+// RESEAU
+
+ArrayEntitiesCommand::ArrayEntitiesCommand(Project &project, QString folioId,
+                                           const QStringList &entityIds, const ArraySpec &spec)
+    : m_project(project), m_folioId(std::move(folioId))
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio || !spec.isValid())
+        return;
+
+    QVector<const Entity *> sources;
+    QRectF hull;
+    for (const QString &id : entityIds) {
+        const Entity *entity = folio->entity(id);
+        if (!entity)
+            continue;
+        sources.append(entity);
+        hull = hull.isNull() ? entity->boundingBox() : hull.united(entity->boundingBox());
+    }
+    if (sources.isEmpty())
+        return;
+
+    // Le point d'ancrage du motif est le centre de ce qu'on repete : c'est
+    // lui qui tourne autour du centre du reseau polaire.
+    const QPointF anchor = hull.center();
+    const QVector<ArrayPlacement> placements = ArrayTools::placements(spec, anchor);
+
+    for (const ArrayPlacement &placement : placements) {
+        if (placement.index == 0)
+            continue; // l'original reste ou il est
+        for (const Entity *source : sources) {
+            EntityPtr copy = source->clone();
+            copy->setId(newId());
+            ArrayTools::apply(*copy, placement, spec.center);
+            m_added.append(copy->id());
+            m_copies.push_back(std::move(copy));
+        }
+    }
+}
+
+void ArrayEntitiesCommand::redo()
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+    for (const EntityPtr &copy : m_copies) {
+        if (!folio->entity(copy->id()))
+            folio->addEntity(copy->clone());
+    }
+}
+
+void ArrayEntitiesCommand::undo()
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+    for (const QString &id : m_added)
+        folio->removeEntity(id);
+}
+
+QString ArrayEntitiesCommand::text() const
+{
+    return QStringLiteral("Reseau de %1 copies").arg(m_added.size());
+}
+
+// --------------------------------------------------------------------------
+// ALIGNER
+
+AlignEntitiesCommand::AlignEntitiesCommand(Project &project, QString folioId,
+                                           const QStringList &entityIds, AlignMode mode)
+    : m_project(project), m_folioId(std::move(folioId)), m_mode(mode)
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+
+    QStringList kept;
+    QVector<QRectF> boxes;
+    for (const QString &id : entityIds) {
+        const Entity *entity = folio->entity(id);
+        if (!entity || entity->isLocked())
+            continue;
+        kept.append(id);
+        boxes.append(entity->boundingBox());
+    }
+
+    const QVector<QPointF> offsets = AlignTools::offsets(boxes, mode);
+    if (offsets.size() != kept.size())
+        return;
+    for (int i = 0; i < kept.size(); ++i) {
+        if (!fuzzyZero(offsets.at(i).x()) || !fuzzyZero(offsets.at(i).y()))
+            m_offsets.append({ kept.at(i), offsets.at(i) });
+    }
+}
+
+void AlignEntitiesCommand::apply(double sign)
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+    for (const auto &pair : m_offsets) {
+        if (Entity *entity = folio->entity(pair.first))
+            entity->translate(pair.second * sign);
+    }
+}
+
+void AlignEntitiesCommand::redo() { apply(1.0); }
+void AlignEntitiesCommand::undo() { apply(-1.0); }
+
+QString AlignEntitiesCommand::text() const { return alignModeLabel(m_mode); }
+
 } // namespace dsn

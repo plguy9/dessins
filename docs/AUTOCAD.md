@@ -292,7 +292,11 @@ d'adresses et descriptions d'E/S (`rules/plc.*`, `ui/plcdialog.*`), et l'audit
 </details>
 
 ## Edition 2D AutoCAD : commandes de modification les plus utilisees, poignees (grips) et modes de selection Fenetre/Capture — comportement detaille pour reimplementation dans un logiciel de dessin
-30 fonctionnalités relevées — **17 déjà en place**, 13 restantes.
+30 fonctionnalités relevées — **22 déjà en place**, 8 restantes.
+
+Le relevé précédent comptait ÉCHELLE et RÉSEAU comme acquis : ils ne
+l'étaient pas. Ils le sont maintenant, avec ALIGNER/RÉPARTIR, JOINDRE et
+COUPER (`core/edittools.*`, `ui/arraydialog.*`).
 
 **En place chez nous :** Ajuster (couper a une limite), Copier, Copier les proprietes (pinceau), Echelle (homothetie), Miroir (symetrie axiale), Poignees multifonctions (menu contextuel de poignee), Poignees — affichage, etats et couleurs, Poignees — ajouter/supprimer un sommet, convertir en arc, Poignees — modes d'edition cycliques sur poignee chaude, Poignees — selection multiple et point de base, Poignees — variables de comportement et limites, Prolonger, Reseau polaire (circulaire), Rotation, Selection Capture (Crossing) — rectangle vert, Selection Fenetre (Window) — rectangle bleu, Selection au lasso (fenetre et capture a main levee)
 

@@ -8,10 +8,14 @@
 #include "command.h"
 #include "entity.h"
 #include "folio.h"
+#include "edittools.h"
 #include "project.h"
 
 #include <QPair>
 #include <QStringList>
+
+#include <utility>
+#include <vector>
 
 namespace dsn {
 
@@ -281,6 +285,85 @@ private:
     Project &m_project;
     WireTypeSet m_before;
     WireTypeSet m_after;
+};
+
+// ECHELLE (SCALE). Grossir ou reduire une selection autour d'un point de
+// base. Chaque entite sait ce que grossir veut dire pour elle : un symbole
+// change de facteur de placement, un fil deplace ses sommets, un texte
+// grandit sa hauteur de capitale.
+//
+// L'etat d'avant est fige a la construction, comme pour l'etirement. Rejouer
+// l'homothetie inverse a l'annulation accumulerait l'erreur d'arrondi a
+// chaque aller-retour, et un symbole grossi puis annule dix fois ne
+// reviendrait pas exactement a sa taille.
+class ScaleEntitiesCommand : public Command
+{
+public:
+    ScaleEntitiesCommand(Project &project, QString folioId, QStringList entityIds, QPointF base,
+                         double factor);
+
+    void redo() override;
+    void undo() override;
+    QString text() const override;
+
+    int affectedCount() const { return int(m_before.size()); }
+
+private:
+    Project &m_project;
+    QString m_folioId;
+    QPointF m_base;
+    double m_factor = 1.0;
+    // std::vector et non QVector : un unique_ptr ne se copie pas, et les
+    // conteneurs implicitement partages de Qt l'exigent.
+    std::vector<std::pair<QString, EntityPtr>> m_before;
+};
+
+// RESEAU (ARRAY). Une matrice de copies, rectangulaire ou polaire. La
+// commande pose les copies et rien d'autre : l'original ne bouge pas, et
+// tout se defait d'une seule annulation.
+class ArrayEntitiesCommand : public Command
+{
+public:
+    ArrayEntitiesCommand(Project &project, QString folioId, const QStringList &entityIds,
+                         const ArraySpec &spec);
+
+    void redo() override;
+    void undo() override;
+    QString text() const override;
+
+    int addedCount() const { return int(m_added.size()); }
+
+private:
+    Project &m_project;
+    QString m_folioId;
+    // Les copies sont construites une fois, a la construction : les
+    // reconstruire au retablissement leur donnerait de nouveaux identifiants,
+    // et tout ce qui les designe — selection, panneaux — pointerait a vide.
+    std::vector<EntityPtr> m_copies;
+    QStringList m_added;
+};
+
+// ALIGNER et REPARTIR. Un deplacement par entite, calcule une fois puis
+// applique tel quel : c'est une translation, donc l'annulation est exacte.
+class AlignEntitiesCommand : public Command
+{
+public:
+    AlignEntitiesCommand(Project &project, QString folioId, const QStringList &entityIds,
+                         AlignMode mode);
+
+    void redo() override;
+    void undo() override;
+    QString text() const override;
+
+    int affectedCount() const { return int(m_offsets.size()); }
+
+private:
+    void apply(double sign);
+
+    Project &m_project;
+    QString m_folioId;
+    AlignMode m_mode;
+    QVector<QPair<QString, QPointF>> m_offsets;
 };
 
 } // namespace dsn

@@ -21,6 +21,7 @@
 #include "symbolpalette.h"
 #include "componentdialog.h"
 #include "surferdialog.h"
+#include "arraydialog.h"
 #include "auditdialog.h"
 #include "plcdialog.h"
 #include "terminalstripdialog.h"
@@ -301,14 +302,35 @@ void MainWindow::createActions()
 {
     using G = Icons::Glyph;
 
-    // Une seule barre d'outils, en icones, groupee par separateurs. Trois
-    // barres empilees mangent une bande de fenetre que le dessin utilise mieux.
-    m_toolBar = addToolBar(tr("Barre d'outils"));
-    m_toolBar->setObjectName(QStringLiteral("toolbar.main"));
-    m_toolBar->setIconSize(QSize(20, 20));
-    m_toolBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    m_toolBar->setMovable(false);
-    m_toolBar->setFloatable(false);
+    // Quatre barres d'outils plutot qu'une. Une seule rangee suffisait tant
+    // qu'il y avait vingt commandes ; a quarante elle deborde, et Qt masque
+    // silencieusement la fin — on perd des boutons sans que rien ne le dise.
+    // Separees, elles se rangent d'elles-memes sur deux rangees quand la
+    // fenetre est etroite, et chacune se masque a la demande depuis le menu
+    // Affichage. C'est aussi la disposition des barres classiques d'AutoCAD,
+    // celles d'avant le ruban.
+    auto makeBar = [this](const QString &name, const QString &title) {
+        auto *bar = addToolBar(title);
+        bar->setObjectName(name);
+        bar->setIconSize(QSize(20, 20));
+        bar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        bar->setFloatable(false);
+        return bar;
+    };
+    // Deux rangees, et le choix de ce qui va dans chacune n'est pas
+    // arbitraire : la seconde est celle qui touche le dessin, et elle est
+    // donc collee au canevas. Une rangee unique tenait a vingt commandes ;
+    // a quarante elle deborde, et Qt masque la fin sans rien dire.
+    m_toolBar = makeBar(QStringLiteral("toolbar.main"), tr("Fichier"));
+    m_modifyToolBar = makeBar(QStringLiteral("toolbar.modify"), tr("Modification"));
+    m_viewToolBar = makeBar(QStringLiteral("toolbar.view"), tr("Affichage"));
+    addToolBarBreak();
+    m_toolsToolBar = makeBar(QStringLiteral("toolbar.tools"), tr("Dessin"));
+
+    // La barre visee par le parametre « barre d'outils » des actions. Elle
+    // change au fil de la construction des menus, ce qui evite de passer une
+    // barre a chacun des quarante appels.
+    QToolBar *currentBar = m_toolBar;
 
     // L'action porte son glyphe : au changement de theme, on redessine les
     // icones sans reconstruire les menus.
@@ -328,7 +350,7 @@ void MainWindow::createActions()
         if (menu)
             menu->addAction(action);
         if (onToolBar)
-            m_toolBar->addAction(action);
+            currentBar->addAction(action);
         m_actionGlyphs.insert(action, int(glyph));
         return action;
     };
@@ -358,7 +380,7 @@ void MainWindow::createActions()
     make(fileMenu, false, G::Delete, tr("&Quitter"), QKeySequence::Quit, QString(),
          [this] { close(); });
 
-    m_toolBar->addSeparator();
+    currentBar->addSeparator();
 
     // ---- Edition -------------------------------------------------------
     QMenu *editMenu = menuBar()->addMenu(tr("&Édition"));
@@ -375,30 +397,91 @@ void MainWindow::createActions()
                           tr("Supprimer la sélection"), [this] { m_view->deleteSelection(); });
     m_selectAllAction = make(editMenu, false, G::Select, tr("&Tout sélectionner"),
                              QKeySequence::SelectAll, QString(), [this] { m_view->selectAll(); });
-    editMenu->addSeparator();
-    m_rotateAction = make(editMenu, true, G::Rotate, tr("&Pivoter"), QKeySequence(Qt::Key_R),
+
+    currentBar->addSeparator();
+
+    // ---- Modification --------------------------------------------------
+    //
+    // Le groupe « Modifier » du ruban d'AutoCAD, dans un menu. Il etait
+    // dilue dans Edition, ou il voisinait avec le presse-papiers : deplacer
+    // un appareil et le copier ne sont pas le meme geste, et les chercher au
+    // meme endroit obligeait a lire tout le menu a chaque fois.
+    currentBar = m_modifyToolBar;
+    QMenu *modifyMenu = menuBar()->addMenu(tr("&Modification"));
+
+    m_moveAction = make(modifyMenu, true, G::Select, tr("&Déplacer"), QKeySequence(Qt::Key_D),
+                        tr("Déplacer la sélection d'un point de base à un autre"),
+                        [this] { m_view->beginMoveSelection(); });
+    m_rotateAction = make(modifyMenu, true, G::Rotate, tr("&Pivoter"), QKeySequence(Qt::Key_R),
                           tr("Pivoter d'un quart de tour"),
                           [this] { m_view->rotateSelection(true); });
-    m_mirrorAction = make(editMenu, true, G::Mirror, tr("Re&tourner"), QKeySequence(Qt::Key_M),
+    m_mirrorAction = make(modifyMenu, true, G::Mirror, tr("Re&tourner"), QKeySequence(Qt::Key_M),
                           tr("Retourner selon l'axe vertical"),
                           [this] { m_view->mirrorSelection(); });
-    m_highlightAction = make(editMenu, true, G::Highlight, tr("Mettre le potentiel en évidence"),
+    m_scaleAction = make(modifyMenu, true, G::Scale, tr("&Échelle"), QKeySequence(Qt::Key_H),
+                         tr("Grossir ou réduire : point fixe, puis facteur à la souris "
+                            "ou au clavier"),
+                         [this] { m_view->beginScale(); });
+    m_stretchAction = make(modifyMenu, true, G::Stretch, tr("Éti&rer"), QKeySequence(Qt::Key_E),
+                           tr("Encadrer des sommets par capture, puis les déplacer"),
+                           [this] { m_view->beginStretch(); });
+    m_offsetAction = make(modifyMenu, true, G::Duplicate, tr("Déca&ler…"),
+                          QKeySequence(Qt::Key_O),
+                          tr("Copier un fil parallèlement, à une distance donnée"),
+                          [this] { offsetSelection(); });
+    m_arrayAction = make(modifyMenu, true, G::Array, tr("&Réseau…"), QKeySequence(),
+                         tr("Une matrice de copies, en lignes et colonnes ou autour "
+                            "d'un centre"),
+                         &MainWindow::arraySelection);
+    modifyMenu->addSeparator();
+
+    // Aligner : AutoCAD ne l'a pas en standard, tous les logiciels de dessin
+    // modernes si. C'est ce qui separe un folio propre d'un folio a peu pres
+    // droit, et cela ne coute qu'un sous-menu.
+    QMenu *alignMenu = modifyMenu->addMenu(Icons::icon(G::Align), tr("&Aligner"));
+    struct AlignSpec {
+        AlignMode mode;
+        const char *label;
+    };
+    const AlignSpec alignSpecs[] = {
+        { AlignMode::Left, QT_TR_NOOP("Aligner à &gauche") },
+        { AlignMode::HorizontalCenter, QT_TR_NOOP("Centrer &horizontalement") },
+        { AlignMode::Right, QT_TR_NOOP("Aligner à &droite") },
+        { AlignMode::Top, QT_TR_NOOP("Aligner en &haut") },
+        { AlignMode::VerticalCenter, QT_TR_NOOP("Centrer &verticalement") },
+        { AlignMode::Bottom, QT_TR_NOOP("Aligner en &bas") },
+        { AlignMode::DistributeHorizontally, QT_TR_NOOP("Répartir horizontalement") },
+        { AlignMode::DistributeVertically, QT_TR_NOOP("Répartir verticalement") },
+    };
+    for (const AlignSpec &spec : alignSpecs) {
+        const AlignMode mode = spec.mode;
+        if (mode == AlignMode::DistributeHorizontally)
+            alignMenu->addSeparator();
+        auto *action = alignMenu->addAction(tr(spec.label));
+        connect(action, &QAction::triggered, this, [this, mode] { alignSelection(mode); });
+        m_alignActions.append(action);
+    }
+
+    modifyMenu->addSeparator();
+    m_joinAction = make(modifyMenu, false, G::Junction, tr("&Joindre les fils"), QKeySequence(),
+                        tr("Souder en un seul les fils sélectionnés qui se touchent"),
+                        [this] { m_view->joinSelectedWires(); });
+    m_cutAction = make(modifyMenu, false, G::Delete, tr("&Couper un fil"), QKeySequence(),
+                       tr("Couper le fil sélectionné à l'endroit cliqué"),
+                       [this] { m_view->beginCut(); });
+    m_matchAction = make(modifyMenu, false, G::Palette2, tr("Copier les &propriétés"),
+                         QKeySequence(), tr("Appliquer le type de fil et la mise en forme "
+                                            "du premier élément aux autres"),
+                         &MainWindow::matchProperties);
+    modifyMenu->addSeparator();
+    m_highlightAction = make(modifyMenu, false, G::Highlight,
+                             tr("Mettre le potentiel en évidence"),
                              QKeySequence(Qt::CTRL | Qt::Key_H),
                              tr("Suivre un potentiel à travers le folio"),
                              [this] { m_view->highlightNetOfSelection(); });
-    m_moveAction = make(editMenu, false, G::Select, tr("&Déplacer"), QKeySequence(Qt::Key_D),
-                        tr("Déplacer la sélection d'un point de base à un autre"),
-                        [this] { m_view->beginMoveSelection(); });
-    m_offsetAction = make(editMenu, false, G::Duplicate, tr("Déca&ler…"), QKeySequence(Qt::Key_O),
-                          tr("Copier un fil parallèlement, à une distance donnée"),
-                          [this] { offsetSelection(); });
-    m_stretchAction = make(editMenu, false, G::Highlight, tr("Éti&rer"), QKeySequence(Qt::Key_E),
-                           tr("Encadrer des sommets par capture, puis les déplacer"),
-                           [this] { m_view->beginStretch(); });
-
-    m_toolBar->addSeparator();
 
     // ---- Outils --------------------------------------------------------
+    currentBar = m_toolsToolBar;
     QMenu *toolMenu = menuBar()->addMenu(tr("&Outils"));
     auto *toolGroup = new QActionGroup(this);
     toolGroup->setExclusive(true);
@@ -437,7 +520,7 @@ void MainWindow::createActions()
         action->setData(int(spec.tool));
         toolGroup->addAction(action);
         toolMenu->addAction(action);
-        m_toolBar->addAction(action);
+        currentBar->addAction(action);
         m_toolActions.append(action);
         m_actionGlyphs.insert(action, int(spec.glyph));
         connect(action, &QAction::triggered, this, [this, spec] { m_view->setTool(spec.tool); });
@@ -499,16 +582,17 @@ void MainWindow::createActions()
     m_wireTypeSelector->setToolTip(tr("Type des fils à venir"));
     m_wireTypeSelector->setMinimumWidth(170);
     m_wireTypeSelector->setSizeAdjustPolicy(QComboBox::AdjustToContentsOnFirstShow);
-    m_toolBar->addWidget(m_wireTypeSelector);
+    m_toolsToolBar->addWidget(m_wireTypeSelector);
     connect(m_wireTypeSelector, &QComboBox::currentIndexChanged, this, [this](int index) {
         if (index >= 0)
             m_view->setCurrentWireType(m_wireTypeSelector->itemData(index).toString());
     });
     rebuildWireTypeSelector();
 
-    m_toolBar->addSeparator();
+    currentBar->addSeparator();
 
     // ---- Affichage -----------------------------------------------------
+    currentBar = m_viewToolBar;
     QMenu *viewMenu = menuBar()->addMenu(tr("&Affichage"));
     make(viewMenu, true, G::ZoomIn, tr("Zoom &avant"), QKeySequence::ZoomIn, tr("Zoom avant"),
          [this] { m_view->zoomIn(); });
@@ -581,7 +665,7 @@ void MainWindow::createActions()
         connect(action, &QAction::toggled, this, slot);
         menu->addAction(action);
         if (onToolBar)
-            m_toolBar->addAction(action);
+            currentBar->addAction(action);
         m_actionGlyphs.insert(action, int(glyph));
         return action;
     };
@@ -606,9 +690,10 @@ void MainWindow::createActions()
     for (QDockWidget *dock : findChildren<QDockWidget *>())
         viewMenu->addAction(dock->toggleViewAction());
 
-    m_toolBar->addSeparator();
+    currentBar->addSeparator();
 
     // ---- Projet --------------------------------------------------------
+    currentBar = m_toolsToolBar;
     QMenu *projectMenu = menuBar()->addMenu(tr("&Projet"));
     m_pageSetupAction = make(projectMenu, true, G::Folios, tr("&Mise en page…"),
                              QKeySequence(Qt::CTRL | Qt::Key_P),
@@ -657,6 +742,7 @@ void MainWindow::createActions()
     }
 
     // ---- Symboles ------------------------------------------------------
+    currentBar = m_toolsToolBar;
     QMenu *symbolMenu = menuBar()->addMenu(tr("&Symboles"));
     m_editComponentAction = make(symbolMenu, true, G::Properties, tr("&Éditer le composant…"),
                                  QKeySequence(Qt::Key_F2),
@@ -854,6 +940,150 @@ void MainWindow::editPlcModule(const QString &entityId)
     m_view->update();
 }
 
+void MainWindow::arraySelection()
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio || m_view->selection().isEmpty()) {
+        statusBar()->showMessage(tr("Réseau : sélectionner d'abord ce qu'il faut répéter."),
+                                 4000);
+        return;
+    }
+
+    QRectF bounds;
+    QStringList ids;
+    for (const QString &id : m_view->selection()) {
+        const Entity *entity = folio->entity(id);
+        if (!entity)
+            continue;
+        ids.append(id);
+        bounds = bounds.isNull() ? entity->boundingBox()
+                                 : bounds.united(entity->boundingBox());
+    }
+    if (ids.isEmpty())
+        return;
+
+    ArrayDialog dialog(bounds, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    auto command = std::make_unique<ArrayEntitiesCommand>(m_document->project(), folio->id(),
+                                                          ids, dialog.spec());
+    const int added = command->addedCount();
+    if (added == 0) {
+        statusBar()->showMessage(tr("Réseau : ce réglage ne pose aucune copie."), 4000);
+        return;
+    }
+    m_document->push(std::move(command));
+    m_view->update();
+    statusBar()->showMessage(tr("%n copie(s) posée(s).", "", added), 5000);
+}
+
+void MainWindow::alignSelection(AlignMode mode)
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return;
+    const QStringList ids(m_view->selection().cbegin(), m_view->selection().cend());
+    if (ids.size() < AlignTools::minimumCount(mode)) {
+        statusBar()->showMessage(tr("%1 : sélectionner au moins %n élément(s).", "",
+                                    AlignTools::minimumCount(mode))
+                                         .arg(alignModeLabel(mode)),
+                                 4000);
+        return;
+    }
+
+    auto command = std::make_unique<AlignEntitiesCommand>(m_document->project(), folio->id(),
+                                                          ids, mode);
+    const int moved = command->affectedCount();
+    if (moved == 0) {
+        statusBar()->showMessage(tr("%1 : c'est déjà aligné.").arg(alignModeLabel(mode)), 4000);
+        return;
+    }
+    m_document->push(std::move(command));
+    m_view->update();
+    statusBar()->showMessage(tr("%1 : %n élément(s) déplacé(s).", "", moved)
+                                     .arg(alignModeLabel(mode)),
+                             4000);
+}
+
+void MainWindow::matchProperties()
+{
+    // Le pinceau d'AutoCAD. La source est le premier element selectionne — au
+    // sens de l'ordre de selection, pas de l'ordre du folio : c'est celui
+    // qu'on a designe en premier qui sert de modele, comme partout ailleurs.
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return;
+    const QStringList ids(m_view->selection().cbegin(), m_view->selection().cend());
+    if (ids.size() < 2) {
+        statusBar()->showMessage(
+                tr("Copier les propriétés : sélectionner le modèle puis les éléments à "
+                   "aligner dessus."),
+                5000);
+        return;
+    }
+
+    const Entity *source = folio->entity(ids.first());
+    if (!source)
+        return;
+
+    int changed = 0;
+    m_document->pushMacro(tr("Copier les propriétés"), [&] {
+        for (int i = 1; i < ids.size(); ++i) {
+            Entity *target = folio->entity(ids.at(i));
+            if (!target || target->type() != source->type())
+                continue;
+            EntityPtr before = target->clone();
+            EntityPtr after = target->clone();
+
+            // Ce qui se copie est la mise en forme, jamais l'identite : un
+            // repere ou un numero de fil recopie ferait deux appareils du
+            // meme nom, et l'audit le signalerait a juste titre.
+            if (const auto *wire = dynamic_cast<const Wire *>(source)) {
+                auto *copy = static_cast<Wire *>(after.get());
+                copy->wireType = wire->wireType;
+                copy->conductors = wire->conductors;
+            } else if (const auto *text = dynamic_cast<const TextItem *>(source)) {
+                auto *copy = static_cast<TextItem *>(after.get());
+                copy->height = text->height;
+                copy->align = text->align;
+            } else if (const auto *label = dynamic_cast<const Label *>(source)) {
+                auto *copy = static_cast<Label *>(after.get());
+                copy->height = label->height;
+                copy->scope = label->scope;
+            } else if (const auto *graphic = dynamic_cast<const GraphicItem *>(source)) {
+                auto *copy = static_cast<GraphicItem *>(after.get());
+                copy->shape.lineWidth = graphic->shape.lineWidth;
+                copy->shape.filled = graphic->shape.filled;
+                copy->shape.textHeight = graphic->shape.textHeight;
+            } else if (const auto *symbol = dynamic_cast<const SymbolInstance *>(source)) {
+                auto *copy = static_cast<SymbolInstance *>(after.get());
+                copy->placement.scale = symbol->placement.scale;
+                for (const QString &key : { QStringLiteral("manufacturer"),
+                                            QStringLiteral("partNumber"),
+                                            QStringLiteral("value") }) {
+                    const QString value = symbol->fields.value(key);
+                    if (!value.isEmpty())
+                        copy->fields.insert(key, value);
+                }
+            }
+
+            if (after->toJson() == before->toJson())
+                continue;
+            m_document->push(std::make_unique<ModifyEntityCommand>(
+                    m_document->project(), folio->id(), std::move(before), std::move(after),
+                    tr("Copier les propriétés")));
+            ++changed;
+        }
+    });
+
+    m_view->update();
+    statusBar()->showMessage(changed == 0
+                                     ? tr("Copier les propriétés : rien à reprendre.")
+                                     : tr("Propriétés copiées sur %n élément(s).", "", changed),
+                             5000);
+}
+
 void MainWindow::locate(const QString &folioId, const QString &entityId)
 {
     const int index = m_document->project().indexOf(folioId);
@@ -967,9 +1197,10 @@ void MainWindow::createDraftingToggles(QMenu *menu)
                                       m_view->update();
                                   });
 
-    for (QAction *action : { m_gridSnapAction, m_gridAction, m_orthoAction, m_polarAction,
-                             m_osnapAction, m_trackingAction })
-        m_toolBar->addAction(action);
+    // Les aides au dessin ne vont sur aucune barre d'outils : elles sont deja
+    // dans la barre d'etat, en toutes lettres, la ou AutoCAD les met. Les
+    // doubler en icones prenait la place de six commandes reelles pour ne
+    // rien apprendre de plus.
 
     auto *settings = new QAction(Icons::icon(G::Properties), tr("&Paramètres de dessin…"), this);
     settings->setShortcut(QKeySequence(Qt::Key_F12));
@@ -1237,6 +1468,27 @@ void MainWindow::registerCommands()
             else
                 offsetSelection();
         });
+    simple(QStringLiteral("ECHELLE"), { QStringLiteral("EC"), QStringLiteral("HO") },
+           tr("Grossir ou réduire la sélection autour d'un point fixe"),
+           [this] { m_view->beginScale(); });
+    simple(QStringLiteral("RESEAU"), { QStringLiteral("RE"), QStringLiteral("AR") },
+           tr("Une matrice de copies, rectangulaire ou polaire"),
+           [this] { arraySelection(); });
+    simple(QStringLiteral("JOINDRE"), { QStringLiteral("JO") },
+           tr("Souder en un seul les fils sélectionnés qui se touchent"),
+           [this] { m_view->joinSelectedWires(); });
+    simple(QStringLiteral("COUPURE"), { QStringLiteral("COU"), QStringLiteral("BR") },
+           tr("Couper le fil sélectionné à l'endroit cliqué"),
+           [this] { m_view->beginCut(); });
+    simple(QStringLiteral("COPIERPROP"), { QStringLiteral("CPR"), QStringLiteral("MA") },
+           tr("Copier la mise en forme du premier élément sur les autres"),
+           [this] { matchProperties(); });
+    simple(QStringLiteral("ALIGNER"), { QStringLiteral("AL") },
+           tr("Aligner la sélection à gauche"),
+           [this] { alignSelection(AlignMode::Left); });
+    simple(QStringLiteral("REPARTIR"), { QStringLiteral("REP") },
+           tr("Répartir la sélection horizontalement, à pas égal"),
+           [this] { alignSelection(AlignMode::DistributeHorizontally); });
     simple(QStringLiteral("ETIRER"), { QStringLiteral("ETI") },
            tr("Étirer les sommets pris dans une fenêtre de capture"),
            [this] { m_view->beginStretch(); });
@@ -1245,7 +1497,7 @@ void MainWindow::registerCommands()
     simple(QStringLiteral("DEPLACERAPPAREIL"), { QStringLiteral("DA") },
            tr("Déplacer un appareil avec ses fils"),
            [this] { m_view->beginMoveComponent(); });
-    simple(QStringLiteral("SURFER"), { QStringLiteral("SU") },
+    simple(QStringLiteral("SURFER"), { QStringLiteral("SUR"), QStringLiteral("SF") },
            tr("Lister les renvois de la sélection et y aller"),
            [this] { surfSelection(); });
     simple(QStringLiteral("COMPOSANT"), { QStringLiteral("CO2"), QStringLiteral("EDC") },
@@ -1317,7 +1569,10 @@ void MainWindow::registerCommands()
                }
                m_reports->refresh();
            });
-    simple(QStringLiteral("ECHELLE"), { QStringLiteral("EC"), QStringLiteral("LADDER") },
+    // « Echelle » en francais designe deux choses sans rapport : l'homothetie
+    // et l'echelle de commande. Le mot nu revient a l'homothetie, comme dans
+    // l'AutoCAD francais ; l'echelle de commande prend un nom explicite.
+    simple(QStringLiteral("ECHELLECMD"), { QStringLiteral("LADDER"), QStringLiteral("ECH") },
            tr("Insérer une échelle de commande"), [this] { insertLadder(); });
     simple(QStringLiteral("NOUVSYMBOLE"), { QStringLiteral("NS") },
            tr("Créer un symbole"), [this] { newSymbol(); });

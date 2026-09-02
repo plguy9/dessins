@@ -328,22 +328,56 @@ void FolioPainter::paintGrid(QPainter &painter, const Folio &folio, const QRectF
     const int firstY = int(std::floor(area.top() / step));
     const int lastY = int(std::ceil(area.bottom() / step));
 
-    // Au-dela de quelques dizaines de milliers de points, la grille coute plus
+    // Au-dela de quelques dizaines de milliers de marques, la grille coute plus
     // cher que le dessin lui-meme : on l'abandonne plutot que de ramer.
-    const qint64 dots = qint64(lastX - firstX + 1) * qint64(lastY - firstY + 1);
-    if (dots > 40000)
+    //
+    // Le compte depend de l'aspect, et c'est la tout l'interet de le calculer
+    // ici : les carreaux coutent la SOMME des deux directions, les points leur
+    // PRODUIT. Un seul garde-fou calibre sur les points ferait disparaitre des
+    // carreaux qu'on trace sans effort — quelques centaines de traits la ou il
+    // y aurait eu cent mille points.
+    const qint64 columns = lastX - firstX + 1;
+    const qint64 rows = lastY - firstY + 1;
+    const qint64 marks = m_style.gridStyle == GridStyle::Lines ? columns + rows
+                                                               : columns * rows;
+    if (marks > 40000)
         return;
 
     painter.save();
-    QPen minor = pen(m_style.grid, m_style.gridDotWidth);
-    QPen strong = pen(m_style.gridMajor, m_style.gridDotWidth * 1.6);
+    const QPen minor = pen(m_style.grid, m_style.gridDotWidth);
+    const QPen strong = pen(m_style.gridMajor, m_style.gridDotWidth * 1.6);
+
+    // Les carreaux se tracent ligne par ligne et non point par point : une
+    // ligne continue est un seul trait pour le peintre, la ou la grille de
+    // points en dessine des milliers.
+    if (m_style.gridStyle == GridStyle::Lines) {
+        for (int ix = firstX; ix <= lastX; ++ix) {
+            const double x = ix * step;
+            painter.setPen(fuzzyZero(std::fmod(std::abs(x), major), 1e-6) ? strong : minor);
+            painter.drawLine(QPointF(x, area.top()), QPointF(x, area.bottom()));
+        }
+        for (int iy = firstY; iy <= lastY; ++iy) {
+            const double y = iy * step;
+            painter.setPen(fuzzyZero(std::fmod(std::abs(y), major), 1e-6) ? strong : minor);
+            painter.drawLine(QPointF(area.left(), y), QPointF(area.right(), y));
+        }
+        painter.restore();
+        return;
+    }
+
+    const double arm = std::max(0.1, m_style.gridCrossSize);
     for (int ix = firstX; ix <= lastX; ++ix) {
         for (int iy = firstY; iy <= lastY; ++iy) {
             const QPointF p(ix * step, iy * step);
             const bool isMajor = fuzzyZero(std::fmod(std::abs(p.x()), major), 1e-6)
                     && fuzzyZero(std::fmod(std::abs(p.y()), major), 1e-6);
             painter.setPen(isMajor ? strong : minor);
-            painter.drawPoint(p);
+            if (m_style.gridStyle == GridStyle::Crosses) {
+                painter.drawLine(QPointF(p.x() - arm, p.y()), QPointF(p.x() + arm, p.y()));
+                painter.drawLine(QPointF(p.x(), p.y() - arm), QPointF(p.x(), p.y() + arm));
+            } else {
+                painter.drawPoint(p);
+            }
         }
     }
     painter.restore();

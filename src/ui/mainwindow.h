@@ -10,6 +10,7 @@
 #include <QDockWidget>
 #include <QHash>
 #include <QMainWindow>
+#include <QSet>
 
 class QMenuBar;
 
@@ -20,7 +21,6 @@ class QToolButton;
 namespace dsn {
 
 class FolioNavigator;
-class PropertiesPanel;
 class ReportPanel;
 class SymbolPalette;
 
@@ -116,6 +116,8 @@ private:
     void editPageSetup();
     void insertLadder();
     void editWireTypes();
+    // La fiche de proprietes, ouverte au double-clic ou par Ctrl+1.
+    void showProperties(const QSet<QString> &selection);
     void applyWireTypeToSelection();
     void insertBus();
     void editTagFormat();
@@ -143,7 +145,6 @@ private:
     Document *m_document = nullptr;
     FolioView *m_view = nullptr;
     SymbolPalette *m_palette = nullptr;
-    PropertiesPanel *m_properties = nullptr;
     FolioNavigator *m_navigator = nullptr;
     ReportPanel *m_reports = nullptr;
     class CommandLine *m_command = nullptr;

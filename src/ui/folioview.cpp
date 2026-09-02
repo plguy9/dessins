@@ -2684,6 +2684,8 @@ void FolioView::mouseDoubleClickEvent(QMouseEvent *event)
     }
     if (Entity *hit = entityAt(toScene(event->position())))
         Q_EMIT entityActivated(hit->id());
+    else
+        Q_EMIT folioActivated();
 }
 
 void FolioView::wheelEvent(QWheelEvent *event)
@@ -3397,10 +3399,82 @@ void FolioView::paintEvent(QPaintEvent *event)
     paintEmptyHint(painter, *folio);
 }
 
+// Les etapes montrees sur un folio vide. Elles vivent ici, en un seul
+// endroit, parce que la mise en page ET le trace en ont besoin : deux listes
+// finiraient par ne plus decrire le meme bloc.
+QVector<FolioView::HintStep> FolioView::emptyHintSteps()
+{
+    // Seulement de vraies touches : une case dessinee comme une touche doit
+    // se taper. Le geste a la souris est dit en toutes lettres au-dessus.
+    return {
+        { tr("W"), tr("tracer un fil — puis tapez la cote : 50, @10,5") },
+        { tr("F11"), tr("retenir un point et suivre son alignement") },
+        { tr("Ctrl + Maj + P"), tr("chercher n'importe quelle commande par son nom") },
+        { tr("F9"), tr("numéroter tous les fils du dossier d'un coup") },
+    };
+}
+
+FolioView::EmptyHintLayout FolioView::layoutEmptyHint(const Folio &folio) const
+{
+    EmptyHintLayout layout;
+    const QVector<HintStep> steps = emptyHintSteps();
+    const QFont keys = Theme::monoFont(font().pointSizeF() * 0.9);
+    const QFontMetricsF keyMetrics(keys);
+    const QFontMetricsF textMetrics(font());
+
+    for (const HintStep &step : steps) {
+        layout.keyWidth = std::max(layout.keyWidth,
+                                   keyMetrics.horizontalAdvance(step.key) + 2 * kHintCapPadding);
+        layout.textWidth = std::max(layout.textWidth,
+                                    textMetrics.horizontalAdvance(step.what));
+    }
+    layout.lineHeight = textMetrics.height() + 9.0;
+
+    const double blockWidth = layout.keyWidth + kHintColumnGap + layout.textWidth;
+    const double blockHeight = kHintTitleHeight + kHintLeadHeight + kHintLeadGap
+            + steps.size() * layout.lineHeight;
+
+    // Le conseil est cale au centre de LA FEUILLE, pas de la fenetre. Ancre a
+    // la fenetre, il se decalait des qu'un panneau s'ouvrait ou se fermait, et
+    // il ne tombait au milieu de la feuille dans aucune configuration.
+    //
+    // On centre sur la partie VISIBLE de la feuille plutot que sur la feuille
+    // entiere : zoome de pres, son centre sort de l'ecran, et un conseil
+    // invisible n'apprend rien. Les deux coincident des que la feuille tient
+    // dans la vue, c'est-a-dire dans le cas normal.
+    const QRectF sheet(toWidget(folio.sheetRect().topLeft()),
+                       toWidget(folio.sheetRect().bottomRight()));
+    QRectF anchor = sheet.normalized().intersected(QRectF(rect()));
+    if (anchor.isEmpty())
+        anchor = QRectF(rect());
+
+    const QPointF centre = anchor.center();
+    layout.block = QRectF(centre.x() - blockWidth / 2.0, centre.y() - blockHeight / 2.0,
+                          blockWidth, blockHeight);
+    // Le titre et l'accroche sont centres sur la meme verticale que le bloc,
+    // sur une bande assez large pour les accueillir sans les couper.
+    layout.band = QRectF(centre.x() - anchor.width() / 2.0, layout.block.top(),
+                         anchor.width(), blockHeight);
+    return layout;
+}
+
+bool FolioView::showsEmptyHint() const
+{
+    const Folio *folio = m_document->currentFolio();
+    return folio && folio->entityCount() == 0 && m_pendingSymbol.isEmpty();
+}
+
+QRectF FolioView::emptyHintRect() const
+{
+    if (!showsEmptyHint())
+        return QRectF();
+    return layoutEmptyHint(*m_document->currentFolio()).block;
+}
+
 void FolioView::paintEmptyHint(QPainter &painter, const Folio &folio) const
 {
     // Un folio vide n'apprend rien a qui ouvre le logiciel pour la premiere
-    // fois. Deux lignes suffisent a indiquer par ou commencer, et elles
+    // fois. Quelques lignes suffisent a indiquer par ou commencer, et elles
     // disparaissent des le premier element pose.
     if (folio.entityCount() > 0 || !m_pendingSymbol.isEmpty())
         return;
@@ -3412,6 +3486,7 @@ void FolioView::paintEmptyHint(QPainter &painter, const Folio &folio) const
     // fixe, comme dans la palette de commandes. Une meme chose se montre
     // partout de la meme facon, sinon il faut l'apprendre deux fois.
     const QFont keys = Theme::monoFont(font().pointSizeF() * 0.9);
+    const QFontMetricsF keyMetrics(keys);
 
     QColor strong = m_style.text;
     strong.setAlpha(200);
@@ -3424,58 +3499,31 @@ void FolioView::paintEmptyHint(QPainter &painter, const Folio &folio) const
     QColor capFill = m_style.pageBackground;
     capFill.setAlpha(150);
 
-    // Par ou commencer, avec les touches. Un folio vide est le premier ecran
-    // que voit un nouveau venu : lui dire « c'est vide » sans lui dire quoi
-    // faire laisse tout le logiciel invisible.
-    struct Step {
-        QString key;
-        QString what;
-    };
-    // Seulement de vraies touches : une case dessinee comme une touche doit
-    // se taper. Le geste a la souris est dit en toutes lettres au-dessus.
-    const QVector<Step> steps{
-        { tr("W"), tr("tracer un fil — puis tapez la cote : 50, @10,5") },
-        { tr("F11"), tr("retenir un point et suivre son alignement") },
-        { tr("Ctrl + Maj + P"), tr("chercher n'importe quelle commande par son nom") },
-        { tr("F9"), tr("numéroter tous les fils du dossier d'un coup") },
-    };
-    const QString lead = tr("Posez un appareil en cliquant dans la palette, à gauche.");
-
-    const QFontMetricsF keyMetrics(keys);
-    const QFontMetricsF textMetrics(font());
-    constexpr double kCapPadding = 9.0;
-    double keyWidth = 0.0;
-    for (const Step &step : steps)
-        keyWidth = std::max(keyWidth, keyMetrics.horizontalAdvance(step.key) + 2 * kCapPadding);
-
-    const double lineHeight = textMetrics.height() + 9.0;
-    // Le bloc se pose au-dessus du cartouche, qui occupe le bas de la feuille :
-    // un conseil qui chevauche le dessin se lit mal et fait desordre.
-    const double top = height() * 0.44;
-    const double gap = 18.0;
-    // Le bloc est centre sur la largeur, les deux colonnes alignees entre
-    // elles : une liste de touches doit se parcourir a la verticale.
-    double widest = 0.0;
-    for (const Step &step : steps)
-        widest = std::max(widest, textMetrics.horizontalAdvance(step.what));
-    const double blockWidth = keyWidth + gap + widest;
-    const double left = (width() - blockWidth) / 2.0;
+    const QVector<HintStep> steps = emptyHintSteps();
+    const EmptyHintLayout layout = layoutEmptyHint(folio);
+    const double top = layout.block.top();
+    const double left = layout.block.left();
+    const QRectF band = layout.band;
 
     painter.setFont(title);
     painter.setPen(strong);
-    painter.drawText(QRectF(0, top, width(), 30), Qt::AlignHCenter | Qt::AlignTop,
+    painter.drawText(QRectF(band.left(), top, band.width(), kHintTitleHeight),
+                     Qt::AlignHCenter | Qt::AlignTop,
                      tr("Ce folio est vide — par où commencer"));
     painter.setFont(font());
     painter.setPen(faint);
-    painter.drawText(QRectF(0, top + 32.0, width(), 22), Qt::AlignHCenter | Qt::AlignTop, lead);
+    painter.drawText(QRectF(band.left(), top + kHintTitleHeight + 2.0, band.width(),
+                            kHintLeadHeight),
+                     Qt::AlignHCenter | Qt::AlignTop,
+                     tr("Posez un appareil en cliquant dans la palette, à gauche."));
 
-    double y = top + 74.0;
+    double y = top + kHintTitleHeight + kHintLeadHeight + kHintLeadGap;
     painter.setRenderHint(QPainter::Antialiasing, true);
-    for (const Step &step : steps) {
+    for (const HintStep &step : steps) {
         painter.setFont(keys);
-        const double capWidth = keyMetrics.horizontalAdvance(step.key) + 2 * kCapPadding;
-        const QRectF cap(left + keyWidth - capWidth, y + (lineHeight - 21.0) / 2.0,
-                         capWidth, 21.0);
+        const double capWidth = keyMetrics.horizontalAdvance(step.key) + 2 * kHintCapPadding;
+        const QRectF cap(left + layout.keyWidth - capWidth,
+                         y + (layout.lineHeight - 21.0) / 2.0, capWidth, 21.0);
         painter.setPen(QPen(capBorder, 1.0));
         painter.setBrush(capFill);
         painter.drawRoundedRect(cap, 4.0, 4.0);
@@ -3484,9 +3532,10 @@ void FolioView::paintEmptyHint(QPainter &painter, const Folio &folio) const
         painter.drawText(cap, Qt::AlignCenter, step.key);
         painter.setFont(font());
         painter.setPen(faint);
-        painter.drawText(QRectF(left + keyWidth + gap, y, widest, lineHeight),
+        painter.drawText(QRectF(left + layout.keyWidth + kHintColumnGap, y, layout.textWidth,
+                                layout.lineHeight),
                          Qt::AlignLeft | Qt::AlignVCenter, step.what);
-        y += lineHeight;
+        y += layout.lineHeight;
     }
 }
 

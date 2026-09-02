@@ -189,6 +189,12 @@ public:
     void beginMeasureArea();
 
     bool hasPendingGesture() const { return m_pending != Pending::None; }
+
+    // Le conseil du folio vide. Sa geometrie est publique parce qu'elle porte
+    // une promesse verifiable — etre cale au centre de la feuille — et qu'un
+    // test doit pouvoir la lire sans compter des pixels.
+    bool showsEmptyHint() const;
+    QRectF emptyHintRect() const;
     void mirrorSelection();
     void nudgeSelection(const QPointF &deltaMm);
     void copySelection();
@@ -237,6 +243,9 @@ Q_SIGNALS:
     // quelques secondes.
     void measured(const QString &report);
     void entityActivated(const QString &entityId);
+    // Double-clic dans le vide : il n'y a rien a editer sinon le folio
+    // lui-meme, et c'est ce que la fenetre principale en fait.
+    void folioActivated();
     // Un symbole vient d'etre pose. La fenetre principale decide d'ouvrir ou
     // non la boite du composant : le catalogue et le reglage lui appartiennent.
     void componentPlaced(const QString &entityId);
@@ -357,6 +366,30 @@ private:
     int gripAt(const QPointF &scenePoint) const;
     void dragGripTo(const QPointF &target);
     void paintEmptyHint(QPainter &painter, const Folio &folio) const;
+
+    // Une etape du conseil : la touche, et ce qu'elle fait.
+    struct HintStep {
+        QString key;
+        QString what;
+    };
+    static QVector<HintStep> emptyHintSteps();
+
+    // La mise en page du conseil, partagee par le trace et par emptyHintRect :
+    // deux calculs finiraient par decrire deux blocs differents.
+    struct EmptyHintLayout {
+        QRectF block;      // les deux colonnes, titre et accroche compris
+        QRectF band;       // la bande sur laquelle titre et accroche se centrent
+        double keyWidth = 0.0;
+        double textWidth = 0.0;
+        double lineHeight = 0.0;
+    };
+    EmptyHintLayout layoutEmptyHint(const Folio &folio) const;
+
+    static constexpr double kHintTitleHeight = 30.0;
+    static constexpr double kHintLeadHeight = 22.0;
+    static constexpr double kHintLeadGap = 20.0;
+    static constexpr double kHintColumnGap = 18.0;
+    static constexpr double kHintCapPadding = 9.0;
 
     // Gestes en deux ou trois clics, a la maniere de la ligne de commande
     // d'AutoCAD : la vue attend un point, puis un autre.

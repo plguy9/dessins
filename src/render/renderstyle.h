@@ -11,6 +11,17 @@
 
 namespace dsn {
 
+// Aspect de la grille. AutoCAD sait la tracer en points ou en carreaux, et le
+// choix n'est pas cosmetique : les points laissent le dessin seul a l'oeil,
+// les carreaux donnent un reperage de distance immediat. On ajoute la croix,
+// qui marque le point sans le lien continu — c'est le meilleur compromis quand
+// on trace beaucoup de traits horizontaux.
+enum class GridStyle {
+    Dots,    // points, le defaut
+    Lines,   // carreaux
+    Crosses  // petites croix
+};
+
 struct RenderStyle {
     // Couleurs
     QColor pageBackground{ 0x33, 0x36, 0x35 }; // autour de la feuille, a l'ecran
@@ -69,6 +80,8 @@ struct RenderStyle {
 
     double gridStep = 2.5;
     int gridMajorEvery = 4;
+    GridStyle gridStyle = GridStyle::Dots;
+    double gridCrossSize = 0.8; // demi-branche de la croix, en millimetres
     double designationHeight = 2.5;
     double valueHeight = 2.0;
     double wireNumberHeight = 2.0;

@@ -11,6 +11,7 @@
 #include "rules/ladder.h"
 #include "draftingsettingsdialog.h"
 #include "pagesetupdialog.h"
+#include "propertiesdialog.h"
 #include "propertiespanel.h"
 #include "render/foliopainter.h"
 #include "render/pdfexport.h"
@@ -22,6 +23,7 @@
 #include "symbolpalette.h"
 #include "componentdialog.h"
 #include "surferdialog.h"
+#include "appearance.h"
 #include "arraydialog.h"
 #include "busdialog.h"
 #include "auditdialog.h"
@@ -160,7 +162,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     m_view->setGridStep(m_document->profile().gridStep);
 
     connect(m_view, &FolioView::selectionChanged, this, [this] {
-        m_properties->setSelection(m_view->selection());
         updateActions();
     });
     connect(m_view, &FolioView::cursorMoved, this, [this](const QPointF &mm, const QString &zone) {
@@ -183,8 +184,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     connect(m_view, &FolioView::entityActivated, this, [this](const QString &id) {
         const auto *symbol =
                 dynamic_cast<const SymbolInstance *>(m_document->project().findEntity(id));
-        if (!symbol)
+        if (!symbol) {
+            // Un fil, un texte, une etiquette : la fiche de proprietes. Elle a
+            // remplace le panneau ancre a droite, qui prenait la place du
+            // dessin en permanence pour un reglage qu'on ne fait que par
+            // moments.
+            showProperties({ id });
             return;
+        }
         // Une carte d'automate a sa propre boite : la boite du composant ne
         // sait rien des adresses, et c'est tout ce qu'on vient y regler.
         if (PlcModule::isModule(*symbol))
@@ -192,6 +199,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         else
             editComponent(id, false);
     });
+    // Double-clic dans le vide : les proprietes du folio — numero, titre,
+    // format, cadre. C'est la seule chose qu'on puisse vouloir regler la.
+    connect(m_view, &FolioView::folioActivated, this, [this] { showProperties({}); });
     connect(m_document, &Document::undoStateChanged, this, &MainWindow::updateActions);
     connect(m_document, &Document::undoStateChanged, this, &MainWindow::rebuildWireTypeSelector);
     connect(m_document, &Document::currentFolioChanged, this, &MainWindow::updateTitle);
@@ -243,12 +253,6 @@ void MainWindow::createDocks()
     navigatorDock->setWidget(m_navigator);
     addDockWidget(Qt::LeftDockWidgetArea, navigatorDock);
 
-    auto *propertiesDock = new QDockWidget(tr("Propriétés").toUpper(), this);
-    propertiesDock->setObjectName(QStringLiteral("dock.properties"));
-    m_properties = new PropertiesPanel(m_document, propertiesDock);
-    propertiesDock->setWidget(m_properties);
-    addDockWidget(Qt::RightDockWidgetArea, propertiesDock);
-
     auto *reportDock = new QDockWidget(tr("Rapports").toUpper(), this);
     reportDock->setObjectName(QStringLiteral("dock.reports"));
     m_reports = new ReportPanel(m_document, reportDock);
@@ -259,7 +263,7 @@ void MainWindow::createDocks()
     // Titres graves : petites capitales espacees, en retrait. La fonte est
     // posee sur le panneau, puis rendue au contenu — sans quoi la liste de
     // symboles heriterait des capitales du titre.
-    for (QDockWidget *dock : { paletteDock, navigatorDock, propertiesDock, reportDock }) {
+    for (QDockWidget *dock : { paletteDock, navigatorDock, reportDock }) {
         dock->setFont(Theme::engravedFont());
         if (dock->widget())
             dock->widget()->setFont(Theme::uiFont(10));
@@ -269,8 +273,7 @@ void MainWindow::createDocks()
     // longs : un panneau trop etroit les tronque des le premier affichage.
     paletteDock->setMinimumWidth(260);
     navigatorDock->setMinimumWidth(260);
-    propertiesDock->setMinimumWidth(280);
-    resizeDocks({ paletteDock, propertiesDock }, { 320, 340 }, Qt::Horizontal);
+    resizeDocks({ paletteDock }, { 320 }, Qt::Horizontal);
     resizeDocks({ paletteDock, navigatorDock }, { 3, 2 }, Qt::Vertical);
 
     // Les titres de panneaux sont graves en petites capitales : Qt ne sait
@@ -301,8 +304,6 @@ void MainWindow::createDocks()
     connect(m_reports, &ReportPanel::locateRequested, this, &MainWindow::locate);
     connect(m_navigator, &FolioNavigator::pageSetupRequested, this, &MainWindow::editPageSetup);
     connect(m_navigator, &FolioNavigator::statusMessage, this,
-            [this](const QString &message) { statusBar()->showMessage(message, 4000); });
-    connect(m_properties, &PropertiesPanel::statusMessage, this,
             [this](const QString &message) { statusBar()->showMessage(message, 4000); });
 }
 
@@ -694,9 +695,13 @@ void MainWindow::createActions()
         Qt::Key key;
         const char *hint;
     };
+    // Les proprietes ne sont plus un panneau : la commande ouvre la fiche,
+    // comme le double-clic. Le raccourci est garde — il est dans les doigts.
+    make(viewMenu, G::Properties, tr("&Propriétés…"), QKeySequence(Qt::CTRL | Qt::Key_1),
+         tr("Ouvrir la fiche de propriétés de la sélection"),
+         [this] { showProperties(m_view->selection()); });
+
     const PaletteShortcut palettes[] = {
-        { QT_TR_NOOP("&Propriétés"), "dock.properties", Qt::Key_1,
-          QT_TR_NOOP("Ouvrir la palette des propriétés de la sélection") },
         { QT_TR_NOOP("Palette de &symboles"), "dock.symbols", Qt::Key_3,
           QT_TR_NOOP("Ouvrir la bibliothèque de symboles") },
         { QT_TR_NOOP("Navigateur de &folios"), "dock.folios", Qt::Key_4,
@@ -1338,14 +1343,28 @@ void MainWindow::syncDraftingToggles()
 
 void MainWindow::editDraftingSettings()
 {
-    DraftingSettingsDialog dialog(m_view->snapEngine(), m_view->gridStep(),
-                                  m_view->style().showGrid, this);
+    DraftingSettingsDialog dialog(m_view->snapEngine(), m_view->style(), this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
     m_view->snapEngine() = dialog.engine();
-    m_view->setGridStep(dialog.gridStep());
-    m_view->setGridVisible(dialog.gridVisible());
+
+    if (dialog.resetRequested()) {
+        // Les valeurs d'origine, ce sont celles du theme : on oublie ce qui
+        // etait retenu et on le reconstruit, plutot que de tenir une seconde
+        // liste de defauts qui finirait par diverger de la premiere.
+        Appearance::reset(m_dark);
+        applyTheme(m_dark);
+        m_view->snapSettingsTouched();
+        syncDraftingToggles();
+        statusBar()->showMessage(tr("Affichage revenu aux valeurs du thème."), 4000);
+        return;
+    }
+
+    RenderStyle style = dialog.style();
+    m_view->setStyle(style);
+    m_view->setGridStep(style.gridStep);
+    Appearance::save(style, m_dark);
     m_view->snapSettingsTouched();
     syncDraftingToggles();
     statusBar()->showMessage(tr("Paramètres de dessin appliqués"), 4000);
@@ -1786,6 +1805,15 @@ void MainWindow::editWireTypes()
     statusBar()->showMessage(tr("Types de fils mis à jour."), 5000);
 }
 
+void MainWindow::showProperties(const QSet<QString> &selection)
+{
+    // Une seule boite a la fois : deux fiches ouvertes sur la meme entite
+    // afficheraient des valeurs qui divergent des la premiere frappe.
+    PropertiesDialog dialog(m_document, selection, this);
+    dialog.exec();
+    m_view->update();
+}
+
 void MainWindow::applyWireTypeToSelection()
 {
     // Le type applique est celui qui est arme dans le ruban : c'est celui
@@ -2083,6 +2111,7 @@ void MainWindow::createRibbon()
         { "Vue", "Schéma", false, "Numéros de broches", "" },
         { "Vue", "Schéma", false, "Broches non raccordées", "" },
         { "Vue", "Interface", true, "Palette de commandes", "Commandes" },
+        { "Vue", "Interface", false, "Propriétés", "" },
         { "Vue", "Interface", false, "Thème sombre", "" },
         { "Vue", "Interface", false, "Écran d'accueil", "" },
     };
@@ -2249,7 +2278,13 @@ void MainWindow::applyTheme(bool dark)
     // etre posee a plat. C'est le seul endroit ou l'interface a de la
     // profondeur, et c'est celui qui compte — le dessin.
     style.pageBackground = Theme::colors().canvas;
+
+    // En dernier, et seulement en dernier : ce que l'utilisateur a reglé pour
+    // son confort. Le theme fournit les defauts, le reglage explicite gagne —
+    // dans l'autre ordre, changer de theme effacerait ses choix.
+    Appearance::load(style, dark);
     m_view->setStyle(style);
+    m_view->setGridStep(style.gridStep);
 
     // Les apercus de la palette et les vignettes de folios sont redessines
     // dans les couleurs du theme : sans cela, un panneau sombre garderait des
@@ -2800,7 +2835,6 @@ void MainWindow::renumberAll()
     m_document->commands().resetClean();
     m_reports->refresh();
     m_view->update();
-    m_properties->setSelection(m_view->selection());
 }
 
 void MainWindow::setProfile(const QString &profileId)

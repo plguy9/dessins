@@ -1,9 +1,11 @@
 add_library(arcus_ui STATIC
     theme.h           theme.cpp
+    appearance.h      appearance.cpp
     document.h        document.cpp
     folioview.h       folioview.cpp
     symbolpalette.h   symbolpalette.cpp
     propertiespanel.h propertiespanel.cpp
+    propertiesdialog.h propertiesdialog.cpp
     folionavigator.h  folionavigator.cpp
     reportpanel.h     reportpanel.cpp
     symboleditor.h    symboleditor.cpp

@@ -21,6 +21,7 @@
 #include "ui/document.h"
 #include "ui/folioview.h"
 #include "ui/symboleditor.h"
+#include "ui/appearance.h"
 #include "ui/commandline.h"
 #include "ui/commandpalette.h"
 #include "ui/componentdialog.h"
@@ -449,8 +450,14 @@ TEST_CASE("La boite de parametres de dessin rend les reglages", "[ui][snap]")
     engine.setOrthoEnabled(true);
     engine.setPolarIncrement(30.0);
 
-    DraftingSettingsDialog dialog(engine, 2.5, true);
-    dialog.resize(560, 520);
+    RenderStyle style = RenderStyle::screen();
+    style.gridStep = 2.5;
+    style.showGrid = true;
+    style.gridStyle = GridStyle::Lines;
+    style.crosshairPercent = 40.0;
+
+    DraftingSettingsDialog dialog(engine, style);
+    dialog.resize(580, 560);
     CHECK(hasVisibleContent(dialog.grab()));
 
     // Les reglages ressortent tels qu'ils sont entres : la boite ne doit rien
@@ -461,6 +468,15 @@ TEST_CASE("La boite de parametres de dessin rend les reglages", "[ui][snap]")
     CHECK(out.polarIncrement() == 30.0);
     CHECK(dialog.gridStep() == 2.5);
     CHECK(dialog.gridVisible());
+
+    // L'onglet Affichage rend lui aussi ce qu'on lui a donne — y compris ce
+    // qu'on n'a pas touche, qui doit ressortir inchange.
+    const RenderStyle back = dialog.style();
+    CHECK(back.gridStyle == GridStyle::Lines);
+    CHECK(back.crosshairPercent == 40.0);
+    CHECK(back.crosshair == style.crosshair);
+    CHECK(back.sheet == style.sheet);
+    CHECK_FALSE(dialog.resetRequested());
 }
 
 TEST_CASE("La mise en page change le format sans toucher au contenu", "[ui][page]")
@@ -1820,6 +1836,14 @@ namespace {
 
 // Un clic complet a un point du dessin. Les tests de trace en enchainent
 // plusieurs : une forme se donne en deux ou trois points.
+void doubleClickScene(FolioView &view, const QPointF &scene)
+{
+    const QPointF widget = view.mapFromScene(scene);
+    QMouseEvent event(QEvent::MouseButtonDblClick, widget, view.mapToGlobal(widget),
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &event);
+}
+
 void clickScene(FolioView &view, const QPointF &scene)
 {
     const QPointF widget = view.mapFromScene(scene);
@@ -2182,6 +2206,152 @@ TEST_CASE("Un repere fixe survit a la renumerotation, un repere libere non",
     REQUIRE(view.setSelectionTagsLocked(false) == 1);
     Numbering::renumberAll(document.project(), document.profile());
     CHECK(coil->designation() != QStringLiteral("KM-SPECIAL"));
+}
+
+TEST_CASE("Le conseil du folio vide est calé au centre de la feuille", "[ui][accueil]")
+{
+    // Decision utilisateur (2026-09-02) : le conseil etait ancre a la fenetre,
+    // donc il se decalait des qu'un panneau s'ouvrait et ne tombait au milieu
+    // de la feuille dans aucune configuration. Il suit maintenant la feuille —
+    // et ce test le verifie a deux tailles de vue, parce que c'est justement
+    // le changement de taille qui le mettait de travers.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.show();
+
+    for (const QSize &size : { QSize(900, 640), QSize(1400, 500) }) {
+        view.resize(size);
+        view.zoomToFit();
+        REQUIRE(view.showsEmptyHint());
+
+        const QPointF sheetCentre = view.mapFromScene(folio->sheetRect().center());
+        const QPointF hintCentre = view.emptyHintRect().center();
+        CHECK_THAT(hintCentre.x(), WithinAbs(sheetCentre.x(), 1.0));
+        CHECK_THAT(hintCentre.y(), WithinAbs(sheetCentre.y(), 1.0));
+    }
+
+    // Et il disparait des le premier element pose : un conseil qui reste
+    // par-dessus le dessin devient une gene.
+    drawWire(folio, { QPointF(40, 60), QPointF(120, 60) });
+    CHECK_FALSE(view.showsEmptyHint());
+    CHECK(view.emptyHintRect().isNull());
+}
+
+TEST_CASE("Le conseil suit la feuille quand elle se deplace", "[ui][accueil]")
+{
+    // C'est la promesse exacte : « collé au centre de la feuille ». Zoomer
+    // deplace la feuille dans la vue, et le conseil doit partir avec elle.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+    view.zoomToFit();
+
+    const QPointF before = view.emptyHintRect().center();
+    view.zoomToRect(QRectF(folio->sheetRect().left(), folio->sheetRect().top(),
+                           folio->sheetRect().width() * 0.6,
+                           folio->sheetRect().height() * 0.6));
+    const QPointF after = view.emptyHintRect().center();
+
+    // La vue a change : si le conseil etait ancre a la fenetre, il n'aurait
+    // pas bouge d'un pixel.
+    CHECK((before - after).manhattanLength() > 1.0);
+}
+
+TEST_CASE("Le double-clic dans le vide demande les proprietes du folio", "[ui][proprietes]")
+{
+    // Decision utilisateur (2026-09-02) : le panneau ancre a droite disparait,
+    // et le double-clic ouvre la meme fiche la ou l'on regarde deja.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    auto *coil = placeSymbol(document.project(), folio, QStringLiteral("iec:coil"),
+                             QPointF(100, 100));
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+
+    int folioAsked = 0;
+    QString entityAsked;
+    QObject::connect(&view, &FolioView::folioActivated, [&folioAsked] { ++folioAsked; });
+    QObject::connect(&view, &FolioView::entityActivated,
+                     [&entityAsked](const QString &id) { entityAsked = id; });
+
+    doubleClickScene(view, QPointF(250, 200)); // loin de tout
+    CHECK(folioAsked == 1);
+    CHECK(entityAsked.isEmpty());
+
+    doubleClickScene(view, coil->placement.position);
+    CHECK(entityAsked == coil->id());
+    CHECK(folioAsked == 1); // l'entite gagne : elle est plus precise que le folio
+}
+
+TEST_CASE("La fenetre n'a plus de panneau de proprietes ancre", "[ui][proprietes]")
+{
+    // Il prenait la place du dessin en permanence pour un reglage qu'on ne
+    // fait que par moments. La commande et le raccourci restent — ce sont eux
+    // qu'on a dans les doigts — mais ils ouvrent une fiche.
+    MainWindow window;
+    window.resize(1400, 900);
+
+    CHECK(window.findChild<QDockWidget *>(QStringLiteral("dock.properties")) == nullptr);
+
+    bool found = false;
+    for (QAction *action : window.findChildren<QAction *>()) {
+        if (action->text().remove(QLatin1Char('&')) == QStringLiteral("Propriétés…")) {
+            found = true;
+            CHECK(action->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_1));
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Les réglages d'affichage survivent au changement de thème", "[ui][apparence]")
+{
+    // La regle qui gouverne ui/appearance.* : le theme fournit les defauts, le
+    // reglage explicite gagne. Applique dans l'autre ordre, changer de theme
+    // effacerait ce que le dessinateur a reglé pour son confort.
+    Appearance::reset(true);
+    Appearance::reset(false);
+
+    RenderStyle chosen = RenderStyle::screenDark();
+    chosen.gridStyle = GridStyle::Lines;
+    chosen.crosshairPercent = 35.0;
+    chosen.pickBoxPixels = 14.0;
+    chosen.crosshair = QColor(0xE0, 0xA5, 0x4A);
+    Appearance::save(chosen, true);
+
+    // On repart du style brut du theme, comme le fait applyTheme.
+    RenderStyle fresh = RenderStyle::screenDark();
+    REQUIRE(fresh.gridStyle == GridStyle::Dots);
+    Appearance::load(fresh, true);
+
+    CHECK(fresh.gridStyle == GridStyle::Lines);
+    CHECK(fresh.crosshairPercent == 35.0);
+    CHECK(fresh.pickBoxPixels == 14.0);
+    CHECK(fresh.crosshair == QColor(0xE0, 0xA5, 0x4A));
+
+    // La forme est commune aux deux themes, la couleur ne l'est pas : une
+    // teinte lisible sur fond noir ne l'est pas sur blanc.
+    RenderStyle light = RenderStyle::screen();
+    const QColor themeCrosshair = light.crosshair;
+    Appearance::load(light, false);
+    CHECK(light.gridStyle == GridStyle::Lines);
+    CHECK(light.crosshair == themeCrosshair);
+
+    Appearance::reset(true);
+    RenderStyle back = RenderStyle::screenDark();
+    Appearance::load(back, true);
+    CHECK(back.gridStyle == GridStyle::Dots);
+    CHECK(back.crosshairPercent == RenderStyle::screenDark().crosshairPercent);
 }
 
 TEST_CASE("Aucun glyphe n'est vide ni ne repete un autre", "[ui][theme][icones]")

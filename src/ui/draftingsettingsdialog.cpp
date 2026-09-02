@@ -4,6 +4,8 @@
 #include "theme.h"
 
 #include <QCheckBox>
+#include <QColorDialog>
+#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
@@ -13,10 +15,37 @@
 #include <QLabel>
 #include <QPainter>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QTabWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
+#include <cmath>
+
 namespace dsn {
+
+ColorButton::ColorButton(const QColor &color, QWidget *parent) : QToolButton(parent)
+{
+    setAutoRaise(false);
+    setFixedSize(52, 22);
+    setColor(color);
+    connect(this, &QToolButton::clicked, this, [this] {
+        const QColor picked = QColorDialog::getColor(m_color, this, tr("Choisir une couleur"));
+        if (picked.isValid())
+            setColor(picked);
+    });
+}
+
+void ColorButton::setColor(const QColor &color)
+{
+    m_color = color;
+    // La pastille EST le bouton : une bordure discrete suffit a le detacher du
+    // fond quand la couleur choisie s'en rapproche.
+    setStyleSheet(QStringLiteral("QToolButton { background: %1; border: 1px solid %2; "
+                                 "border-radius: 3px; }")
+                          .arg(m_color.name(), Theme::colors().border.name()));
+    setToolTip(m_color.name());
+}
 
 namespace {
 
@@ -59,9 +88,9 @@ QString modeHint(SnapMode mode)
 
 } // namespace
 
-DraftingSettingsDialog::DraftingSettingsDialog(const SnapEngine &engine, double gridStep,
-                                               bool gridVisible, QWidget *parent)
-    : QDialog(parent), m_engine(engine)
+DraftingSettingsDialog::DraftingSettingsDialog(const SnapEngine &engine,
+                                               const RenderStyle &style, QWidget *parent)
+    : QDialog(parent), m_engine(engine), m_style(style)
 {
     setWindowTitle(tr("Paramètres de dessin"));
 
@@ -72,18 +101,149 @@ DraftingSettingsDialog::DraftingSettingsDialog(const SnapEngine &engine, double 
     tabs->addTab(buildGridTab(), tr("Grille et résolution"));
     tabs->addTab(buildObjectSnapTab(), tr("Accrochage aux objets"));
     tabs->addTab(buildPolarTab(), tr("Repérage polaire"));
+    tabs->addTab(buildDisplayTab(), tr("Affichage"));
 
-    m_gridStep->setValue(gridStep);
-    m_gridVisible->setChecked(gridVisible);
+    m_gridStep->setValue(m_style.gridStep);
+    m_gridVisible->setChecked(m_style.showGrid);
 
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    auto *buttons = new QDialogButtonBox(
+            QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::RestoreDefaults,
+            this);
     buttons->button(QDialogButtonBox::Ok)->setText(tr("Appliquer"));
     buttons->button(QDialogButtonBox::Cancel)->setText(tr("Annuler"));
+    buttons->button(QDialogButtonBox::RestoreDefaults)->setText(tr("Valeurs d'origine"));
+    buttons->button(QDialogButtonBox::RestoreDefaults)
+            ->setToolTip(tr("Oublier les réglages d'affichage et revenir à ceux du thème"));
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    // « Valeurs d'origine » ferme la boite : ce qu'on retrouve est le style du
+    // theme, et le reconstruire ici obligerait la boite a le connaitre.
+    connect(buttons, &QDialogButtonBox::clicked, this, [this, buttons](QAbstractButton *button) {
+        if (button != buttons->button(QDialogButtonBox::RestoreDefaults))
+            return;
+        m_reset = true;
+        accept();
+    });
 
-    resize(560, 520);
+    resize(580, 560);
+}
+
+QWidget *DraftingSettingsDialog::buildDisplayTab()
+{
+    auto *page = new QWidget;
+    auto *layout = new QVBoxLayout(page);
+
+    // ---- reticule ---------------------------------------------------------
+    auto *cursor = new QGroupBox(tr("Réticule"), page);
+    auto *cursorForm = new QFormLayout(cursor);
+
+    m_showCrosshair = new QCheckBox(tr("Afficher le réticule"), cursor);
+    m_showCrosshair->setChecked(m_style.showCrosshair);
+    cursorForm->addRow(m_showCrosshair);
+
+    // Une valeur numerique courte ne gagne rien a s'etirer sur la largeur du
+    // formulaire : le champ dit alors qu'on peut y ecrire une phrase.
+    constexpr int kNumberWidth = 96;
+
+    m_crosshairPercent = new QSpinBox(cursor);
+    m_crosshairPercent->setMaximumWidth(kNumberWidth);
+    m_crosshairPercent->setRange(5, 100);
+    m_crosshairPercent->setSuffix(tr(" %"));
+    m_crosshairPercent->setValue(int(std::lround(m_style.crosshairPercent)));
+    m_crosshairPercent->setToolTip(tr("100 % = les traits traversent toute la vue, comme "
+                                      "CURSORSIZE d'AutoCAD"));
+    cursorForm->addRow(tr("Taille"), m_crosshairPercent);
+
+    m_pickBox = new QSpinBox(cursor);
+    m_pickBox->setMaximumWidth(kNumberWidth);
+    m_pickBox->setRange(3, 30);
+    m_pickBox->setSuffix(tr(" px"));
+    m_pickBox->setValue(int(std::lround(m_style.pickBoxPixels)));
+    m_pickBox->setToolTip(tr("Le carré au centre du réticule : c'est la zone réellement "
+                             "testée au clic"));
+    cursorForm->addRow(tr("Carré de sélection"), m_pickBox);
+
+    m_crosshairColor = new ColorButton(m_style.crosshair, cursor);
+    cursorForm->addRow(tr("Couleur"), m_crosshairColor);
+
+    m_dynamicInput = new QCheckBox(tr("Saisie dynamique près du curseur"), cursor);
+    m_dynamicInput->setChecked(m_style.showDynamicInput);
+    cursorForm->addRow(m_dynamicInput);
+    layout->addWidget(cursor);
+
+    // ---- grille -----------------------------------------------------------
+    auto *grid = new QGroupBox(tr("Grille"), page);
+    auto *gridForm = new QFormLayout(grid);
+
+    m_gridStyle = new QComboBox(grid);
+    m_gridStyle->setMaximumWidth(200);
+    m_gridStyle->addItem(tr("Points"), int(GridStyle::Dots));
+    m_gridStyle->addItem(tr("Carreaux"), int(GridStyle::Lines));
+    m_gridStyle->addItem(tr("Croix"), int(GridStyle::Crosses));
+    const int styleIndex = m_gridStyle->findData(int(m_style.gridStyle));
+    if (styleIndex >= 0)
+        m_gridStyle->setCurrentIndex(styleIndex);
+    gridForm->addRow(tr("Aspect"), m_gridStyle);
+
+    m_gridMajorEvery = new QSpinBox(grid);
+    m_gridMajorEvery->setMaximumWidth(96);
+    m_gridMajorEvery->setRange(1, 20);
+    m_gridMajorEvery->setValue(std::max(1, m_style.gridMajorEvery));
+    m_gridMajorEvery->setToolTip(tr("Un trait renforcé tous les N pas — c'est lui qui donne "
+                                    "l'échelle à l'œil"));
+    gridForm->addRow(tr("Renfort tous les"), m_gridMajorEvery);
+
+    m_gridColor = new ColorButton(m_style.grid, grid);
+    gridForm->addRow(tr("Couleur"), m_gridColor);
+    m_gridMajorColor = new ColorButton(m_style.gridMajor, grid);
+    gridForm->addRow(tr("Couleur du renfort"), m_gridMajorColor);
+    layout->addWidget(grid);
+
+    // ---- feuille ----------------------------------------------------------
+    auto *sheet = new QGroupBox(tr("Feuille"), page);
+    auto *sheetForm = new QFormLayout(sheet);
+
+    m_sheetColor = new ColorButton(m_style.sheet, sheet);
+    sheetForm->addRow(tr("Fond de la feuille"), m_sheetColor);
+    m_backdropColor = new ColorButton(m_style.pageBackground, sheet);
+    sheetForm->addRow(tr("Pourtour"), m_backdropColor);
+
+    m_sheetShadow = new QCheckBox(tr("Ombre portée sous la feuille"), sheet);
+    m_sheetShadow->setChecked(m_style.showSheetShadow);
+    sheetForm->addRow(m_sheetShadow);
+    layout->addWidget(sheet);
+
+    auto *note = new QLabel(
+            tr("<p style='color:palette(mid)'>Ces réglages sont retenus d'une session à "
+               "l'autre. Les couleurs sont gardées séparément pour le thème clair et pour "
+               "le thème sombre : une teinte lisible sur fond noir ne l'est pas sur "
+               "blanc.</p>"),
+            page);
+    note->setWordWrap(true);
+    layout->addWidget(note);
+    layout->addStretch(1);
+    return page;
+}
+
+RenderStyle DraftingSettingsDialog::style() const
+{
+    RenderStyle out = m_style;
+    out.gridStep = m_gridStep->value();
+    out.showGrid = m_gridVisible->isChecked();
+    out.showCrosshair = m_showCrosshair->isChecked();
+    out.crosshairPercent = m_crosshairPercent->value();
+    out.pickBoxPixels = m_pickBox->value();
+    out.showDynamicInput = m_dynamicInput->isChecked();
+    out.gridStyle = GridStyle(m_gridStyle->currentData().toInt());
+    out.gridMajorEvery = m_gridMajorEvery->value();
+    out.showSheetShadow = m_sheetShadow->isChecked();
+    out.crosshair = m_crosshairColor->color();
+    out.grid = m_gridColor->color();
+    out.gridMajor = m_gridMajorColor->color();
+    out.sheet = m_sheetColor->color();
+    out.pageBackground = m_backdropColor->color();
+    return out;
 }
 
 QWidget *DraftingSettingsDialog::buildGridTab()

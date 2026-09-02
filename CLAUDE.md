@@ -247,6 +247,33 @@ autrement. Nous gardons donc les deux bouts **et** le ruban.
 
 Et ce qui distingue toujours notre interface de celle d'AutoCAD :
 
+- **Pas de panneau de propriétés ancré** (décision utilisateur, 2026-09-02 :
+  *« elles ne servent à rien et prennent trop de place »*). Le bandeau de
+  droite occupait la fenêtre en permanence pour un réglage qu'on ne fait que
+  par moments. `ui/propertiesdialog.*` porte le **même** `PropertiesPanel`
+  dans une boîte, ouverte au double-clic — sur un appareil c'est la boîte du
+  composant, sur un fil, un texte ou une étiquette c'est la fiche, et dans le
+  vide ce sont les propriétés du folio. La boîte n'a **pas** de bouton
+  Annuler : le panneau pousse chaque modification comme une commande dès la
+  frappe, et c'est Ctrl+Z qui défait.
+- **`ui/appearance.*`** — ce que le dessinateur règle pour son confort, rendu
+  au prochain lancement : taille et couleur du réticule, carré de sélection,
+  aspect de la grille (points, **carreaux**, croix), renfort tous les N pas,
+  fond de la feuille et pourtour, ombre portée. Deux règles : **le thème
+  fournit les défauts, le réglage explicite gagne** — d'où l'appel à
+  `Appearance::load` en dernier dans `applyTheme`, sans quoi changer de thème
+  effacerait les choix ; et **les couleurs sont retenues par thème, la
+  géométrie ne l'est pas** — une teinte lisible sur fond noir ne l'est pas sur
+  blanc, c'est aussi pourquoi AutoCAD garde un jeu de couleurs par fond.
+  Le garde-fou de la grille compte des **marques**, pas des points : les
+  carreaux coûtent la somme des deux directions, les points leur produit, et
+  un seuil unique ferait disparaître des carreaux qu'on trace sans effort.
+- **Le conseil du folio vide est calé au centre de la feuille**, pas de la
+  fenêtre (décision utilisateur, 2026-09-02). Ancré à la fenêtre il se
+  décalait dès qu'un panneau s'ouvrait. Il se centre sur la partie *visible*
+  de la feuille : zoomé de près, le centre de la feuille sort de l'écran, et
+  un conseil invisible n'apprend rien. `FolioView::emptyHintRect()` expose sa
+  géométrie pour qu'un test lise la promesse au lieu de compter des pixels.
 - **`ui/commandpalette.*`** (Ctrl+Maj+P, F1) — tout ce que le logiciel sait
   faire, cherché en français, avec le raccourci et le menu où la commande
   se trouve. Elle est **remplie à chaque ouverture** depuis les menus et la

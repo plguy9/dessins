@@ -249,3 +249,46 @@ TEST_CASE("La selection et la mise en evidence changent la couleur", "[render]")
     CHECK(normal != selected);
     CHECK(qRed(selected) > qRed(normal)); // la selection vire a l'orange
 }
+
+TEST_CASE("Les carreaux tiennent la ou les points renoncent", "[render][grille]")
+{
+    // Le garde-fou de la grille compte des marques, et le nombre de marques
+    // depend de l'aspect : les carreaux coutent la somme des deux directions,
+    // les points leur produit. Un seul seuil calibre sur les points ferait
+    // disparaitre des carreaux qu'on trace sans effort.
+    Project project;
+    project.library.insert(twoPinDevice());
+    Folio *folio = project.addFolio(QStringLiteral("Grille"));
+    folio->sheet = sheetFormatById(QStringLiteral("A3"));
+
+    RenderStyle style = RenderStyle::screen();
+    style.showGrid = true;
+    style.gridStep = 0.5; // ~840 x 594 points : bien au-dela du seuil
+
+    auto render = [&](GridStyle kind) {
+        RenderStyle used = style;
+        used.gridStyle = kind;
+        used.showFrame = false;
+        used.showTitleBlock = false;
+        QImage image(600, 420, QImage::Format_ARGB32);
+        image.fill(Qt::white);
+        QPainter painter(&image);
+        // Une echelle qui met la feuille A3 dans l'image : la grille se
+        // dessine en millimetres, comme a l'ecran.
+        painter.scale(image.width() / folio->sheetRect().width(),
+                      image.width() / folio->sheetRect().width());
+        FolioPainter(project, used).paint(painter, *folio);
+        painter.end();
+        int marked = 0;
+        for (int y = 0; y < image.height(); y += 2) {
+            for (int x = 0; x < image.width(); x += 2) {
+                if (image.pixel(x, y) != qRgb(255, 255, 255))
+                    ++marked;
+            }
+        }
+        return marked;
+    };
+
+    CHECK(render(GridStyle::Lines) > 0);
+    CHECK(render(GridStyle::Dots) == 0); // renonce, et c'est voulu
+}

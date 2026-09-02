@@ -55,6 +55,27 @@ public:
                           const SymbolInstance *prototype = nullptr);
     QString pendingSymbol() const { return m_pendingSymbol; }
 
+    // ---- LA SAISIE DE TEXTE SUR PLACE ----------------------------------
+    //
+    // Poser un texte ouvrait une boite modale, une par texte. L'essai de
+    // reproduction d'un vrai schema en a compte QUARANTE-HUIT pour un seul
+    // folio : la boite coupe le dessin en deux a chaque annotation, elle
+    // s'ouvre au milieu de l'ecran loin du point vise, et elle cache
+    // justement l'endroit ou le texte va se poser.
+    //
+    // Desormais on tape ou l'on a clique, a la taille reelle, sur le dessin.
+    // C'est le DTEXT d'AutoCAD, et c'est le seul moyen de voir si le texte
+    // tient dans la place avant de le valider. Entree valide, Echap annule.
+    bool isTypingText() const { return m_textEntry; }
+    QString textBeingTyped() const { return m_textTyped; }
+
+    // La hauteur de capitale des prochains textes. Retenue d'un texte au
+    // suivant, comme le type de fil : on ecrit rarement une seule ligne dans
+    // une taille donnee. Applicable a la selection.
+    void setTextHeight(double heightMm);
+    double textHeight() const { return m_textHeight; }
+    int applyTextHeightToSelection(double heightMm);
+
     void setLabelScope(Label::Scope scope) { m_labelScope = scope; }
     Label::Scope labelScope() const { return m_labelScope; }
 
@@ -319,6 +340,21 @@ Q_SIGNALS:
     void componentPlaced(const QString &entityId);
 
 protected:
+    // LES RACCOURCIS D'UNE LETTRE NE DOIVENT PAS MANGER CE QU'ON TAPE.
+    //
+    // Les outils portent des raccourcis d'une lettre a portee application
+    // (S, W, L, T, O…). Tant que le texte se saisissait dans une boite
+    // modale, elle les bloquait. En tapant sur le dessin, « RELAIS OMRON »
+    // declenchait Decaler au O, Selection au S, Ligne au L — le texte
+    // n'arrivait jamais et des commandes partaient toutes seules.
+    //
+    // Qt a une reponse exacte : QEvent::ShortcutOverride. Un widget qui
+    // l'accepte recoit la touche comme une frappe ordinaire au lieu de la
+    // laisser declencher le raccourci. On ne l'accepte QUE pendant une
+    // saisie, et seulement pour les touches sans Ctrl ni Alt : Ctrl+Z et
+    // Ctrl+S doivent continuer de marcher pendant qu'on ecrit.
+    bool event(QEvent *event) override;
+
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -589,6 +625,20 @@ private:
     // pas un point a un millimetre avant d'en poser un a dix.
     bool m_typing = false;
     QString m_typed;
+
+    // Saisie de texte sur place. `m_textIsLabel` distingue le texte libre de
+    // l'etiquette de potentiel : les deux se tapent pareil, mais l'une pose
+    // un TextItem et l'autre un Label.
+    bool m_textEntry = false;
+    bool m_textIsLabel = false;
+    QPointF m_textPoint;
+    QString m_textTyped;
+    double m_textHeight = 2.5;
+    void beginTextEntry(const QPointF &point, bool label);
+    void commitTextEntry();
+    void cancelTextEntry();
+    bool handleTextKey(QKeyEvent *event);
+    void paintTextEntry(QPainter &painter) const;
 
     QPointF m_cursorMm;
     std::optional<SnapHit> m_snapHit;

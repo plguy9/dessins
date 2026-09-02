@@ -514,9 +514,11 @@ refait **entièrement par événements de souris et de clavier**, via
 `tests/test_essai.cpp` : la palette au clavier, les clics sur le canevas, la
 ligne de commande, les boîtes modales. Rien n'y court-circuite l'interface.
 
-**Ce que cela mesure.** 132 entités, **584 gestes**, **48 boîtes modales**,
-0 fil en biais, 40 constats d'audit dont aucune erreur. Ces chiffres sont le
-résultat de l'essai, pas le succès du test.
+**Ce que cela mesure.** 132 entités, **557 gestes**, **0 boîte modale**,
+0 fil en biais, 40 constats d'audit dont aucune erreur. Les boîtes modales
+étaient 48 au premier passage — une par texte et par étiquette ; c'est le
+chiffre qui a déclenché la saisie sur place, décrite plus bas. Ces chiffres
+sont le résultat de l'essai, pas le succès du test.
 
 **Réserve, et elle compte.** Cet essai conduit les mêmes widgets par les mêmes
 événements qu'une main, ce qui trouve de vrais défauts — quatre ci-dessous.
@@ -565,6 +567,42 @@ refait dix fois. Seul un dessinateur devant l'écran le dira.
    oblige à les relier par un groupe d'appareil pour qu'ils partagent un
    repère : deux symboles, deux poses, une boîte modale.
 
+### La saisie de texte sur place, et le piège qu'elle a découvert
+
+**48 boîtes modales pour un folio** était le chiffre le plus laid de l'essai :
+une par texte, une par étiquette. La boîte coupe le dessin en deux, s'ouvre au
+milieu de l'écran loin du point visé, et cache justement l'endroit où le texte
+va se poser. On tape désormais **où l'on a cliqué, à la taille réelle, sur le
+dessin** — c'est le DTEXT d'AutoCAD, et c'est le seul moyen de voir si le
+texte tient dans la place avant de le valider. Entrée valide, Échap annule.
+La hauteur est retenue d'un texte au suivant (série ISO 3098 : 1,8 · 2,5 ·
+3,5 · 5 mm) et s'applique à la sélection, sinon il faudrait retaper le texte.
+Compteur : **48 → 0**, et 27 gestes de moins pour le même dessin.
+
+**Et cela a découvert le piège que la boîte modale cachait.** Les outils
+portent des raccourcis d'une lettre à **portée application** (S, W, L, T, O…).
+La boîte les bloquait ; en tapant sur le dessin, chaque lettre qui est un
+raccourci partait comme commande au lieu d'entrer dans le texte :
+
+```
+   « BJ RM5 »            →  « 5 »
+   « VALMET »            →  « V »
+   « POWER SUPPLY »      →  « O U »
+   « RELAIS OMRON 24 V » →  « I MRON 24 V »   + la boîte Décaler qui s'ouvre
+```
+
+Qt a une réponse exacte : **`QEvent::ShortcutOverride`**. Un widget qui
+l'accepte reçoit la touche comme une frappe ordinaire au lieu de la laisser
+déclencher le raccourci. `FolioView::event` l'accepte pendant une saisie —
+texte ou cote — et **seulement pour les touches sans Ctrl ni Alt**, pour que
+Ctrl+Z et Ctrl+S continuent de marcher pendant qu'on écrit.
+
+Le test de non-régression a d'abord été **écrit faux** : il passait avec le
+correctif désactivé. Il manquait un `QApplication::processEvents()` après
+`show()` — sans lui la fenêtre n'est pas active, une portée application ne
+déclenche rien, et le test ne prouvait rien. **Un test de raccourci doit
+échouer sans le correctif ; le vérifier est la seule façon de le savoir.**
+
 ### Ce que l'essai a appris sans qu'on le corrige
 
 - **Un symbole doit poser ses broches sur le module de 2,5 mm.** Le relais
@@ -580,9 +618,6 @@ refait dix fois. Seul un dessinateur devant l'écran le dira.
 - **Changer d'outil désarme le symbole.** Poser un texte au milieu d'une série
   de bornes oblige à retourner dans la palette. AutoCAD garde le dernier bloc
   inséré sous la main (INSERT rappelle le précédent) ; nous non.
-- **Poser un texte ou une étiquette ouvre une boîte modale, une par élément.**
-  48 sur ce seul folio. Et la boîte ne demande que le contenu : la hauteur du
-  texte se règle après coup, par la fiche de propriétés.
 - **Rien ne dit « cet appareil ne porte pas de repère ».** Les contacts secs
   dessinés à l'intérieur du boîtier Valmet appartiennent à cet appareil et ne
   doivent pas recevoir un repère `-K` propre ; le repérage automatique leur en

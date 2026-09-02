@@ -655,6 +655,30 @@ void MainWindow::createActions()
                 [this, spec] { m_view->setShapeStroke(spec.stroke); });
     }
 
+    // ---- LA HAUTEUR DU TEXTE ------------------------------------------
+    //
+    // La serie normalisee du dessin technique (ISO 3098) : 1,8 pour un renvoi
+    // de voie, 2,5 pour une annotation courante, 3,5 pour un titre de bloc,
+    // 5 pour un titre de zone. Retenue d'un texte au suivant, comme le type
+    // de fil : on ecrit rarement une seule ligne dans une taille donnee.
+    // Applicable a la selection, sinon il faudrait retaper le texte.
+    QMenu *heightMenu = drawMenu->addMenu(tr("&Hauteur du texte"));
+    heightMenu->setIcon(Icons::icon(G::Text));
+    auto *heightGroup = new QActionGroup(this);
+    heightGroup->setExclusive(true);
+    for (const double mm : { 1.8, 2.5, 3.5, 5.0 }) {
+        auto *action = new QAction(Icons::icon(G::Text),
+                                   tr("%1 mm").arg(mm, 0, 'g', 2), this);
+        action->setCheckable(true);
+        action->setChecked(qFuzzyCompare(mm, 2.5));
+        action->setToolTip(tr("Hauteur de capitale des prochains textes"));
+        action->setStatusTip(action->toolTip());
+        heightGroup->addAction(action);
+        heightMenu->addAction(action);
+        m_actionGlyphs.insert(action, int(G::Text));
+        connect(action, &QAction::triggered, this, [this, mm] { m_view->setTextHeight(mm); });
+    }
+
     // Les mesures : le reste du panneau « Utilitaires ».
     drawMenu->addSeparator();
 
@@ -1776,6 +1800,16 @@ void MainWindow::registerCommands()
            [this] { placeCurrentReport(); });
     simple(QStringLiteral("TYPEFIL"), { QStringLiteral("TF") },
            tr("Gérer les types de fils"), [this] { editWireTypes(); });
+    add(QStringLiteral("HAUTEURTEXTE"), { QStringLiteral("HT") },
+        tr("Hauteur de capitale des prochains textes, en millimètres"),
+        [this](const QStringList &args) {
+            bool ok = false;
+            const double mm = args.value(0).toDouble(&ok);
+            if (ok && mm > 0.0)
+                m_view->setTextHeight(mm);
+            else
+                m_command->writeError(tr("   Hauteur attendue en millimètres, par exemple 2,5."));
+        });
     add(QStringLiteral("TRAIT"), { QStringLiteral("TR2") },
         tr("Style de trait des formes : continu, pointillé, fin, mixte"),
         [this](const QStringList &args) {

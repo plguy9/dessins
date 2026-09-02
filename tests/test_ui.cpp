@@ -3334,3 +3334,103 @@ TEST_CASE("Un texte se pose là où on clique, hors résolution", "[ui][texte]")
     // Le même point, pour un fil, tombe sur la grille.
     CHECK(view.snapEngine().snapToGridPoint(vise) != vise);
 }
+
+TEST_CASE("Un texte se tape sur le dessin, sans boîte modale", "[ui][texte]")
+{
+    // Poser un texte ouvrait une boîte modale, une par texte : l'essai de
+    // reproduction d'un vrai schéma en a compté QUARANTE-HUIT pour un seul
+    // folio. La boîte coupe le dessin en deux, s'ouvre loin du point visé et
+    // cache justement l'endroit où le texte va se poser.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    REQUIRE(folio);
+    FolioView view(&document);
+    view.resize(900, 700);
+    view.zoomToFit();
+
+    view.setTool(FolioView::Tool::Text);
+    CHECK_FALSE(view.isTypingText());
+    clickScene(view, QPointF(60, 40));
+    CHECK(view.isTypingText());
+
+    const auto tape = [&view](const QString &texte) {
+        for (const QChar c : texte) {
+            QKeyEvent press(QEvent::KeyPress, 0, Qt::NoModifier, QString(c));
+            QApplication::sendEvent(&view, &press);
+        }
+    };
+    tape(QStringLiteral("BINARY OUTPUT"));
+    CHECK(view.textBeingTyped() == QStringLiteral("BINARY OUTPUT"));
+
+    // Échap abandonne sans rien poser.
+    QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QApplication::sendEvent(&view, &escape);
+    CHECK_FALSE(view.isTypingText());
+    CHECK(folio->entitiesOfType<TextItem>().empty());
+
+    // La hauteur retenue s'applique au texte suivant : on écrit rarement une
+    // seule ligne dans une taille donnée.
+    view.setTextHeight(1.8);
+    clickScene(view, QPointF(60, 50));
+    tape(QStringLiteral("12 (CH5)"));
+    QKeyEvent entree(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(&view, &entree);
+
+    const auto textes = folio->entitiesOfType<TextItem>();
+    REQUIRE(textes.size() == 1);
+    CHECK(textes.front()->text == QStringLiteral("12 (CH5)"));
+    CHECK(textes.front()->height == 1.8);
+    CHECK_FALSE(view.isTypingText());
+}
+
+TEST_CASE("Les raccourcis d'une lettre ne mangent pas le texte tapé",
+          "[ui][texte][raccourci]")
+{
+    // LE PIÈGE QUE LA BOÎTE MODALE CACHAIT. Les outils portent des raccourcis
+    // d'une lettre à portée application — S sélection, L étiquette, T texte,
+    // O décaler. Une boîte modale les bloquait ; en tapant sur le dessin,
+    // « RELAIS OMRON » déclenchait Décaler au O et Sélection au S, le texte
+    // n'arrivait jamais, et des commandes partaient toutes seules.
+    //
+    // Qt::ShortcutOverride est la réponse exacte, et ce test est la seule
+    // façon de la vérifier : il faut une vraie fenêtre, car les raccourcis
+    // vivent sur ses actions, et de vrais événements, car c'est
+    // QApplication::notify qui arbitre entre raccourci et frappe.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+    // Sans ce tour de boucle la fenêtre n'est pas active, et une portée
+    // application ne déclenche rien : le test passerait sans rien prouver.
+    QApplication::processEvents();
+    FolioView *view = window.findChild<FolioView *>();
+    Document *document = window.findChild<Document *>();
+    REQUIRE(view);
+    REQUIRE(document);
+
+    view->setTool(FolioView::Tool::Text);
+    view->setFocus();
+    clickScene(*view, QPointF(60, 40));
+    REQUIRE(view->isTypingText());
+
+    // Chaque lettre de ce mot est un raccourci d'outil ou de commande.
+    const QString piege = QStringLiteral("RELAIS OMRON");
+    for (const QChar c : piege) {
+        const int code = c == QLatin1Char(' ') ? int(Qt::Key_Space)
+                                               : int(c.toUpper().unicode());
+        QKeyEvent press(QEvent::KeyPress, code, Qt::NoModifier, QString(c));
+        QApplication::sendEvent(view, &press);
+        QApplication::processEvents();
+    }
+
+    CHECK(view->textBeingTyped() == piege);
+    // L'outil n'a pas bougé, et aucune boîte ne s'est ouverte.
+    CHECK(view->tool() == FolioView::Tool::Text);
+    CHECK(QApplication::activeModalWidget() == nullptr);
+
+    QKeyEvent entree(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(view, &entree);
+    const auto textes = document->currentFolio()->entitiesOfType<TextItem>();
+    REQUIRE(textes.size() == 1);
+    CHECK(textes.front()->text == piege);
+}

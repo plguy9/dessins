@@ -605,6 +605,11 @@ bool FolioView::abandonGesture(bool includeSelection)
     // L'ordre est celui de l'imbrication : la cote appartient au geste, le
     // geste appartient a l'outil. On ne defait qu'une couche a la fois, pour
     // qu'une frappe de trop ne rende pas l'outil par-dessus le marche.
+    if (m_textEntry) {
+        cancelTextEntry();
+        Q_EMIT statusMessage(tr("Texte abandonné."));
+        return true;
+    }
     if (m_typing) {
         cancelTyping();
         Q_EMIT statusMessage(tr("Saisie abandonnée."));
@@ -951,6 +956,12 @@ void FolioView::finishPick()
 
 QString FolioView::currentPrompt() const
 {
+    if (m_textEntry) {
+        return m_textIsLabel
+                ? tr("Nom du potentiel : tapez, Entrée valide, Échap annule.")
+                : tr("Texte (%1 mm) : tapez, Entrée valide, Échap annule.")
+                          .arg(m_textHeight, 0, 'g', 2);
+    }
     if (m_typing) {
         return tr("Cote : %1▏ — Entrée valide, Échap abandonne. "
                   "Formes : 50, 50<45, @10,5, #120,80")
@@ -2479,60 +2490,158 @@ void FolioView::setLabelRole(Label::Role role)
 
 void FolioView::placeLabelAt(const QPointF &point)
 {
-    Folio *folio = m_document->currentFolio();
-    if (!folio)
+    if (!m_document->currentFolio())
         return;
-
-    QString title = tr("Étiquette de potentiel");
-    QString prompt = tr("Nom du potentiel :");
-    if (m_labelRole == Label::Role::Source) {
-        title = tr("Flèche de signal — source");
-        prompt = tr("Nom de code du signal :");
-    } else if (m_labelRole == Label::Role::Destination) {
-        title = tr("Flèche de signal — destination");
-        prompt = tr("Nom de code du signal :");
-    } else if (m_labelScope == Label::Scope::Project) {
-        title = tr("Renvoi de folio");
-    }
-
-    bool ok = false;
-    const QString name = QInputDialog::getText(this, title, prompt, QLineEdit::Normal,
-                                               QString(), &ok);
-    if (!ok || name.trimmed().isEmpty())
-        return;
-
-    auto label = std::make_unique<Label>();
-    label->point = point;
-    label->name = name.trimmed();
-    label->role = m_labelRole;
-    label->scope = m_labelRole == Label::Role::Plain ? m_labelScope : Label::Scope::Project;
-    // Une destination pointe vers le dessin, une source s'en eloigne : le
-    // sens de lecture doit correspondre au sens du signal.
-    label->direction = m_labelRole == Label::Role::Destination ? Direction::Left
-                                                               : Direction::Right;
-    m_document->push(std::make_unique<AddEntityCommand>(m_document->project(), folio->id(),
-                                                        std::move(label),
-                                                        m_labelRole == Label::Role::Plain
-                                                                ? tr("Poser une étiquette")
-                                                                : tr("Poser une flèche de signal")));
+    beginTextEntry(point, true);
 }
 
 void FolioView::placeTextAt(const QPointF &point)
 {
-    Folio *folio = m_document->currentFolio();
-    if (!folio)
+    if (!m_document->currentFolio())
         return;
-    bool ok = false;
-    const QString content = QInputDialog::getText(this, tr("Texte"), tr("Contenu :"),
-                                                  QLineEdit::Normal, QString(), &ok);
-    if (!ok || content.isEmpty())
-        return;
+    beginTextEntry(point, false);
+}
 
-    auto text = std::make_unique<TextItem>();
-    text->placement.position = point;
-    text->text = content;
-    m_document->push(std::make_unique<AddEntityCommand>(m_document->project(), folio->id(),
-                                                        std::move(text), tr("Ajouter un texte")));
+// --------------------------------------------------------------------------
+// LA SAISIE DE TEXTE SUR PLACE
+//
+// On tape ou l'on a clique, a la taille reelle, sur le dessin. Voir
+// folioview.h pour le pourquoi : la boite modale coupait le dessin en deux a
+// chaque annotation et cachait l'endroit meme ou le texte allait se poser.
+
+void FolioView::beginTextEntry(const QPointF &point, bool label)
+{
+    m_textEntry = true;
+    m_textIsLabel = label;
+    m_textPoint = point;
+    m_textTyped.clear();
+    setFocus();
+    update();
+}
+
+void FolioView::cancelTextEntry()
+{
+    if (!m_textEntry)
+        return;
+    m_textEntry = false;
+    m_textTyped.clear();
+    update();
+}
+
+void FolioView::commitTextEntry()
+{
+    if (!m_textEntry)
+        return;
+    const QString contenu = m_textTyped.trimmed();
+    const QPointF point = m_textPoint;
+    const bool label = m_textIsLabel;
+    m_textEntry = false;
+    m_textTyped.clear();
+
+    Folio *folio = m_document->currentFolio();
+    if (!folio || contenu.isEmpty()) {
+        update();
+        return;
+    }
+
+    if (label) {
+        auto etiquette = std::make_unique<Label>();
+        etiquette->point = point;
+        etiquette->name = contenu;
+        etiquette->role = m_labelRole;
+        etiquette->scope =
+                m_labelRole == Label::Role::Plain ? m_labelScope : Label::Scope::Project;
+        // Une destination pointe vers le dessin, une source s'en eloigne : le
+        // sens de lecture doit correspondre au sens du signal.
+        etiquette->direction =
+                m_labelRole == Label::Role::Destination ? Direction::Left : Direction::Right;
+        m_document->push(std::make_unique<AddEntityCommand>(
+                m_document->project(), folio->id(), std::move(etiquette),
+                m_labelRole == Label::Role::Plain ? tr("Poser une étiquette")
+                                                  : tr("Poser une flèche de signal")));
+    } else {
+        auto texte = std::make_unique<TextItem>();
+        texte->placement.position = point;
+        texte->text = contenu;
+        // La hauteur retenue s'applique : on ecrit rarement une seule ligne
+        // dans une taille donnee, et la reprendre a chaque fois par la fiche
+        // de proprietes coutait deux gestes par texte.
+        texte->height = m_textHeight;
+        m_document->push(std::make_unique<AddEntityCommand>(m_document->project(), folio->id(),
+                                                            std::move(texte),
+                                                            tr("Ajouter un texte")));
+    }
+    update();
+}
+
+bool FolioView::handleTextKey(QKeyEvent *event)
+{
+    if (!m_textEntry)
+        return false;
+    switch (event->key()) {
+    case Qt::Key_Escape:
+        cancelTextEntry();
+        Q_EMIT statusMessage(tr("Texte abandonné."));
+        return true;
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+        commitTextEntry();
+        return true;
+    case Qt::Key_Backspace:
+        m_textTyped.chop(1);
+        update();
+        return true;
+    default:
+        break;
+    }
+    // Tout caractere imprimable entre dans le texte, y compris les chiffres :
+    // pendant une saisie de texte, « 8 » est un huit, pas un raccourci.
+    if (!event->text().isEmpty() && event->text().at(0).isPrint()) {
+        m_textTyped += event->text();
+        update();
+        return true;
+    }
+    return false;
+}
+
+void FolioView::setTextHeight(double heightMm)
+{
+    if (heightMm <= 0.0)
+        return;
+    m_textHeight = heightMm;
+    if (!m_selection.isEmpty())
+        applyTextHeightToSelection(heightMm);
+    update();
+}
+
+int FolioView::applyTextHeightToSelection(double heightMm)
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio || heightMm <= 0.0)
+        return 0;
+
+    std::vector<std::pair<EntityPtr, EntityPtr>> changes;
+    for (const QString &id : std::as_const(m_selection)) {
+        const auto *texte = dynamic_cast<const TextItem *>(folio->entity(id));
+        if (!texte || fuzzyEqual(texte->height, heightMm))
+            continue;
+        auto after = std::make_unique<TextItem>(*texte);
+        after->height = heightMm;
+        changes.emplace_back(texte->clone(), std::move(after));
+    }
+    if (changes.empty())
+        return 0;
+
+    const int count = int(changes.size());
+    m_document->pushMacro(tr("Changer la hauteur du texte"), [&] {
+        for (auto &change : changes) {
+            m_document->push(std::make_unique<ModifyEntityCommand>(
+                    m_document->project(), folio->id(), std::move(change.first),
+                    std::move(change.second), tr("Changer la hauteur du texte")));
+        }
+    });
+    Q_EMIT statusMessage(tr("%n texte(s) à la nouvelle hauteur.", "", count));
+    return count;
 }
 
 void FolioView::trimAt(const QPointF &point)
@@ -2924,10 +3033,29 @@ void FolioView::wheelEvent(QWheelEvent *event)
     event->accept();
 }
 
+bool FolioView::event(QEvent *event)
+{
+    if (event->type() == QEvent::ShortcutOverride && (m_textEntry || m_typing)) {
+        auto *key = static_cast<QKeyEvent *>(event);
+        const bool commande = key->modifiers() & (Qt::ControlModifier | Qt::AltModifier
+                                                  | Qt::MetaModifier);
+        if (!commande) {
+            // La touche nous revient comme une frappe ordinaire.
+            event->accept();
+            return true;
+        }
+    }
+    return QWidget::event(event);
+}
+
 void FolioView::keyPressEvent(QKeyEvent *event)
 {
-    // La cote tapee passe avant tout le reste : pendant une saisie, « 8 » est
-    // un chiffre, pas un raccourci.
+    // La saisie de texte passe avant TOUT : pendant qu'on ecrit, « 8 » est un
+    // huit, « E » une lettre, et Echap n'abandonne que le texte.
+    if (handleTextKey(event))
+        return;
+
+    // Puis la cote tapee, pour la meme raison.
     if (handleTypedKey(event))
         return;
 
@@ -3079,6 +3207,21 @@ void FolioView::paintPendingWire(QPainter &painter) const
         paths.append(preview);
     for (const QVector<QPointF> &path : paths)
         painter.drawPolyline(path.constData(), int(path.size()));
+}
+
+void FolioView::paintTextEntry(QPainter &painter) const
+{
+    if (!m_textEntry)
+        return;
+    // Compose en UNITES DE DESSIN et a la hauteur reelle : c'est tout
+    // l'interet de taper sur place plutot que dans une boite. On voit si le
+    // texte tient dans la place AVANT de le valider.
+    painter.save();
+    const double hauteur = m_textIsLabel ? 2.5 : m_textHeight;
+    painter.setPen(m_style.selection);
+    const QString affiche = m_textTyped + QStringLiteral("▏");
+    FolioPainter::drawTextMm(painter, m_textPoint, affiche, hauteur);
+    painter.restore();
 }
 
 void FolioView::paintPendingGesture(QPainter &painter) const
@@ -3644,6 +3787,7 @@ void FolioView::paintEvent(QPaintEvent *event)
     paintPendingSymbol(painter);
     paintShapePreview(painter);
     paintPendingGesture(painter);
+    paintTextEntry(painter);
     paintTracking(painter);
     paintSnapFeedback(painter);
     paintRubberBand(painter);

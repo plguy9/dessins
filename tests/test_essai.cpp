@@ -141,10 +141,10 @@ public:
 
     // ---- repondre a une boite modale -----------------------------------
     //
-    // Poser un texte ou une etiquette ouvre un QInputDialog. Il faut donc
-    // armer la reponse AVANT le clic qui l'ouvre — sinon la boite bloque la
-    // boucle d'evenements et le test s'arrete la. Le compteur retient
-    // combien de fois le dessin a ete interrompu par une boite.
+    // Le compteur retient combien de fois le dessin a ete interrompu par une
+    // boite. Il valait 48 pour ce folio, quand chaque texte et chaque
+    // etiquette en ouvrait une ; il vaut zero depuis que l'on tape sur le
+    // dessin. La fonction reste pour les boites qui subsistent ailleurs.
 
     void repondre(const QString &texte)
     {
@@ -235,7 +235,10 @@ public:
     SymbolInstance *poser(const QString &recherche, const QPointF &mm, int quartsDeTour = 0,
                           const QString &repere = QString())
     {
-        if (m_dernierSymbole != recherche || m_quartsArmes != quartsDeTour) {
+        // On verifie ce que la VUE porte, pas ce que le pupitre croit : changer
+        // d'outil desarme le symbole, et c'est un accroc reel de l'interface.
+        if (m_view->pendingSymbol().isEmpty() || m_dernierSymbole != recherche
+            || m_quartsArmes != quartsDeTour) {
             if (!armer(recherche, quartsDeTour))
                 return nullptr;
             m_dernierSymbole = recherche;
@@ -297,8 +300,13 @@ public:
     Label *etiquette(const QPointF &mm, const QString &nom)
     {
         commande(QStringLiteral("ET"));
-        repondre(nom);
         clic(mm);
+        if (!m_view->isTypingText()) {
+            accroc(QStringLiteral("Le clic n'a pas ouvert la saisie d'étiquette"));
+            return nullptr;
+        }
+        frappe(m_view, nom);
+        touche(m_view, Qt::Key_Return);
         QApplication::processEvents();
         const auto etiquettes = folio()->entitiesOfType<Label>();
         if (etiquettes.empty()) {
@@ -323,21 +331,32 @@ public:
         return formes.back();
     }
 
+    // On tape ou l'on a clique : plus de boite modale. La hauteur se regle
+    // une fois et vaut pour les textes suivants, comme le type de fil.
     TextItem *texte(const QPointF &mm, const QString &contenu, double hauteur = 2.5)
     {
-        commande(QStringLiteral("T"));
-        repondre(contenu);
+        if (!qFuzzyCompare(m_view->textHeight(), hauteur)) {
+            m_view->setTextHeight(hauteur);
+            ++m_gestes;
+        }
+        if (m_view->tool() != FolioView::Tool::Text)
+            commande(QStringLiteral("T"));
         clic(mm);
+        if (!m_view->isTypingText()) {
+            accroc(QStringLiteral("Le clic n'a pas ouvert la saisie de texte"));
+            return nullptr;
+        }
+        frappe(m_view, contenu);
+        touche(m_view, Qt::Key_Return);
         QApplication::processEvents();
         const auto textes = folio()->entitiesOfType<TextItem>();
         if (textes.empty())
             return nullptr;
         TextItem *pose = textes.back();
         if (pose->text != contenu) {
-            accroc(QStringLiteral("Le texte pose ne porte pas ce qui a ete tape"));
+            accroc(QStringLiteral("Texte attendu « %1 », obtenu « %2 »").arg(contenu, pose->text));
             return nullptr;
         }
-        pose->height = hauteur;
         return pose;
     }
 

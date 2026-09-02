@@ -10,6 +10,8 @@
 #include <QStringListModel>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace dsn {
 
 CommandLine::CommandLine(QWidget *parent) : QWidget(parent)
@@ -19,6 +21,11 @@ CommandLine::CommandLine(QWidget *parent) : QWidget(parent)
     layout->setSpacing(2);
 
     m_history = new QPlainTextEdit(this);
+    // L'historique n'est pas un champ de saisie : la feuille de style lui
+    // retire fond, bordure et coins arrondis. Sans cela il ressemble trait
+    // pour trait au champ qui le suit, et le bandeau parait porter deux
+    // lignes de commande.
+    m_history->setProperty("commandHistory", true);
     m_history->setReadOnly(true);
     m_history->setMaximumBlockCount(400);
     m_history->setFrameShape(QFrame::NoFrame);
@@ -28,6 +35,11 @@ CommandLine::CommandLine(QWidget *parent) : QWidget(parent)
     mono.setStyleHint(QFont::Monospace);
     mono.setPointSizeF(9.0);
     m_history->setFont(mono);
+    // L'historique n'existe visuellement que s'il a quelque chose a dire :
+    // vide, il est masque et le bandeau se reduit au champ. Sinon il reserve
+    // en permanence la place de trois lignes qui ne viendront peut-etre
+    // jamais — ce qui est exactement ce qu'on reprochait au bandeau.
+    m_history->hide();
     layout->addWidget(m_history, 1);
 
     m_input = new QLineEdit(this);
@@ -66,7 +78,26 @@ CommandLine::CommandLine(QWidget *parent) : QWidget(parent)
         execute(text);
     });
 
-    writePrompt(tr("Prêt. Tapez ? pour la liste des commandes."));
+    // Pas de message d'accueil dans l'historique : le champ porte deja le
+    // meme conseil sous forme d'invite. Ecrire les deux, c'est dire deux fois
+    // la meme chose sur deux lignes — et donner l'impression qu'il y a deux
+    // lignes de commande. L'historique reste vide jusqu'a la premiere
+    // reponse, qui est justement ce qu'on veut y lire.
+}
+
+void CommandLine::fitHistory()
+{
+    const int blocks = m_history->document()->blockCount();
+    const bool empty = m_history->toPlainText().trimmed().isEmpty();
+    m_history->setVisible(!empty);
+    if (empty)
+        return;
+
+    // Trois lignes au plus, comme la ligne de commande d'AutoCAD : elle
+    // informe sans manger la place du dessin. Au-dela, on fait defiler.
+    const QFontMetrics metrics(m_history->font());
+    const int lines = std::clamp(blocks, 1, 3);
+    m_history->setFixedHeight(lines * metrics.lineSpacing() + 6);
 }
 
 void CommandLine::registerCommand(CommandDefinition command)
@@ -110,6 +141,7 @@ const CommandDefinition *CommandLine::find(const QString &token) const
 void CommandLine::write(const QString &line)
 {
     m_history->appendPlainText(line);
+    fitHistory();
     m_history->verticalScrollBar()->setValue(m_history->verticalScrollBar()->maximum());
 }
 
@@ -118,6 +150,7 @@ void CommandLine::writeError(const QString &line)
     const QColor color = Theme::colors().danger;
     m_history->appendHtml(QStringLiteral("<span style='color:%1'>%2</span>")
                                   .arg(color.name(), line.toHtmlEscaped()));
+    fitHistory();
     m_history->verticalScrollBar()->setValue(m_history->verticalScrollBar()->maximum());
 }
 
@@ -126,6 +159,7 @@ void CommandLine::writePrompt(const QString &line)
     const QColor color = Theme::colors().textMuted;
     m_history->appendHtml(QStringLiteral("<span style='color:%1'>%2</span>")
                                   .arg(color.name(), line.toHtmlEscaped()));
+    fitHistory();
     m_history->verticalScrollBar()->setValue(m_history->verticalScrollBar()->maximum());
 }
 

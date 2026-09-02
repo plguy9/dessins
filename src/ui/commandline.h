@@ -59,6 +59,9 @@ protected:
 private:
     const CommandDefinition *find(const QString &token) const;
     void refreshCompletion();
+    // L'historique se replie quand il est vide et grandit avec ce qu'il
+    // porte, jusqu'a trois lignes.
+    void fitHistory();
 
     QPlainTextEdit *m_history = nullptr;
     QLineEdit *m_input = nullptr;

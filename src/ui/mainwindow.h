@@ -20,6 +20,8 @@ class QToolButton;
 
 namespace dsn {
 
+class DockTitle;
+
 class FolioNavigator;
 class ReportPanel;
 class SymbolPalette;
@@ -150,6 +152,7 @@ private:
     class CommandLine *m_command = nullptr;
     class CommandPalette *m_commandPalette = nullptr;
     QDockWidget *m_commandDock = nullptr;
+    QList<DockTitle *> m_dockTitles;
 
     QLabel *m_cursorLabel = nullptr;
     QLabel *m_zoneLabel = nullptr;

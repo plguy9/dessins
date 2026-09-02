@@ -229,6 +229,19 @@ QToolButton {
     padding: 6px 9px;
     color: %TEXT%;
 }
+/* Le bouton qui tasse un panneau est carre et petit : le padding general des
+   QToolButton lui laisserait deux pixels de large pour une icone de
+   quatorze, et elle disparaitrait. C'est le meme piege que pour les boutons
+   du ruban et pour la carte de l'ecran d'accueil — une taille fixe ne survit
+   pas a un padding pose par feuille de style. */
+QToolButton[dockClose="true"] {
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+    min-height: 0;
+    border-radius: 4px;
+}
+
 QToolButton:hover    { background: %HOVER%; }
 QToolButton:pressed  { background: %ACCENTSOFT%; }
 QToolButton:checked  {
@@ -295,6 +308,18 @@ QDoubleSpinBox:focus, QDateEdit:focus, QComboBox:focus {
     border-color: %ACCENT%;
     background: %FIELDFOCUS%;
 }
+/* L'historique de la ligne de commande n'est PAS un champ de saisie : c'est
+   du texte pose. Sans cette regle il herite du fond, de la bordure et des
+   coins arrondis des champs, et le bandeau parait porter deux lignes de
+   commande l'une au-dessus de l'autre — ce qu'un utilisateur a signale. */
+QPlainTextEdit[commandHistory="true"] {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 2px 9px 0 9px;
+    color: %MUTED%;
+}
+
 QLineEdit:disabled, QComboBox:disabled { color: %FAINT%; background: %WINDOW%; }
 QLineEdit[readOnly="true"] { color: %MUTED%; background: %WINDOW%; }
 
@@ -885,6 +910,12 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawEllipse(QPointF(3, 6), 1.8, 1.8);
         p.drawEllipse(QPointF(21, 18), 1.8, 1.8);
         strokeOnly();
+        break;
+    case Glyph::Collapse:
+        // Un chevron vers la gauche contre un montant : le panneau se tasse
+        // sur le bord. La direction dit ou il part.
+        p.drawPolyline(QPolygonF({ { 14, 5 }, { 7, 12 }, { 14, 19 } }));
+        p.drawLine(QPointF(18, 4), QPointF(18, 20));
         break;
     case Glyph::ViewGrid:
         // Neuf cases et non quatre : a quatre, le dessin ne se distinguait

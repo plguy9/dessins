@@ -24,6 +24,7 @@
 #include "componentdialog.h"
 #include "surferdialog.h"
 #include "appearance.h"
+#include "docktitle.h"
 #include "arraydialog.h"
 #include "busdialog.h"
 #include "auditdialog.h"
@@ -270,10 +271,32 @@ void MainWindow::createDocks()
     // Titres graves : petites capitales espacees, en retrait. La fonte est
     // posee sur le panneau, puis rendue au contenu — sans quoi la liste de
     // symboles heriterait des capitales du titre.
-    for (QDockWidget *dock : { paletteDock, navigatorDock, reportDock }) {
-        dock->setFont(Theme::engravedFont());
-        if (dock->widget())
-            dock->widget()->setFont(Theme::uiFont(10));
+    //
+    // Chaque panneau porte sa propre barre de titre, avec un bouton qui le
+    // tasse : la croix que Qt dessine est minuscule et la feuille de style du
+    // theme l'efface, si bien qu'il n'y avait aucun moyen visible de rendre la
+    // place au dessin. Le raccourci qui rouvre le panneau est dans l'infobulle
+    // du bouton — un panneau qui disparait sans dire comment revenir coute
+    // plus cher qu'il ne rend.
+    struct DockShortcut {
+        QDockWidget *dock;
+        const char *title;
+        const char *hint;
+    };
+    const DockShortcut titled[] = {
+        { paletteDock, QT_TR_NOOP("Symboles"),
+          QT_TR_NOOP("Masquer la palette — Ctrl+3 la ramène") },
+        { navigatorDock, QT_TR_NOOP("Folios"),
+          QT_TR_NOOP("Masquer les folios — Ctrl+4 les ramène") },
+        { reportDock, QT_TR_NOOP("Rapports"), QT_TR_NOOP("Masquer les rapports") },
+    };
+    for (const DockShortcut &entry : titled) {
+        auto *title = new DockTitle(tr(entry.title), tr(entry.hint), entry.dock);
+        connect(title, &DockTitle::closeRequested, entry.dock, &QWidget::hide);
+        entry.dock->setTitleBarWidget(title);
+        m_dockTitles.append(title);
+        if (entry.dock->widget())
+            entry.dock->widget()->setFont(Theme::uiFont(10));
     }
 
     // Largeurs de depart. Les noms de symboles et les titres de folios sont
@@ -301,7 +324,12 @@ void MainWindow::createDocks()
     // redimensionnable pour qui veut relire une longue liste.
     m_commandDock->setFont(Theme::engravedFont());
     m_command->setFont(Theme::uiFont(10));
-    m_commandDock->setMinimumHeight(84);
+    // Trois lignes d'historique tiennent dans cette hauteur, et l'historique
+    // part vide : le bandeau ne reserve donc plus de place pour un message
+    // d'accueil qui repetait l'invite du champ.
+    // L'historique se replie quand il est vide : le bandeau vaut alors la
+    // hauteur du seul champ de saisie.
+    m_commandDock->setMinimumHeight(0);
     m_commandDock->setMaximumHeight(320);
 
     // Echap dans la ligne de commande rend la main au dessin : on ne reste
@@ -722,14 +750,28 @@ void MainWindow::createActions()
     };
     for (const PaletteShortcut &palette : palettes) {
         const QString name = QString::fromLatin1(palette.dock);
-        make(viewMenu, G::Palette, tr(palette.label),
-             QKeySequence(Qt::CTRL | palette.key), tr(palette.hint), [this, name] {
-                 if (auto *dock = findChild<QDockWidget *>(name)) {
-                     dock->show();
-                     dock->raise();
-                     dock->setFocus();
-                 }
-             });
+        // La commande bascule au lieu de seulement montrer : c'est elle qui
+        // ramene le panneau que le bouton de sa barre de titre vient de
+        // tasser, et une case cochee dit d'un coup d'oeil s'il est la.
+        QAction *action = make(viewMenu, G::Palette, tr(palette.label),
+                               QKeySequence(Qt::CTRL | palette.key), tr(palette.hint),
+                               [this, name] {
+                                   auto *dock = findChild<QDockWidget *>(name);
+                                   if (!dock)
+                                       return;
+                                   if (dock->isVisible()) {
+                                       dock->hide();
+                                       return;
+                                   }
+                                   dock->show();
+                                   dock->raise();
+                                   dock->setFocus();
+                               });
+        action->setCheckable(true);
+        if (auto *dock = findChild<QDockWidget *>(name)) {
+            action->setChecked(dock->isVisible());
+            connect(dock, &QDockWidget::visibilityChanged, action, &QAction::setChecked);
+        }
     }
     viewMenu->addSeparator();
 
@@ -2125,6 +2167,7 @@ void MainWindow::createRibbon()
         { "Vue", "Schéma", false, "Broches non raccordées", "" },
         { "Vue", "Interface", true, "Palette de commandes", "Commandes" },
         { "Vue", "Interface", false, "Propriétés", "" },
+        { "Vue", "Interface", false, "Palette de symboles", "" },
         { "Vue", "Interface", false, "Thème sombre", "" },
         { "Vue", "Interface", false, "Écran d'accueil", "" },
     };
@@ -2298,6 +2341,9 @@ void MainWindow::applyTheme(bool dark)
     Appearance::load(style, dark);
     m_view->setStyle(style);
     m_view->setGridStep(style.gridStep);
+
+    for (DockTitle *title : std::as_const(m_dockTitles))
+        title->applyTheme();
 
     // Les apercus de la palette et les vignettes de folios sont redessines
     // dans les couleurs du theme : sans cela, un panneau sombre garderait des

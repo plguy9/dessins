@@ -247,6 +247,21 @@ autrement. Nous gardons donc les deux bouts **et** le ruban.
 
 Et ce qui distingue toujours notre interface de celle d'AutoCAD :
 
+- **Un bouton de repli sur chaque panneau** (`ui/docktitle.*`, décision
+  utilisateur, 2026-09-02). La croix que Qt dessine sur un `QDockWidget` est
+  minuscule et la feuille de style du thème l'efface : il n'y avait aucun
+  moyen visible de rendre la place au dessin. Chaque panneau porte donc sa
+  barre de titre — nom gravé, filet dessous, chevron de repli — et
+  l'infobulle du bouton **dit le raccourci qui le ramène**. Les commandes
+  d'affichage (Ctrl+3, Ctrl+4) sont devenues des **bascules cochées**, si
+  bien que le ruban montre d'un coup d'œil ce qui est ouvert.
+- **La ligne de commande n'en est qu'une** — un utilisateur a signalé « deux
+  fois une ligne de commande ». C'était l'historique et le champ, l'un
+  au-dessus de l'autre, tous deux **stylés comme des champs de saisie** et
+  portant le **même conseil**. L'historique est maintenant du texte posé
+  (`[commandHistory="true"]` : ni fond, ni bordure, ni coins arrondis), il
+  part vide — le champ porte déjà l'invite — et il **se replie tant qu'il n'a
+  rien à dire**, puis grandit jusqu'à trois lignes.
 - **`ui/symbolpalette.*` — une grille de vignettes, pas une liste** (décision
   utilisateur, 2026-09-02 : *« plus discret, cela prend trop de place »*). En
   liste à une colonne, cinq symboles sur cent trois étaient visibles :
@@ -364,6 +379,14 @@ Deux pièges de Qt, payés une fois :
 - Un `font-weight` posé sur `QPushButton:default` rogne le texte : Qt
   calcule la taille du bouton dans son état normal. Le bouton par défaut se
   distingue par son aplat, pas par sa graisse.
+- **Le padding d'une feuille de style mange l'icône d'un petit bouton.** La
+  règle générale `QToolButton { padding: 6px 9px }` ne laissait que deux
+  pixels de large à une icône de quatorze dans un bouton fixé à vingt : le
+  bouton répondait au clic et restait invisible. C'est le même piège que
+  `min-height`, payé une troisième fois — tout bouton de taille fixe a besoin
+  de sa propre règle (`ribbonSmall`, `dockClose`…). Un test vérifie
+  désormais que l'icône est **réellement encrée**, pas seulement présente :
+  compter les pixels peints est la seule vérification qui l'aurait attrapé.
 
 ## Invariants à ne pas casser
 

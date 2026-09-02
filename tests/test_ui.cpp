@@ -7,6 +7,9 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QLineEdit>
+#include <QLabel>
+#include <QPlainTextEdit>
+#include <QToolButton>
 #include <QSettings>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -19,6 +22,7 @@
 
 #include "core/documentcommands.h"
 #include "symbols/librarystore.h"
+#include "ui/docktitle.h"
 #include "ui/document.h"
 #include "ui/folioview.h"
 #include "ui/symboleditor.h"
@@ -730,6 +734,69 @@ TEST_CASE("La ligne de commande execute par nom et par alias", "[ui][command]")
     // Les arguments arrivent au gestionnaire, sans le nom de la commande.
     CHECK(line.execute(QStringLiteral("LIGNE 10 20")));
     CHECK(received == QStringList{ QStringLiteral("10"), QStringLiteral("20") });
+}
+
+TEST_CASE("La ligne de commande marche au clavier, pas seulement par appel",
+          "[ui][command]")
+{
+    // execute() prouve que le repertoire repond ; il ne prouve pas que le
+    // champ y est branche. C'est pourtant le seul chemin qu'emprunte
+    // l'utilisateur : taper, puis Entrée.
+    CommandLine line;
+    int calls = 0;
+    line.registerCommand({ QStringLiteral("ZOOM"),
+                           { QStringLiteral("Z") },
+                           QStringLiteral("Zoom"),
+                           [&](const QStringList &) { ++calls; } });
+
+    auto *input = line.findChild<QLineEdit *>();
+    REQUIRE(input);
+
+    input->setText(QStringLiteral("Z"));
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(input, &enter);
+    CHECK(calls == 1);
+    CHECK(input->text().isEmpty()); // le champ se vide, prêt pour la suivante
+
+    // Entrée sur une ligne vide relance la dernière commande : le réflexe
+    // d'AutoCAD, et ce qui fait gagner du temps quand on répète un geste.
+    QApplication::sendEvent(input, &enter);
+    CHECK(calls == 2);
+    // C'est le nom canonique qui est retenu, pas l'alias tapé : relancer
+    // « ZOOM » reste juste même si l'alias vient à changer.
+    CHECK(line.lastCommand() == QStringLiteral("ZOOM"));
+
+    // La flèche haut rappelle ce qu'on a tapé.
+    QKeyEvent up(QEvent::KeyPress, Qt::Key_Up, Qt::NoModifier);
+    QApplication::sendEvent(input, &up);
+    CHECK(input->text() == QStringLiteral("Z"));
+}
+
+TEST_CASE("L'historique de la ligne de commande ne répète pas l'invite", "[ui][command]")
+{
+    // Un utilisateur a signalé « deux fois une ligne de commande » : l'invite
+    // du champ et un message d'accueil identique dans l'historique, l'un
+    // au-dessus de l'autre, tous deux dessinés comme des champs de saisie.
+    // L'historique part donc vide, et il n'est plus stylé comme un champ.
+    CommandLine line;
+    auto *history = line.findChild<QPlainTextEdit *>();
+    auto *input = line.findChild<QLineEdit *>();
+    REQUIRE(history);
+    REQUIRE(input);
+
+    CHECK(history->toPlainText().isEmpty());
+    CHECK_FALSE(input->placeholderText().isEmpty());
+    CHECK(history->property("commandHistory").toBool());
+    // Vide, il ne prend pas de place : le bandeau vaut la hauteur du seul
+    // champ. Sinon il réserve en permanence trois lignes qui ne viendront
+    // peut-être jamais.
+    CHECK(history->isHidden());
+
+    // Il se montre dès qu'il a quelque chose à dire — c'est bien pour cela
+    // qu'il existe.
+    line.execute(QStringLiteral("COMMANDEQUINEXISTEPAS"));
+    CHECK_FALSE(history->toPlainText().isEmpty());
+    CHECK_FALSE(history->isHidden());
 }
 
 TEST_CASE("Une commande inconnue est refusee sans rien casser", "[ui][command]")
@@ -1869,10 +1936,75 @@ TEST_CASE("La fonte gravee ne descend pas dans le contenu des panneaux", "[ui][t
 
     for (QDockWidget *dock : docks) {
         CAPTURE(dock->objectName());
-        CHECK(dock->font().capitalization() == QFont::AllUppercase);
+        // Les panneaux portent maintenant leur propre barre de titre, avec le
+        // bouton qui les tasse : c'est son etiquette qui est gravee, et non le
+        // panneau entier. Le piege reste le meme — ce qui est grave ne doit
+        // pas descendre dans le contenu.
+        if (auto *title = qobject_cast<DockTitle *>(dock->titleBarWidget())) {
+            auto *label = title->findChild<QLabel *>();
+            REQUIRE(label);
+            CHECK(label->font().capitalization() == QFont::AllUppercase);
+        }
         if (QWidget *content = dock->widget())
             CHECK(content->font().capitalization() == QFont::MixedCase);
     }
+}
+
+TEST_CASE("Un panneau se tasse par son bouton et revient par sa commande",
+          "[ui][panneaux]")
+{
+    // Demande utilisateur : un bouton visible pour rendre la place au dessin.
+    // La croix que Qt dessine est minuscule et la feuille de style du theme
+    // l'efface — il n'y avait donc aucun moyen visible de fermer un panneau.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+
+    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("dock.symbols"));
+    REQUIRE(dock);
+    auto *title = qobject_cast<DockTitle *>(dock->titleBarWidget());
+    REQUIRE(title);
+    REQUIRE(dock->isVisible());
+
+    auto *button = title->findChild<QToolButton *>();
+    REQUIRE(button);
+    // Le bouton dit comment revenir : un panneau qui disparait sans laisser
+    // de chemin de retour coute plus cher qu'il ne rend.
+    CHECK(button->toolTip().contains(QStringLiteral("Ctrl+3")));
+
+    // L'icone doit se VOIR, pas seulement exister. Le padding general des
+    // QToolButton l'ecrasait a deux pixels de large dans un bouton de vingt :
+    // le bouton repondait au clic et restait invisible. Un test qui ne
+    // verifie que sa presence ne l'aurait jamais releve.
+    CHECK_FALSE(button->icon().isNull());
+    const QImage painted = button->grab().toImage();
+    int inked = 0;
+    for (int y = 0; y < painted.height(); ++y) {
+        for (int x = 0; x < painted.width(); ++x) {
+            if (painted.pixel(x, y) != painted.pixel(0, 0))
+                ++inked;
+        }
+    }
+    CHECK(inked > 20);
+
+    button->click();
+    CHECK_FALSE(dock->isVisible());
+
+    // Et la commande le ramene — cochee ou decochee, elle bascule.
+    QAction *toggle = nullptr;
+    for (QAction *action : window.findChildren<QAction *>()) {
+        if (action->text().remove(QLatin1Char('&')) == QStringLiteral("Palette de symboles"))
+            toggle = action;
+    }
+    REQUIRE(toggle);
+    CHECK(toggle->isCheckable());
+    CHECK_FALSE(toggle->isChecked());
+
+    toggle->trigger();
+    CHECK(dock->isVisible());
+    CHECK(toggle->isChecked());
 }
 
 TEST_CASE("Toutes les barres d'outils tiennent dans la fenetre", "[ui][theme]")

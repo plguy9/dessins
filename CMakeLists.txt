@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(Arcus
-    VERSION 0.9.0
+    VERSION 0.9.1
     DESCRIPTION "Logiciel de dessin electrique"
     LANGUAGES CXX)
 

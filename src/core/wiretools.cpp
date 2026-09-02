@@ -252,4 +252,81 @@ std::optional<QPointF> WireTools::extend(const Folio &folio, const SymbolLibrary
     return best;
 }
 
+
+QVector<QPointF> WireTools::offsetPolyline(const QVector<QPointF> &points, double distance)
+{
+    if (points.size() < 2 || std::abs(distance) < 1e-9)
+        return points;
+
+    struct Segment {
+        QPointF a;
+        QPointF b;
+    };
+    QVector<Segment> shifted;
+    shifted.reserve(points.size() - 1);
+    for (int i = 0; i + 1 < points.size(); ++i) {
+        QPointF direction = points.at(i + 1) - points.at(i);
+        const double length = std::hypot(direction.x(), direction.y());
+        // Un sommet double ne porte aucune direction : il ne definit pas de
+        // droite a decaler, et l'ignorer vaut mieux que decaler au hasard.
+        if (length < 1e-9)
+            continue;
+        direction /= length;
+        const QPointF normal(-direction.y() * distance, direction.x() * distance);
+        shifted.append({ points.at(i) + normal, points.at(i + 1) + normal });
+    }
+    if (shifted.isEmpty())
+        return points;
+
+    QVector<QPointF> result;
+    result.reserve(shifted.size() + 1);
+    result.append(shifted.first().a);
+    for (int i = 1; i < shifted.size(); ++i) {
+        // Intersection des DROITES, pas des segments : sur un coude rentrant
+        // le point cherche tombe hors des deux segments decales, et exiger
+        // qu'il soit dedans rendrait le sommet introuvable.
+        const QPointF p = shifted.at(i - 1).a;
+        const QPointF r = shifted.at(i - 1).b - p;
+        const QPointF q = shifted.at(i).a;
+        const QPointF s = shifted.at(i).b - q;
+        const double denominator = r.x() * s.y() - r.y() * s.x();
+        if (std::abs(denominator) < 1e-12) {
+            // Segments colineaires : il n'y a pas d'angle a rattraper, le
+            // sommet decale convient tel quel.
+            result.append(shifted.at(i).a);
+            continue;
+        }
+        const QPointF delta = q - p;
+        const double t = (delta.x() * s.y() - delta.y() * s.x()) / denominator;
+        result.append(p + r * t);
+    }
+    result.append(shifted.last().b);
+    return result;
+}
+
+QVector<QVector<QPointF>> WireTools::busPaths(const QVector<QPointF> &path,
+                                             const BusSpec &spec)
+{
+    QVector<QVector<QPointF>> paths;
+    if (path.size() < 2 || !spec.isValid())
+        return paths;
+
+    // Normale du premier segment, ramenee vers le bas — ou vers la droite si
+    // le segment est vertical. Le signe se decide une fois pour tout le bus :
+    // le decider segment par segment ferait se croiser les conducteurs au
+    // premier coude.
+    QPointF direction = path.at(1) - path.at(0);
+    for (int i = 1; i < path.size() && std::hypot(direction.x(), direction.y()) < 1e-9; ++i)
+        direction = path.at(i) - path.at(0);
+    const QPointF normal(-direction.y(), direction.x());
+    double sign = 1.0;
+    if (normal.y() < -1e-9 || (std::abs(normal.y()) <= 1e-9 && normal.x() < 0.0))
+        sign = -1.0;
+
+    paths.append(path);
+    for (int k = 1; k < spec.count; ++k)
+        paths.append(offsetPolyline(path, sign * spec.spacing * k));
+    return paths;
+}
+
 } // namespace dsn

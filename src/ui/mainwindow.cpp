@@ -23,6 +23,7 @@
 #include "componentdialog.h"
 #include "surferdialog.h"
 #include "arraydialog.h"
+#include "busdialog.h"
 #include "auditdialog.h"
 #include "plcdialog.h"
 #include "terminalstripdialog.h"
@@ -354,7 +355,7 @@ void MainWindow::createActions()
     rebuildRecentMenu();
     make(fileMenu, G::Save, tr("&Enregistrer"), QKeySequence::Save,
          tr("Enregistrer le projet"), [this] { saveProject(); });
-    make(fileMenu, G::Save, tr("Enregistrer &sous…"), QKeySequence::SaveAs,
+    make(fileMenu, G::SaveAs, tr("Enregistrer &sous…"), QKeySequence::SaveAs,
          tr("Enregistrer sous un autre nom"), [this] { saveProjectAs(); });
     fileMenu->addSeparator();
     make(fileMenu, G::ExportPdf, tr("Exporter en &PDF…"), QKeySequence(),
@@ -459,10 +460,24 @@ void MainWindow::createActions()
     }
 
     modifyMenu->addSeparator();
-    m_joinAction = make(modifyMenu, G::Junction, tr("&Joindre les fils"), QKeySequence(),
+    m_applyWireTypeAction = make(modifyMenu, G::WireTypeApply,
+                                 tr("Appliquer le type de fil à la &sélection"),
+                                 QKeySequence(),
+                                 tr("Donner aux fils sélectionnés le type armé dans le ruban"),
+                                 &MainWindow::applyWireTypeToSelection);
+    m_lockTagsAction = make(modifyMenu, G::LockTag, tr("&Fixer les repères"), QKeySequence(),
+                            tr("La renumérotation ne touchera plus aux repères de la "
+                               "sélection"),
+                            [this] { m_view->setSelectionTagsLocked(true); });
+    m_unlockTagsAction = make(modifyMenu, G::UnlockTag, tr("&Libérer les repères"),
+                              QKeySequence(),
+                              tr("Rendre les repères de la sélection à la renumérotation"),
+                              [this] { m_view->setSelectionTagsLocked(false); });
+    modifyMenu->addSeparator();
+    m_joinAction = make(modifyMenu, G::Join, tr("&Joindre les fils"), QKeySequence(),
                         tr("Souder en un seul les fils sélectionnés qui se touchent"),
                         [this] { m_view->joinSelectedWires(); });
-    m_cutAction = make(modifyMenu, G::Delete, tr("&Couper un fil"), QKeySequence(),
+    m_cutAction = make(modifyMenu, G::Break, tr("&Couper un fil"), QKeySequence(),
                        tr("Couper le fil sélectionné à l'endroit cliqué"),
                        [this] { m_view->beginCut(); });
     m_matchAction = make(modifyMenu, G::Palette2, tr("Copier les &propriétés"),
@@ -644,7 +659,7 @@ void MainWindow::createActions()
     m_zoomFitAction = make(viewMenu, G::ZoomFit, tr("&Ajuster au folio"),
                            QKeySequence(Qt::CTRL | Qt::Key_0), tr("Voir le folio entier"),
                            [this] { m_view->zoomToFit(); });
-    make(viewMenu, G::ZoomIn, tr("Zoom &fenêtre"), QKeySequence(),
+    make(viewMenu, G::ZoomWindow, tr("Zoom &fenêtre"), QKeySequence(),
          tr("Encadrer la zone à agrandir"), [this] { m_view->beginZoomWindow(); });
     make(viewMenu, G::Select, tr("&Panoramique"), QKeySequence(),
          tr("Tirer pour déplacer la vue — le bouton du milieu et la barre d'espace "
@@ -748,7 +763,11 @@ void MainWindow::createActions()
     make(projectMenu, G::Grid, tr("Insérer une &échelle de commande…"), QKeySequence(),
          tr("Deux rails d'alimentation et des lignes numérotées"),
          &MainWindow::insertLadder);
-    make(projectMenu, G::Wire, tr("&Types de fils…"), QKeySequence(),
+    m_busAction = make(projectMenu, G::WireBus, tr("Fil &multiple…"), QKeySequence(),
+                       tr("Tracer L1/L2/L3 d'un seul geste : N conducteurs parallèles, "
+                          "nommés, en une annulation"),
+                       &MainWindow::insertBus);
+    make(projectMenu, G::WireTypes, tr("&Types de fils…"), QKeySequence(),
          tr("Couleur, section, calque et style de chaque type de fil"),
          &MainWindow::editWireTypes);
     make(projectMenu, G::Junction, tr("&Éditeur de borniers…"), QKeySequence(),
@@ -760,7 +779,7 @@ void MainWindow::createActions()
     make(projectMenu, G::Reports, tr("&Poser le rapport dans le dessin…"), QKeySequence(),
          tr("Insère le rapport affiché sous forme de table sur le folio actif"),
          &MainWindow::placeCurrentReport);
-    make(projectMenu, G::Renumber, tr("&Format des repères…"), QKeySequence(),
+    make(projectMenu, G::TagFormat, tr("&Format des repères…"), QKeySequence(),
          tr("Séquentiel ou par référence de ligne, avec ses paramètres remplaçables"),
          &MainWindow::editTagFormat);
     make(projectMenu, G::Renumber, tr("&Repérage automatique"),
@@ -795,7 +814,7 @@ void MainWindow::createActions()
                          QKeySequence(Qt::Key_G),
                          tr("Déplacer l'appareil sur son fil, sans jamais le détacher"),
                          [this] { m_view->beginScoot(); });
-    m_moveComponentAction = make(symbolMenu, G::Select, tr("Déplacer l'&appareil"),
+    m_moveComponentAction = make(symbolMenu, G::MoveComponent, tr("Déplacer l'&appareil"),
                                  QKeySequence(Qt::SHIFT | Qt::Key_D),
                                  tr("Déplacer librement : les fils raccordés suivent"),
                                  [this] { m_view->beginMoveComponent(); });
@@ -1534,6 +1553,15 @@ void MainWindow::registerCommands()
            [this] { m_document->redo(); });
     simple(QStringLiteral("TOUTSELECT"), { QStringLiteral("SELTOUT") }, tr("Tout sélectionner"),
            [this] { m_view->selectAll(); });
+    simple(QStringLiteral("FILMULTIPLE"), { QStringLiteral("BUS"), QStringLiteral("FM") },
+           tr("Tracer un fil multiple"), [this] { insertBus(); });
+    simple(QStringLiteral("APPLIQUERTYPE"), { QStringLiteral("APT") },
+           tr("Appliquer le type de fil à la sélection"),
+           [this] { applyWireTypeToSelection(); });
+    simple(QStringLiteral("FIXERREPERE"), { QStringLiteral("FR") }, tr("Fixer les repères"),
+           [this] { m_view->setSelectionTagsLocked(true); });
+    simple(QStringLiteral("LIBERERREPERE"), { QStringLiteral("LR") },
+           tr("Libérer les repères"), [this] { m_view->setSelectionTagsLocked(false); });
     simple(QStringLiteral("AJUSTER"), { QStringLiteral("AJ"), QStringLiteral("TR") },
            tr("Couper un fil entre deux croisements"),
            [this] { m_view->setTool(FolioView::Tool::Trim); });
@@ -1758,6 +1786,42 @@ void MainWindow::editWireTypes()
     statusBar()->showMessage(tr("Types de fils mis à jour."), 5000);
 }
 
+void MainWindow::applyWireTypeToSelection()
+{
+    // Le type applique est celui qui est arme dans le ruban : c'est celui
+    // qu'on vient de choisir des yeux, et le demander une seconde fois dans
+    // une boite ferait repondre deux fois a la meme question.
+    const QString id = m_view->currentWireType();
+    if (id.isEmpty()) {
+        statusBar()->showMessage(tr("Choisissez d'abord un type de fil dans le ruban."), 5000);
+        return;
+    }
+    m_view->applyWireTypeToSelection(id);
+    m_view->update();
+}
+
+void MainWindow::insertBus()
+{
+    BusDialog dialog(m_document->project().wireTypes, m_view->currentWireType(),
+                     m_view->gridStep(), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    const QString type = dialog.wireTypeId();
+    if (!type.isEmpty()) {
+        m_view->setCurrentWireType(type);
+        if (m_wireTypeSelector) {
+            const int index = m_wireTypeSelector->findData(type);
+            if (index >= 0)
+                m_wireTypeSelector->setCurrentIndex(index);
+        }
+    }
+    // La boite ne trace rien : elle arme le canevas, qui trace ensuite comme
+    // pour un fil ordinaire — ortho, accrochages et cote tapee compris.
+    m_view->setBus(dialog.spec());
+    m_view->setFocus();
+}
+
 void MainWindow::rebuildWireTypeSelector()
 {
     if (!m_wireTypeSelector)
@@ -1915,12 +1979,14 @@ void MainWindow::createRibbon()
         { "Accueil", "Presse-papiers", false, "Tout sélectionner", "" },
 
         { "Accueil", "Fils", true, "Fil", "Fil" },
+        { "Accueil", "Fils", true, "Fil multiple", "Bus" },
         { "Accueil", "Fils", false, "Jonction", "" },
         { "Accueil", "Fils", false, "Ajuster", "" },
         { "Accueil", "Fils", false, "Prolonger", "" },
         { "Accueil", "Fils", false, "Joindre les fils", "" },
         { "Accueil", "Fils", false, "Couper un fil", "" },
         { "Accueil", "Fils", false, "Types de fils", "" },
+        { "Accueil", "Fils", false, "Appliquer le type de fil à la sélection", "" },
         { "Accueil", "Fils", false, "Mettre le potentiel en évidence", "" },
 
         { "Accueil", "Composants", true, "Palette de symboles", "Symboles" },
@@ -1954,6 +2020,8 @@ void MainWindow::createRibbon()
 
         { "Accueil", "Numérotation", true, "Repérage automatique", "Repérer" },
         { "Accueil", "Numérotation", false, "Format des repères", "" },
+        { "Accueil", "Numérotation", false, "Fixer les repères", "" },
+        { "Accueil", "Numérotation", false, "Libérer les repères", "" },
         { "Accueil", "Numérotation", false, "Audit électrique", "" },
 
         // ---- Insertion --------------------------------------------------

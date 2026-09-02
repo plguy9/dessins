@@ -34,6 +34,7 @@
 #include "ui/terminalstripdialog.h"
 #include "ui/symbolpalette.h"
 #include "ui/theme.h"
+#include "rules/numbering.h"
 #include "testhelpers.h"
 
 using namespace dsn;
@@ -2007,6 +2008,182 @@ TEST_CASE("Ortho ne s'applique pas aux formes qu'il aplatirait", "[ui][dessin]")
     CHECK_THAT(line.points.first().y(), WithinAbs(line.points.last().y(), 1e-6));
 }
 
+TEST_CASE("Le fil multiple pose ses conducteurs en une annulation", "[ui][bus]")
+{
+    // Trois conducteurs poses et trois annulations pour les retirer serait un
+    // piege : le geste est unique, l'annulation doit l'etre aussi.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+    view.snapEngine().setGridSnapEnabled(false);
+
+    BusSpec spec;
+    spec.count = 3;
+    spec.spacing = 5.0;
+    view.setBus(spec);
+    REQUIRE(view.tool() == FolioView::Tool::Wire);
+
+    clickScene(view, QPointF(60, 60));
+    clickScene(view, QPointF(160, 60));
+    QKeyEvent done(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(&view, &done);
+
+    const auto wires = folio->entitiesOfType<Wire>();
+    REQUIRE(wires.size() == 3);
+    QStringList names;
+    for (const Wire *wire : wires)
+        names << wire->conductorName(0);
+    std::sort(names.begin(), names.end());
+    CHECK(names == QStringList{ QStringLiteral("L1"), QStringLiteral("L2"),
+                                QStringLiteral("L3") });
+
+    document.undo();
+    CHECK(folio->entitiesOfType<Wire>().empty());
+}
+
+TEST_CASE("Un bus se raccorde par nom, jamais par voisinage", "[ui][bus][netlist]")
+{
+    // La raison d'etre du nom de conducteur : deux bus qui se croisent ou se
+    // touchent doivent joindre L1 a L1 et laisser L2 tranquille. Sans le nom,
+    // la netlist apparie par rang, et le rang depend de l'ordre de saisie.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+    view.snapEngine().setGridSnapEnabled(false);
+
+    BusSpec spec;
+    spec.count = 3;
+    spec.spacing = 10.0;
+    view.setBus(spec);
+
+    clickScene(view, QPointF(60, 60));
+    clickScene(view, QPointF(160, 60));
+    QKeyEvent done(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(&view, &done);
+    REQUIRE(folio->entitiesOfType<Wire>().size() == 3);
+
+    // Un second bus dans le prolongement du premier : les extremites se
+    // touchent conducteur par conducteur.
+    view.setBus(spec);
+    clickScene(view, QPointF(160, 60));
+    clickScene(view, QPointF(240, 60));
+    QKeyEvent done2(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(&view, &done2);
+    REQUIRE(folio->entitiesOfType<Wire>().size() == 6);
+
+    // Six fils, mais trois potentiels : L1 avec L1, L2 avec L2, L3 avec L3.
+    const Netlist &netlist = document.netlist();
+    int connected = 0;
+    for (const Netlist::Net &net : netlist.nets()) {
+        if (net.wires.size() >= 2)
+            ++connected;
+    }
+    CHECK(connected == 3);
+}
+
+TEST_CASE("Le bus tombe des qu'on quitte l'outil fil", "[ui][bus]")
+{
+    // Un bus qui survivrait a un changement d'outil ferait tracer trois
+    // conducteurs a qui n'en demandait qu'un — et l'erreur ne se voit qu'a la
+    // netlist, longtemps apres.
+    Document document;
+    document.newProject(builtinLibrary());
+
+    FolioView view(&document);
+    view.resize(900, 640);
+
+    BusSpec spec;
+    spec.count = 3;
+    view.setBus(spec);
+    CHECK(view.busArmed());
+
+    view.setTool(FolioView::Tool::Select);
+    CHECK_FALSE(view.busArmed());
+
+    view.setTool(FolioView::Tool::Wire);
+    CHECK_FALSE(view.busArmed());
+}
+
+TEST_CASE("Le type de fil s'applique a une selection deja tracee", "[ui][wiretype]")
+{
+    // Le selecteur du ruban n'arme que le trace a venir : sans cette commande,
+    // changer le type d'un depart deja dessine demande de le retracer.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    Wire *a = drawWire(folio, { QPointF(40, 60), QPointF(120, 60) });
+    Wire *b = drawWire(folio, { QPointF(40, 80), QPointF(120, 80) });
+    b->wireType = QStringLiteral("commande");
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.setSelection({ a->id(), b->id() });
+
+    CHECK(view.applyWireTypeToSelection(QStringLiteral("commande")) == 1);
+    CHECK(a->wireType == QStringLiteral("commande"));
+
+    document.undo();
+    CHECK(a->wireType.isEmpty());
+}
+
+TEST_CASE("Fixer un repere vide ne fixe rien", "[ui][reperes]")
+{
+    // Un verrou sans repere est une promesse que personne ne tient : la
+    // renumerotation l'ignore, et le cadenas affiche mentirait.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    Wire *tagged = drawWire(folio, { QPointF(40, 60), QPointF(120, 60) });
+    tagged->number = QStringLiteral("101");
+    Wire *bare = drawWire(folio, { QPointF(40, 80), QPointF(120, 80) });
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.setSelection({ tagged->id(), bare->id() });
+
+    CHECK(view.setSelectionTagsLocked(true) == 1);
+    CHECK(tagged->numberLocked);
+    CHECK_FALSE(bare->numberLocked);
+}
+
+TEST_CASE("Un repere fixe survit a la renumerotation, un repere libere non",
+          "[ui][reperes]")
+{
+    // Ce que la commande sert a preparer : on fixe ce qu'on a saisi, puis on
+    // relance Ctrl+R sans craindre de le perdre.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    auto *coil = placeSymbol(document.project(), folio, QStringLiteral("iec:coil"),
+                             QPointF(100, 100));
+    coil->setDesignation(QStringLiteral("KM-SPECIAL"));
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.setSelection({ coil->id() });
+    REQUIRE(view.setSelectionTagsLocked(true) == 1);
+
+    Numbering::renumberAll(document.project(), document.profile());
+    CHECK(coil->designation() == QStringLiteral("KM-SPECIAL"));
+
+    REQUIRE(view.setSelectionTagsLocked(false) == 1);
+    Numbering::renumberAll(document.project(), document.profile());
+    CHECK(coil->designation() != QStringLiteral("KM-SPECIAL"));
+}
+
 TEST_CASE("Aucun glyphe n'est vide ni ne repete un autre", "[ui][theme][icones]")
 {
     // La regle du projet : deux commandes differentes ne doivent jamais
@@ -2154,6 +2331,47 @@ TEST_CASE("Tout ce qui est au ruban est aussi au menu", "[ui][ruban]")
     }
     // Assez de commandes pour que le ruban serve vraiment.
     CHECK(placed > 60);
+}
+
+TEST_CASE("Deux commandes d'un meme panneau ne partagent pas une icone",
+          "[ui][ruban][icones]")
+{
+    // La regle « deux commandes ne partagent jamais un glyphe » etait tenue
+    // par un test qui compare les glyphes entre eux — il dit qu'ils sont
+    // distincts, pas qu'on ne les a pas ASSIGNES deux fois. Or c'est
+    // l'assignation qui se voit : deux icones identiques cote a cote dans le
+    // meme panneau, et on clique au hasard. Le panneau est la bonne maille —
+    // c'est la que les icones se lisent ensemble.
+    MainWindow window;
+    window.resize(1600, 1000);
+
+    Ribbon *ribbon = window.findChild<Ribbon *>();
+    REQUIRE(ribbon);
+
+    for (int i = 0; i < ribbon->pageCount(); ++i) {
+        RibbonPage *page = ribbon->page(i);
+        REQUIRE(page);
+        for (RibbonPanel *panel : page->panels()) {
+            QHash<QString, QString> ownerOfIcon; // signature d'image -> commande
+            for (QAction *action : panel->ribbonActions()) {
+                const QIcon icon = action->icon();
+                if (icon.isNull())
+                    continue;
+                QImage image = icon.pixmap(QSize(20, 20)).toImage()
+                                       .convertToFormat(QImage::Format_ARGB32);
+                const QByteArray signature(reinterpret_cast<const char *>(image.constBits()),
+                                           int(image.sizeInBytes()));
+                const QString key = QString::fromLatin1(signature.toHex());
+                const auto known = ownerOfIcon.constFind(key);
+                INFO("panneau : " << panel->title().toStdString());
+                INFO("commande : " << action->text().toStdString());
+                if (known != ownerOfIcon.constEnd())
+                    INFO("déjà portée par : " << known.value().toStdString());
+                CHECK(known == ownerOfIcon.constEnd());
+                ownerOfIcon.insert(key, action->text());
+            }
+        }
+    }
 }
 
 TEST_CASE("La palette de commandes survit au ruban", "[ui][ruban][palette]")

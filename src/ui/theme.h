@@ -82,7 +82,8 @@ public:
     enum class Glyph {
         New, Open, Save, Print, ExportPdf, ExportDxf, ExportCsv,
         Undo, Redo, Copy, Paste, PasteKeepTags, Delete,
-        Select, Wire, Junction, LabelTag, Text, SymbolPlace,
+        Select, Wire, WireBus, WireTypeApply, Junction, LabelTag, Text, SymbolPlace,
+        LockTag, UnlockTag,
         Rotate, Mirror, Highlight,
         ZoomIn, ZoomOut, ZoomFit, Grid, Snap, Tracking, Palette2,
         Renumber, Check, Info, Palette, Folios, Properties, Reports,
@@ -90,6 +91,7 @@ public:
         Line, Rectangle, Circle, Arc, Polyline, Polygon,
         Group, Ungroup, MeasureLength, MeasureArea, Join, Break,
         LabelFolio, SignalOut, SignalIn,
+        WireTypes, SaveAs, TagFormat, ZoomWindow, MoveComponent,
         Plus, Minus, Duplicate, Up, Down, Edit, Theme,
 
         // Sentinelle : elle permet de parcourir tous les glyphes sans en

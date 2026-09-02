@@ -55,6 +55,20 @@ sont délibérés et documentés dans le code :
   une direction : le croisement gagne même un peu plus loin du curseur.
   On n'acquiert que pendant une commande, et les repères sont relâchés à
   la fin — sinon des alignements sans rapport survivraient au geste.
+- **Fil multiple (bus)** — `WireTools::busPaths` et `BusSpec`. L1/L2/L3 se
+  tracent d'un seul geste : la boîte arme le canevas, qui trace ensuite
+  **comme un fil ordinaire** — le bus hérite ainsi d'ortho, des accrochages et
+  de la cote tapée sans une ligne de code en plus. Trois décisions :
+  **le décalage est un vrai parallèle** (`offsetPolyline` : chaque segment
+  glisse le long de sa normale, les sommets sont les intersections des droites
+  décalées) — translater la polyligne entière garderait la forme mais pas le
+  parallélisme, et cela se voit au premier coude ; **le côté ne dépend pas du
+  sens du tracé** (vers le bas d'une horizontale, vers la droite d'une
+  verticale), sans quoi le même geste donnerait deux dessins ; et **chaque
+  conducteur porte son nom**, ce qui fait que la netlist raccorde L1 à L1 et
+  jamais à L2 — l'appariement par nom existait déjà dans `NetlistBuilder`,
+  le bus ne fait que s'en servir. Le bus reste armé tant que l'outil Fil l'est,
+  comme le type de fil, et tombe au changement d'outil.
 - **`core/wiretools.*`** — AJUSTER (TRIM) et PROLONGER (EXTEND). Attention :
   un obstacle colinéaire ne « croise » rien géométriquement, or c'est le cas
   courant (prolonger jusqu'à une borne alignée) — traité à part.
@@ -249,7 +263,11 @@ Et ce qui distingue toujours notre interface de celle d'AutoCAD :
   et en comparant les images : la règle n'était tenue que par l'œil, et les
   trois exports (PDF, DXF, CSV) ont partagé le même dessin depuis le début.
   `Glyph::Count` ferme l'énumération pour que le test n'ait pas de liste à
-  tenir à jour.
+  tenir à jour. Ce test dit que les glyphes sont **distincts**, pas qu'on ne
+  les a pas **assignés** deux fois — et c'est l'assignation qui se voit. Un
+  second test parcourt donc chaque panneau du ruban et refuse deux commandes
+  qui y portent la même image ; il a trouvé cinq collisions que l'œil n'avait
+  pas relevées.
 - **Sept menus** : Fichier, Édition, **Modification**, Outils, Affichage,
   Projet, Symboles, Aide. Modification est le groupe « Modifier » du ruban
   d'AutoCAD ; il était dilué dans Édition, où il voisinait le presse-papiers.
@@ -389,18 +407,16 @@ La distribution se fait par la page GitHub Releases.
 Relevé lors de la revue du ruban, dans l'ordre où il s'en apercevra. Ce ne
 sont pas des détails d'interface : ce sont des commandes qui manquent.
 
-1. **Fil multiple (bus L1/L2/L3) d'un geste.** Le modèle porte déjà n
-   conducteurs (`Wire::conductors`) ; seule la commande manque.
-2. **Fixer / libérer un repère sur une sélection** (`numberLocked`,
-   `designationLocked`) — ce qu'on fait juste avant de relancer Ctrl+R.
-3. **Appliquer un type de fil à une sélection déjà tracée** : le sélecteur du
-   ruban n'arme que le tracé à venir.
-4. **Rechercher / remplacer du texte dans tout le dossier.**
-5. **Remplacer un symbole posé** sans perdre son repère ni ses raccordements.
-6. **Effacer un composant en refermant le fil** — l'insertion coupe et
+1. **Rechercher / remplacer du texte dans tout le dossier.**
+2. **Remplacer un symbole posé** sans perdre son repère ni ses raccordements.
+3. **Effacer un composant en refermant le fil** — l'insertion coupe et
    rebranche, la suppression devrait recoudre.
-7. **Cotations.** Elles n'existent pas : ce n'est pas une case de ruban mais
+4. **Cotations.** Elles n'existent pas : ce n'est pas une case de ruban mais
    un type d'entité, un tracé, un export DXF et des accrochages.
+5. **Une icône par commande, partout.** Le test `[ui][ruban][icones]` tient la
+   règle **par panneau du ruban** — c'est là que deux icônes se lisent côte à
+   côte. Ailleurs dans les menus, une vingtaine de glyphes servent encore deux
+   commandes ; ce n'est pas ambigu à l'œil, mais ce n'est pas tenu.
 
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 

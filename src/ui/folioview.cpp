@@ -581,8 +581,28 @@ void FolioView::setTool(Tool tool)
         m_pendingPrototype.reset();
     }
     m_shapePoints.clear();
+    // Le bus arme appartient a l'outil Fil : le laisser survivre a un
+    // changement d'outil ferait tracer trois conducteurs a qui n'en demandait
+    // qu'un, et l'erreur ne se voit qu'a la netlist.
+    if (tool != Tool::Wire)
+        m_bus.reset();
     setCursor(Qt::BlankCursor);
     Q_EMIT toolChanged(tool);
+    update();
+}
+
+void FolioView::setBus(const BusSpec &spec)
+{
+    if (!spec.isValid()) {
+        m_bus.reset();
+        update();
+        return;
+    }
+    setTool(Tool::Wire);
+    m_bus = spec;
+    Q_EMIT statusMessage(tr("Fil multiple : %n conducteur(s) au pas de %1 mm — tracez "
+                            "comme un fil.", "", spec.count)
+                                 .arg(spec.spacing, 0, 'f', 1));
     update();
 }
 
@@ -1791,6 +1811,102 @@ void FolioView::applyOffset(const QPointF &sidePoint)
                                  .arg(m_offsetDistance, 0, 'f', 2));
 }
 
+int FolioView::applyWireTypeToSelection(const QString &wireTypeId)
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return 0;
+
+    std::vector<std::pair<EntityPtr, EntityPtr>> changes;
+    for (const QString &id : std::as_const(m_selection)) {
+        const auto *wire = dynamic_cast<const Wire *>(folio->entity(id));
+        if (!wire || wire->wireType == wireTypeId)
+            continue;
+        auto after = std::make_unique<Wire>(*wire);
+        after->wireType = wireTypeId;
+        changes.emplace_back(wire->clone(), std::move(after));
+    }
+
+    if (changes.empty()) {
+        Q_EMIT statusMessage(tr("Type de fil : aucun fil à changer dans la sélection."));
+        return 0;
+    }
+
+    const int count = int(changes.size());
+    m_document->pushMacro(tr("Changer le type de fil"), [&] {
+        for (auto &change : changes) {
+            m_document->push(std::make_unique<ModifyEntityCommand>(
+                    m_document->project(), folio->id(), std::move(change.first),
+                    std::move(change.second), tr("Changer le type de fil")));
+        }
+    });
+    Q_EMIT statusMessage(tr("%n fil(s) passé(s) au nouveau type.", "", count));
+    return count;
+}
+
+int FolioView::setSelectionTagsLocked(bool locked)
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return 0;
+
+    std::vector<std::pair<EntityPtr, EntityPtr>> changes;
+    int skipped = 0;
+    for (const QString &id : std::as_const(m_selection)) {
+        const Entity *entity = folio->entity(id);
+        if (const auto *wire = dynamic_cast<const Wire *>(entity)) {
+            if (wire->numberLocked == locked)
+                continue;
+            // Fixer un repere vide ne fixe rien : la renumerotation ignore un
+            // verrou sans repere, et le cadenas afficherait une promesse que
+            // personne ne tient. Liberer, en revanche, marche toujours.
+            if (locked && wire->number.isEmpty()) {
+                ++skipped;
+                continue;
+            }
+            auto after = std::make_unique<Wire>(*wire);
+            after->numberLocked = locked;
+            changes.emplace_back(wire->clone(), std::move(after));
+        } else if (const auto *symbol = dynamic_cast<const SymbolInstance *>(entity)) {
+            if (symbol->designationLocked == locked)
+                continue;
+            if (locked && symbol->designation().isEmpty()) {
+                ++skipped;
+                continue;
+            }
+            auto after = std::make_unique<SymbolInstance>(*symbol);
+            after->designationLocked = locked;
+            changes.emplace_back(symbol->clone(), std::move(after));
+        }
+    }
+
+    if (changes.empty()) {
+        Q_EMIT statusMessage(skipped > 0
+                                     ? tr("Rien à fixer : %n élément(s) sans repère.", "",
+                                          skipped)
+                                     : tr("Repères : rien à changer dans la sélection."));
+        return 0;
+    }
+
+    const int count = int(changes.size());
+    const QString label = locked ? tr("Fixer les repères") : tr("Libérer les repères");
+    m_document->pushMacro(label, [&] {
+        for (auto &change : changes) {
+            m_document->push(std::make_unique<ModifyEntityCommand>(
+                    m_document->project(), folio->id(), std::move(change.first),
+                    std::move(change.second), label));
+        }
+    });
+
+    QString message = locked ? tr("%n repère(s) fixé(s) — la renumérotation ne les touchera "
+                                 "plus.", "", count)
+                             : tr("%n repère(s) libéré(s).", "", count);
+    if (skipped > 0)
+        message += tr(" %n élément(s) sans repère laissé(s) de côté.", "", skipped);
+    Q_EMIT statusMessage(message);
+    return count;
+}
+
 void FolioView::copySelection()
 {
     m_clipboard.clear();
@@ -1936,16 +2052,47 @@ void FolioView::commitWire()
         return;
     }
 
-    auto wire = std::make_unique<Wire>();
-    wire->points = m_wirePoints;
-    wire->wireType = m_currentWireType;
-    const Wire snapshot = *wire;
+    // Les traces : un seul, ou les N conducteurs paralleles du bus. Le reste
+    // du chemin est identique — le bus n'est pas un autre outil, c'est le
+    // meme geste repete.
+    QVector<QVector<QPointF>> paths;
+    if (m_bus)
+        paths = WireTools::busPaths(m_wirePoints, *m_bus);
+    if (paths.isEmpty())
+        paths.append(m_wirePoints);
 
-    m_document->pushMacro(tr("Tracer un fil"), [&] {
-        m_document->push(std::make_unique<AddEntityCommand>(m_document->project(), folio->id(),
-                                                            std::move(wire), tr("Tracer un fil")));
-        addImplicitJunctions(snapshot);
+    std::vector<Wire> snapshots;
+    std::vector<EntityPtr> wires;
+    snapshots.reserve(paths.size());
+    for (int k = 0; k < paths.size(); ++k) {
+        auto wire = std::make_unique<Wire>();
+        wire->points = paths.at(k);
+        wire->wireType = m_currentWireType;
+        // Le nom du conducteur est ce qui fait qu'un L1 se raccorde a un L1
+        // et jamais a un L2 : la netlist apparie par nom des qu'il y en a un.
+        if (m_bus) {
+            const QString name = m_bus->conductorAt(k);
+            if (!name.isEmpty())
+                wire->conductors = QStringList{ name };
+        }
+        snapshots.push_back(*wire);
+        wires.push_back(std::move(wire));
+    }
+
+    const int count = int(wires.size());
+    // Un bus doit se defaire d'une seule annulation : trois conducteurs poses
+    // et deux annulations pour les retirer serait un piege.
+    m_document->pushMacro(count > 1 ? tr("Tracer un fil multiple") : tr("Tracer un fil"), [&] {
+        for (auto &wire : wires) {
+            m_document->push(std::make_unique<AddEntityCommand>(
+                    m_document->project(), folio->id(), std::move(wire), tr("Tracer un fil")));
+        }
+        for (const Wire &snapshot : snapshots)
+            addImplicitJunctions(snapshot);
     });
+
+    if (count > 1)
+        Q_EMIT statusMessage(tr("%n conducteur(s) tracé(s).", "", count));
 
     m_wirePoints.clear();
     m_snapEngine.clearTracked();
@@ -2717,7 +2864,16 @@ void FolioView::paintPendingWire(QPainter &painter) const
     pen.setStyle(Qt::DashLine);
     painter.setPen(pen);
     painter.setBrush(Qt::NoBrush);
-    painter.drawPolyline(preview.constData(), int(preview.size()));
+
+    // Le fantome montre TOUS les conducteurs du bus : voir un seul trait puis
+    // en obtenir trois, c'est decouvrir le resultat par l'annulation.
+    QVector<QVector<QPointF>> paths;
+    if (m_bus)
+        paths = WireTools::busPaths(preview, *m_bus);
+    if (paths.isEmpty())
+        paths.append(preview);
+    for (const QVector<QPointF> &path : paths)
+        painter.drawPolyline(path.constData(), int(path.size()));
 }
 
 void FolioView::paintPendingGesture(QPainter &painter) const

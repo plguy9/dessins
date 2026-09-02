@@ -10,6 +10,7 @@
 
 #include "core/entities.h"
 #include "core/snapengine.h"
+#include "core/wiretools.h"
 #include "core/wiretype.h"
 #include "document.h"
 #include "render/renderstyle.h"
@@ -65,6 +66,29 @@ public:
     // s'arme une fois puis vaut pour tous les fils qu'on trace ensuite.
     void setCurrentWireType(const QString &id) { m_currentWireType = id; }
     QString currentWireType() const { return m_currentWireType; }
+
+    // FIL MULTIPLE : le trace suivant pose N conducteurs paralleles au lieu
+    // d'un. Le geste reste celui du fil — ortho, accrochages, cote tapee : le
+    // bus ne redecrit rien, il multiplie ce qui a ete trace.
+    //
+    // L'armement dure tant que l'outil Fil reste choisi, comme le type de
+    // fil. Le rendre a usage unique obligerait a rouvrir la boite entre
+    // chaque depart d'un tableau ; le laisser survivre a un changement
+    // d'outil ferait tracer un bus a qui ne demandait qu'un fil.
+    void setBus(const BusSpec &spec);
+    void clearBus() { m_bus.reset(); }
+    bool busArmed() const { return m_bus.has_value(); }
+    BusSpec bus() const { return m_bus.value_or(BusSpec()); }
+
+    // Applique un type de fil aux fils deja traces de la selection. Le
+    // selecteur du ruban n'arme que le trace a venir : sans cette commande,
+    // changer le type d'un depart deja dessine demande de le retracer.
+    int applyWireTypeToSelection(const QString &wireTypeId);
+
+    // Fixe ou libere les reperes de la selection — le geste qu'on fait juste
+    // avant de relancer la renumerotation, pour dire ce qu'elle n'a pas le
+    // droit de bousculer.
+    int setSelectionTagsLocked(bool locked);
 
     const RenderStyle &style() const { return m_style; }
     void setStyle(const RenderStyle &style);
@@ -444,6 +468,7 @@ private:
     QTimer *m_acquireTimer = nullptr;
     std::optional<SnapHit> m_hoverCandidate;
     // QVector exige un type copiable, ce que EntityPtr n'est pas.
+    std::optional<BusSpec> m_bus;
     std::vector<EntityPtr> m_clipboard;
     const PlcDatabase *m_plc = nullptr;
 };

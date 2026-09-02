@@ -116,6 +116,8 @@ private:
     void editPageSetup();
     void insertLadder();
     void editWireTypes();
+    void applyWireTypeToSelection();
+    void insertBus();
     void editTagFormat();
     void rebuildWireTypeSelector();
 
@@ -180,6 +182,10 @@ private:
     QAction *m_scaleAction = nullptr;
     QAction *m_arrayAction = nullptr;
     QAction *m_joinAction = nullptr;
+    QAction *m_busAction = nullptr;
+    QAction *m_applyWireTypeAction = nullptr;
+    QAction *m_lockTagsAction = nullptr;
+    QAction *m_unlockTagsAction = nullptr;
     QAction *m_cutAction = nullptr;
     QAction *m_matchAction = nullptr;
     QAction *m_groupAction = nullptr;

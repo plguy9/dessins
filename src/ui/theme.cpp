@@ -886,6 +886,78 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawEllipse(QPointF(21, 18), 1.8, 1.8);
         strokeOnly();
         break;
+    case Glyph::WireTypes:
+        // Trois fils et leur pastille de couleur : le type de fil, c'est
+        // d'abord une couleur qu'on lit sur le folio.
+        p.drawLine(QPointF(9, 6), QPointF(21, 6));
+        p.drawLine(QPointF(9, 12), QPointF(21, 12));
+        p.drawLine(QPointF(9, 18), QPointF(21, 18));
+        fill(stroke);
+        p.drawEllipse(QPointF(4.5, 6), 2.2, 2.2);
+        p.drawEllipse(QPointF(4.5, 12), 2.2, 2.2);
+        p.drawEllipse(QPointF(4.5, 18), 2.2, 2.2);
+        break;
+    case Glyph::SaveAs:
+        // La disquette d'Enregistrer, avec le plus qui dit « une autre ».
+        p.drawPolyline(QPolygonF({ { 4, 4 }, { 15, 4 }, { 19, 8 }, { 19, 14 } }));
+        p.drawPolyline(QPolygonF({ { 4, 4 }, { 4, 20 }, { 12, 20 } }));
+        p.drawRect(QRectF(7, 4, 8, 5));
+        p.drawLine(QPointF(15, 18), QPointF(22, 18));
+        p.drawLine(QPointF(18.5, 14.5), QPointF(18.5, 21.5));
+        break;
+    case Glyph::TagFormat:
+        // Une etiquette et le gabarit qui la fabrique : %F%N, le format, pas
+        // le geste de reperer.
+        p.drawPolygon(QPolygonF({ { 3, 7 }, { 15, 7 }, { 20, 12 }, { 15, 17 }, { 3, 17 } }));
+        fill(stroke);
+        p.drawEllipse(QPointF(15.5, 12), 1.3, 1.3);
+        strokeOnly();
+        p.drawLine(QPointF(6, 20), QPointF(18, 20));
+        break;
+    case Glyph::ZoomWindow:
+        // La loupe d'un zoom, mais posee sur une fenetre : c'est le cadre
+        // qu'on tire, pas le pas de zoom.
+        p.drawRect(QRectF(3, 5, 12, 10));
+        p.drawEllipse(QPointF(15, 15), 5.0, 5.0);
+        p.drawLine(QPointF(18.6, 18.6), QPointF(22, 22));
+        break;
+    case Glyph::MoveComponent:
+        // Un appareil et ses deux fils qui le suivent : c'est exactement ce
+        // que la commande promet, et ce qui la distingue de Deplacer.
+        p.drawRect(QRectF(8, 8, 8, 8));
+        p.drawLine(QPointF(2, 12), QPointF(8, 12));
+        p.drawLine(QPointF(16, 12), QPointF(22, 12));
+        p.drawPolyline(QPolygonF({ { 10, 20 }, { 12, 22.5 }, { 14, 20 } }));
+        p.drawLine(QPointF(12, 17), QPointF(12, 22));
+        break;
+    case Glyph::WireBus:
+        // Trois conducteurs paralleles qui tournent ensemble : c'est ce que la
+        // commande dessine, et le coude dit qu'ils restent paralleles.
+        p.drawPolyline(QPolygonF({ { 2, 6 }, { 13, 6 }, { 13, 21 } }));
+        p.drawPolyline(QPolygonF({ { 2, 11 }, { 17, 11 }, { 17, 21 } }));
+        p.drawPolyline(QPolygonF({ { 2, 16 }, { 21, 16 }, { 21, 21 } }));
+        break;
+    case Glyph::WireTypeApply:
+        // Un fil deja trace, et le pinceau qui lui donne son type.
+        p.drawLine(QPointF(2, 18), QPointF(14, 18));
+        p.drawPolygon(QPolygonF({ { 15, 4 }, { 21, 4 }, { 21, 12 }, { 15, 12 } }));
+        p.drawPolyline(QPolygonF({ { 17, 12 }, { 17, 17 }, { 19, 17 }, { 19, 12 } }));
+        p.drawLine(QPointF(18, 17), QPointF(18, 21));
+        break;
+    case Glyph::LockTag:
+        // Le cadenas ferme, anse rabattue : le repere ne bougera plus.
+        p.drawRect(QRectF(5, 11, 14, 10));
+        p.drawArc(QRectF(8, 3, 8, 12), 0, 180 * 16);
+        break;
+    case Glyph::UnlockTag:
+        // Le meme cadenas, anse ouverte et decalee sur le cote. Une anse
+        // seulement entrouverte au-dessus du corps ne se distingue plus de
+        // l'anse fermee a seize pixels — la difference doit se voir a la
+        // silhouette, pas au degre d'ouverture.
+        p.drawRect(QRectF(3, 11, 13, 10));
+        p.drawArc(QRectF(11, 3, 9, 12), 0, 180 * 16);
+        p.drawLine(QPointF(20, 9), QPointF(20, 12));
+        break;
     case Glyph::Junction:
         p.drawLine(QPointF(3, 12), QPointF(21, 12));
         p.drawLine(QPointF(12, 12), QPointF(12, 21));

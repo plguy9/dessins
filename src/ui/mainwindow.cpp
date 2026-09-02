@@ -211,6 +211,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     // format, cadre. C'est la seule chose qu'on puisse vouloir regler la.
     connect(m_view, &FolioView::folioActivated, this, [this] { showProperties({}); });
     connect(m_document, &Document::undoStateChanged, this, &MainWindow::updateActions);
+    // Le grisage depend de ce que porte le FOLIO, pas seulement de la
+    // selection : changer de page peut rendre « Couper un fil » possible ou
+    // impossible sans qu'on ait rien touche.
+    connect(m_document, &Document::currentFolioChanged, this,
+            [this] { updateActions(); });
     connect(m_document, &Document::undoStateChanged, this, &MainWindow::rebuildWireTypeSelector);
     connect(m_document, &Document::currentFolioChanged, this, &MainWindow::updateTitle);
 
@@ -371,8 +376,13 @@ void MainWindow::createActions()
     // decide de la place d'une commande, c'est la table du ruban. Les menus
     // restent la source de verite — la palette de commandes les parcourt, et
     // le ruban n'est qu'une seconde vue sur le meme repertoire.
+    // `need` dit ce qui rend la commande IMPOSSIBLE, jamais ce que
+    // l'utilisateur a oublie de faire : une commande qui a besoin d'objets les
+    // demande. Le defaut est « toujours possible », et c'est le cas de la
+    // plupart — ouvrir, zoomer, imprimer.
     auto make = [&](QMenu *menu, G glyph, const QString &text,
-                    const QKeySequence &shortcut, const QString &tip, auto slot) {
+                    const QKeySequence &shortcut, const QString &tip, auto slot,
+                    Need need = Need::Always) {
         auto *action = new QAction(Icons::icon(glyph), text, this);
         if (!shortcut.isEmpty())
             action->setShortcut(shortcut);
@@ -387,6 +397,7 @@ void MainWindow::createActions()
         if (menu)
             menu->addAction(action);
         m_actionGlyphs.insert(action, int(glyph));
+        m_actionNeeds.insert(action, need);
         return action;
     };
 
@@ -419,15 +430,15 @@ void MainWindow::createActions()
     // ---- Edition -------------------------------------------------------
     QMenu *editMenu = menuBar()->addMenu(tr("&Édition"));
     m_undoAction = make(editMenu, G::Undo, tr("&Annuler"), QKeySequence::Undo,
-                        tr("Annuler la dernière action"), [this] { m_document->undo(); });
+                        tr("Annuler la dernière action"), [this] { m_document->undo(); }, Need::Undo);
     m_redoAction = make(editMenu, G::Redo, tr("&Rétablir"), QKeySequence::Redo,
-                        tr("Rétablir l'action annulée"), [this] { m_document->redo(); });
+                        tr("Rétablir l'action annulée"), [this] { m_document->redo(); }, Need::Redo);
     editMenu->addSeparator();
     m_copyAction = make(editMenu, G::Copy, tr("&Copier"), QKeySequence::Copy,
-                        tr("Copier la sélection"), [this] { m_view->copySelection(); });
+                        tr("Copier la sélection"), [this] { m_view->copySelection(); }, Need::AnyEntity);
     m_pasteAction = make(editMenu, G::Paste, tr("C&oller"), QKeySequence::Paste,
                          tr("Coller sous le curseur en re-repérant les copies"),
-                         [this] { m_view->pasteClipboard(); });
+                         [this] { m_view->pasteClipboard(); }, Need::Clipboard);
     // Coller a l'identique existe pour le geste inverse, tout aussi reel :
     // deplacer un circuit d'un folio a l'autre, ou l'appareil doit garder son
     // identite. Il est second parce qu'il cree des doublons quand on s'en sert
@@ -436,11 +447,11 @@ void MainWindow::createActions()
                              QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_V),
                              tr("Coller en conservant les repères — pour déplacer "
                                 "un circuit, pas pour le dupliquer"),
-                             [this] { m_view->pasteClipboard(true); });
+                             [this] { m_view->pasteClipboard(true); }, Need::Clipboard);
     m_deleteAction = make(editMenu, G::Delete, tr("&Supprimer"), QKeySequence::Delete,
-                          tr("Supprimer la sélection"), [this] { m_view->deleteSelection(); });
+                          tr("Supprimer la sélection"), [this] { m_view->deleteSelection(); }, Need::AnyEntity);
     m_selectAllAction = make(editMenu, G::Select, tr("&Tout sélectionner"),
-                             QKeySequence::SelectAll, QString(), [this] { m_view->selectAll(); });
+                             QKeySequence::SelectAll, QString(), [this] { m_view->selectAll(); }, Need::AnyEntity);
 
 
     // ---- Modification --------------------------------------------------
@@ -453,28 +464,28 @@ void MainWindow::createActions()
 
     m_moveAction = make(modifyMenu, G::Select, tr("&Déplacer"), QKeySequence(Qt::Key_D),
                         tr("Déplacer la sélection d'un point de base à un autre"),
-                        [this] { m_view->beginMoveSelection(); });
+                        [this] { m_view->beginMoveSelection(); }, Need::AnyEntity);
     m_rotateAction = make(modifyMenu, G::Rotate, tr("&Pivoter"), QKeySequence(Qt::Key_R),
                           tr("Pivoter d'un quart de tour"),
-                          [this] { m_view->rotateSelection(true); });
+                          [this] { m_view->rotateSelection(true); }, Need::AnyEntity);
     m_mirrorAction = make(modifyMenu, G::Mirror, tr("Re&tourner"), QKeySequence(Qt::Key_M),
                           tr("Retourner selon l'axe vertical"),
-                          [this] { m_view->mirrorSelection(); });
+                          [this] { m_view->mirrorSelection(); }, Need::AnyEntity);
     m_scaleAction = make(modifyMenu, G::Scale, tr("&Échelle"), QKeySequence(Qt::Key_H),
                          tr("Grossir ou réduire : point fixe, puis facteur à la souris "
                             "ou au clavier"),
-                         [this] { m_view->beginScale(); });
+                         [this] { m_view->beginScale(); }, Need::AnyEntity);
     m_stretchAction = make(modifyMenu, G::Stretch, tr("Éti&rer"), QKeySequence(Qt::Key_E),
                            tr("Encadrer des sommets par capture, puis les déplacer"),
-                           [this] { m_view->beginStretch(); });
+                           [this] { m_view->beginStretch(); }, Need::AnyEntity);
     m_offsetAction = make(modifyMenu, G::Duplicate, tr("Déca&ler…"),
                           QKeySequence(Qt::Key_O),
                           tr("Copier un fil parallèlement, à une distance donnée"),
-                          [this] { offsetSelection(); });
+                          [this] { offsetSelection(); }, Need::AnyWire);
     m_arrayAction = make(modifyMenu, G::Array, tr("&Réseau…"), QKeySequence(),
                          tr("Une matrice de copies, en lignes et colonnes ou autour "
                             "d'un centre"),
-                         &MainWindow::arraySelection);
+                         &MainWindow::arraySelection, Need::AnyEntity);
     modifyMenu->addSeparator();
 
     // Aligner : AutoCAD ne l'a pas en standard, tous les logiciels de dessin
@@ -509,32 +520,32 @@ void MainWindow::createActions()
                                  tr("Appliquer le type de fil à la &sélection"),
                                  QKeySequence(),
                                  tr("Donner aux fils sélectionnés le type armé dans le ruban"),
-                                 &MainWindow::applyWireTypeToSelection);
+                                 &MainWindow::applyWireTypeToSelection, Need::AnyWire);
     m_lockTagsAction = make(modifyMenu, G::LockTag, tr("&Fixer les repères"), QKeySequence(),
                             tr("La renumérotation ne touchera plus aux repères de la "
                                "sélection"),
-                            [this] { m_view->setSelectionTagsLocked(true); });
+                            [this] { m_view->setSelectionTagsLocked(true); }, Need::AnyEntity);
     m_unlockTagsAction = make(modifyMenu, G::UnlockTag, tr("&Libérer les repères"),
                               QKeySequence(),
                               tr("Rendre les repères de la sélection à la renumérotation"),
-                              [this] { m_view->setSelectionTagsLocked(false); });
+                              [this] { m_view->setSelectionTagsLocked(false); }, Need::AnyEntity);
     modifyMenu->addSeparator();
     m_joinAction = make(modifyMenu, G::Join, tr("&Joindre les fils"), QKeySequence(),
                         tr("Souder en un seul les fils sélectionnés qui se touchent"),
-                        [this] { m_view->joinSelectedWires(); });
+                        [this] { m_view->joinSelectedWires(); }, Need::TwoWires);
     m_cutAction = make(modifyMenu, G::Break, tr("&Couper un fil"), QKeySequence(),
                        tr("Couper le fil sélectionné à l'endroit cliqué"),
-                       [this] { m_view->beginCut(); });
+                       [this] { m_view->beginCut(); }, Need::AnyWire);
     m_matchAction = make(modifyMenu, G::Palette2, tr("Copier les &propriétés"),
                          QKeySequence(), tr("Appliquer le type de fil et la mise en forme "
                                             "du premier élément aux autres"),
-                         &MainWindow::matchProperties);
+                         &MainWindow::matchProperties, Need::TwoEntities);
     modifyMenu->addSeparator();
     m_highlightAction = make(modifyMenu, G::Highlight,
                              tr("Mettre le potentiel en évidence"),
                              QKeySequence(Qt::CTRL | Qt::Key_H),
                              tr("Suivre un potentiel à travers le folio"),
-                             [this] { m_view->highlightNetOfSelection(); });
+                             [this] { m_view->highlightNetOfSelection(); }, Need::AnyWire);
 
     // ---- Dessin et Outils ----------------------------------------------
     //
@@ -823,7 +834,7 @@ void MainWindow::createActions()
          &MainWindow::editTagFormat);
     make(projectMenu, G::Renumber, tr("&Repérage automatique"),
          QKeySequence(Qt::CTRL | Qt::Key_R),
-         tr("Désigner les appareils et repérer les fils"), &MainWindow::renumberAll);
+         tr("Désigner les appareils et repérer les fils"), &MainWindow::renumberAll, Need::AnyEntity);
     make(projectMenu, G::Check, tr("&Audit électrique…"), QKeySequence(Qt::Key_F8),
          tr("Tous les contrôles de cohérence du dossier, et le saut vers ce qui cloche"),
          &MainWindow::checkSchematic);
@@ -848,20 +859,20 @@ void MainWindow::createActions()
                                  QKeySequence(Qt::Key_F2),
                                  tr("Repère, description, catalogue et rattachement de "
                                     "l'appareil sélectionné"),
-                                 &MainWindow::editSelectedComponent);
+                                 &MainWindow::editSelectedComponent, Need::AnySymbol);
     m_scootAction = make(symbolMenu, G::Select, tr("&Glisser le long du fil"),
                          QKeySequence(Qt::Key_G),
                          tr("Déplacer l'appareil sur son fil, sans jamais le détacher"),
-                         [this] { m_view->beginScoot(); });
+                         [this] { m_view->beginScoot(); }, Need::AnySymbol);
     m_moveComponentAction = make(symbolMenu, G::MoveComponent, tr("Déplacer l'&appareil"),
                                  QKeySequence(Qt::SHIFT | Qt::Key_D),
                                  tr("Déplacer librement : les fils raccordés suivent"),
-                                 [this] { m_view->beginMoveComponent(); });
+                                 [this] { m_view->beginMoveComponent(); }, Need::AnySymbol);
     m_surferAction = make(symbolMenu, G::Highlight, tr("&Surfer les renvois…"),
                           QKeySequence(Qt::Key_F4),
                           tr("Lister ce qui est lié à la sélection dans tout le dossier, "
                              "et y aller"),
-                          &MainWindow::surfSelection);
+                          &MainWindow::surfSelection, Need::AnyEntity);
     symbolMenu->addSeparator();
     m_editOnInsertAction = new QAction(tr("Éditer le composant à l'&insertion"), this);
     m_editOnInsertAction->setCheckable(true);
@@ -950,7 +961,9 @@ void MainWindow::surfSelection()
         break;
     }
     if (target.isEmpty()) {
-        statusBar()->showMessage(tr("Surfer : sélectionner d'abord un élément"), 4000);
+        // La commande ne refuse plus : elle demande. C'est la règle du bloc A.
+        m_view->requestSelection(tr("Surfer : désignez l'élément à suivre"),
+                                 FolioView::PickFilter::Any, 1, [this] { surfSelection(); });
         return;
     }
 
@@ -1043,9 +1056,11 @@ void MainWindow::editPlcModule(const QString &entityId)
 void MainWindow::arraySelection()
 {
     Folio *folio = m_document->currentFolio();
-    if (!folio || m_view->selection().isEmpty()) {
-        statusBar()->showMessage(tr("Réseau : sélectionner d'abord ce qu'il faut répéter."),
-                                 4000);
+    if (!folio)
+        return;
+    if (m_view->selection().isEmpty()) {
+        m_view->requestSelection(tr("Réseau : désignez ce qu'il faut répéter"),
+                                 FolioView::PickFilter::Any, 1, [this] { arraySelection(); });
         return;
     }
 
@@ -1116,10 +1131,10 @@ void MainWindow::matchProperties()
         return;
     const QStringList ids(m_view->selection().cbegin(), m_view->selection().cend());
     if (ids.size() < 2) {
-        statusBar()->showMessage(
-                tr("Copier les propriétés : sélectionner le modèle puis les éléments à "
-                   "aligner dessus."),
-                5000);
+        m_view->requestSelection(tr("Copier les propriétés : désignez le modèle, puis les "
+                                    "éléments à aligner dessus"),
+                                 FolioView::PickFilter::Any, 2,
+                                 [this] { matchProperties(); });
         return;
     }
 
@@ -2213,8 +2228,11 @@ void MainWindow::updateActions()
                                   ? tr("&Rétablir : %1").arg(m_document->commands().redoText())
                                   : tr("&Rétablir"));
 
-    m_pasteAction->setEnabled(m_view->hasClipboard());
-    m_pasteKeepAction->setEnabled(m_view->hasClipboard());
+    // Chaque commande se grise si — et seulement si — elle ne peut rien faire.
+    // L'absence de selection n'en fait pas partie : une commande qui a besoin
+    // d'objets les demande. Ce qui la grise, c'est qu'il n'y ait rien dans le
+    // folio sur quoi elle puisse porter.
+    applyNeeds();
 
     const int count = m_view->selection().size();
     m_selectionLabel->setText(count == 0 ? tr("aucune sélection")
@@ -2224,6 +2242,41 @@ void MainWindow::updateActions()
     const double pixelsPerMm = std::max(1.0, double(logicalDpiX())) / kMmPerInch;
     m_zoomLabel->setText(tr("zoom %1 %").arg(int(std::lround(m_view->zoom() / pixelsPerMm * 100))));
     updateTitle();
+}
+
+void MainWindow::applyNeeds()
+{
+    const Folio *folio = m_document->currentFolio();
+    int entities = 0;
+    int wires = 0;
+    int symbols = 0;
+    if (folio) {
+        entities = folio->entityCount();
+        wires = int(folio->entitiesOfType<Wire>().size());
+        symbols = int(folio->entitiesOfType<SymbolInstance>().size());
+    }
+
+    for (auto it = m_actionNeeds.cbegin(); it != m_actionNeeds.cend(); ++it) {
+        bool possible = true;
+        switch (it.value()) {
+        case Need::Always: possible = true; break;
+        case Need::Undo: possible = m_document->commands().canUndo(); break;
+        case Need::Redo: possible = m_document->commands().canRedo(); break;
+        case Need::Clipboard: possible = m_view->hasClipboard(); break;
+        case Need::AnyEntity: possible = entities > 0; break;
+        case Need::TwoEntities: possible = entities > 1; break;
+        case Need::AnyWire: possible = wires > 0; break;
+        case Need::TwoWires: possible = wires > 1; break;
+        case Need::AnySymbol: possible = symbols > 0; break;
+        }
+        it.key()->setEnabled(possible);
+    }
+
+    // Les alignements ne passent pas par make() — ils naissent d'une table —
+    // mais ils obeissent a la meme regle : aligner un seul element ne veut
+    // rien dire.
+    for (QAction *action : std::as_const(m_alignActions))
+        action->setEnabled(entities > 1);
 }
 
 void MainWindow::applyTheme(bool dark)

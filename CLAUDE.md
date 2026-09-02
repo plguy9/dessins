@@ -413,6 +413,48 @@ Deux pièges de Qt, payés une fois :
   désormais que l'icône est **réellement encrée**, pas seulement présente :
   compter les pixels peints est la seule vérification qui l'aurait attrapé.
 
+## Les commandes obéissent (bloc A, 2026-09-02)
+
+Diagnostic d'usage de l'utilisateur : *« je ne peux même pas cliquer sur
+l'outil couper un fil »*. Il n'était pas cassé — il **exigeait** une sélection
+préalable et refusait sinon. Deux chiffres disaient le reste : **62 actions
+sur 66 ne se grisaient jamais**, et **75 invites de geste partaient vers la
+barre d'état contre 5 vers la ligne de commande**. Un bouton noir qui ne
+répond pas est un bouton cassé, quoi que dise le code.
+
+**1. La désignation à la demande** (`FolioView::requestSelection`) — le
+`Select objects:` d'AutoCAD. Une commande démarre **toujours** ; si elle a
+besoin d'objets, elle les demande. On clique ou on encadre, **Entrée** valide,
+**Échap** abandonne. Quatre décisions :
+
+- **Un filtre qui parle.** Cliquer un appareil quand la commande attend un fil
+  répond « ce n'est pas un fil » au lieu d'ignorer — un clic ignoré passe pour
+  un clic raté.
+- **La fenêtre ajoute et filtre.** Encadrer un départ entier pour couper un
+  fil ne doit pas embarquer les appareils.
+- **La commande se rappelle elle-même** via la continuation : au second
+  passage la sélection convient et elle suit son chemin normal. La
+  continuation est prise **puis effacée avant** d'être appelée — sinon une
+  commande qui redemande une désignation écraserait la sienne en plein appel.
+- **Les deux sens restent vrais.** Si la sélection convient déjà, la commande
+  part directement : c'est le geste de l'habitué, et le perdre serait un
+  mauvais échange.
+
+Neuf commandes réparées par ce seul mécanisme : Déplacer, Décaler, Échelle,
+Couper, Glisser, Déplacer l'appareil, Surfer, Réseau, Copier les propriétés.
+
+**2. Le grisage dit « impossible », jamais « rien de sélectionné »** (`Need`).
+La nuance est tout le bloc : puisqu'une commande demande ses objets, l'absence
+de sélection ne la grise pas. Ce qui la grise, c'est qu'il n'y ait rien dans
+le folio sur quoi elle puisse porter — couper un fil dans un dossier sans un
+seul fil. `make()` porte la condition, `applyNeeds()` l'applique, et le
+rafraîchissement suit le **folio** et pas seulement la sélection (changer de
+page peut rendre une commande possible sans qu'on ait rien touché).
+
+**3. L'invite se lit sous le curseur**, en pixels et non en millimètres —
+`paintPendingGesture` peint dans le repère du dessin, et une invite dont la
+taille suivrait le zoom serait illisible une fois sur deux.
+
 ## Ce qui a été retiré, et pourquoi (bloc A, 2026-09-02)
 
 Le logiciel avait 66 commandes de menu et une centaine d'entrées cliquables.

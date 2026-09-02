@@ -805,10 +805,82 @@ void FolioView::nudgeSelection(const QPointF &deltaMm)
                                                            ids, deltaMm));
 }
 
+// --------------------------------------------------------------------------
+// La designation a la demande — le « Select objects: » d'AutoCAD.
+
+bool FolioView::matchesFilter(const Entity *entity, PickFilter filter) const
+{
+    if (!entity)
+        return false;
+    switch (filter) {
+    case PickFilter::Any: return true;
+    case PickFilter::Wires: return dynamic_cast<const Wire *>(entity) != nullptr;
+    case PickFilter::Symbols: return dynamic_cast<const SymbolInstance *>(entity) != nullptr;
+    }
+    return false;
+}
+
+bool FolioView::selectionSatisfies(PickFilter filter, int minimum) const
+{
+    const Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return false;
+    int count = 0;
+    for (const QString &id : m_selection) {
+        if (matchesFilter(folio->entity(id), filter))
+            ++count;
+    }
+    return count >= minimum;
+}
+
+void FolioView::requestSelection(const QString &prompt, PickFilter filter, int minimum,
+                                 std::function<void()> then)
+{
+    // La designation part d'une ardoise vide : garder une selection qui ne
+    // convient pas ferait valider un lot dont une partie n'a rien a faire la.
+    setTool(Tool::Select);
+    if (!selectionSatisfies(filter, minimum))
+        clearSelection();
+
+    m_pending = Pending::PickObjects;
+    m_pickPrompt = prompt;
+    m_pickFilter = filter;
+    m_pickMinimum = std::max(1, minimum);
+    m_pickThen = std::move(then);
+    setCursor(Qt::CrossCursor);
+    Q_EMIT statusMessage(tr("%1 — Entrée pour valider, Échap pour abandonner.").arg(prompt));
+    update();
+}
+
+void FolioView::finishPick()
+{
+    if (m_pending != Pending::PickObjects)
+        return;
+    if (!selectionSatisfies(m_pickFilter, m_pickMinimum)) {
+        Q_EMIT statusMessage(m_pickMinimum > 1
+                                     ? tr("Il en faut au moins %n. Échap pour abandonner.", "",
+                                          m_pickMinimum)
+                                     : tr("Rien de désigné. Échap pour abandonner."));
+        return;
+    }
+    // La suite est prise puis effacee AVANT d'etre appelee : elle rappelle la
+    // commande, qui pourrait redemander une designation, et une continuation
+    // encore en place serait ecrasee au milieu de son propre appel.
+    const auto then = m_pickThen;
+    m_pickThen = nullptr;
+    m_pending = Pending::None;
+    m_pickPrompt.clear();
+    setCursor(Qt::BlankCursor);
+    update();
+    if (then)
+        then();
+}
+
 void FolioView::beginMoveSelection()
 {
-    if (m_selection.isEmpty()) {
-        Q_EMIT statusMessage(tr("Déplacer : sélectionner d'abord ce qu'il faut déplacer."));
+    if (!selectionSatisfies(PickFilter::Any, 1)) {
+        requestSelection(tr("Déplacer : désignez ce qu'il faut déplacer"), PickFilter::Any, 1,
+                         [this] { beginMoveSelection(); });
         return;
     }
     setTool(Tool::Select);
@@ -819,12 +891,13 @@ void FolioView::beginMoveSelection()
 
 void FolioView::beginOffset(double distanceMm)
 {
-    if (m_selection.isEmpty()) {
-        Q_EMIT statusMessage(tr("Décaler : sélectionner d'abord le fil à décaler."));
-        return;
-    }
     if (distanceMm <= 0.0)
         return;
+    if (!selectionSatisfies(PickFilter::Wires, 1)) {
+        requestSelection(tr("Décaler : désignez le fil à décaler"), PickFilter::Wires, 1,
+                         [this, distanceMm] { beginOffset(distanceMm); });
+        return;
+    }
     setTool(Tool::Select);
     m_offsetDistance = distanceMm;
     m_pending = Pending::OffsetSide;
@@ -835,8 +908,9 @@ void FolioView::beginOffset(double distanceMm)
 
 void FolioView::beginScale()
 {
-    if (m_selection.isEmpty()) {
-        Q_EMIT statusMessage(tr("Échelle : sélectionner d'abord ce qu'il faut grossir."));
+    if (!selectionSatisfies(PickFilter::Any, 1)) {
+        requestSelection(tr("Échelle : désignez ce qu'il faut grossir ou réduire"),
+                         PickFilter::Any, 1, [this] { beginScale(); });
         return;
     }
     setTool(Tool::Select);
@@ -848,14 +922,11 @@ void FolioView::beginScale()
 
 void FolioView::beginCut()
 {
-    Folio *folio = m_document->currentFolio();
-    if (!folio)
+    if (!m_document->currentFolio())
         return;
-    bool hasWire = false;
-    for (const QString &id : std::as_const(m_selection))
-        hasWire = hasWire || dynamic_cast<const Wire *>(folio->entity(id)) != nullptr;
-    if (!hasWire) {
-        Q_EMIT statusMessage(tr("Coupure : sélectionner d'abord le fil à couper."));
+    if (!selectionSatisfies(PickFilter::Wires, 1)) {
+        requestSelection(tr("Coupure : désignez le fil à couper"), PickFilter::Wires, 1,
+                         [this] { beginCut(); });
         return;
     }
     setTool(Tool::Select);
@@ -1270,9 +1341,12 @@ SymbolInstance *FolioView::selectedComponent() const
 void FolioView::beginScoot()
 {
     Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return;
     SymbolInstance *symbol = selectedComponent();
-    if (!folio || !symbol) {
-        Q_EMIT statusMessage(tr("Glisser : sélectionner d'abord l'appareil à déplacer."));
+    if (!symbol) {
+        requestSelection(tr("Glisser : désignez l'appareil à faire coulisser"),
+                         PickFilter::Symbols, 1, [this] { beginScoot(); });
         return;
     }
 
@@ -1298,7 +1372,8 @@ void FolioView::beginMoveComponent()
 {
     SymbolInstance *symbol = selectedComponent();
     if (!symbol) {
-        Q_EMIT statusMessage(tr("Déplacer l'appareil : sélectionner d'abord un appareil."));
+        requestSelection(tr("Déplacer l'appareil : désignez l'appareil"), PickFilter::Symbols,
+                         1, [this] { beginMoveComponent(); });
         return;
     }
     setTool(Tool::Select);
@@ -1510,6 +1585,33 @@ bool FolioView::handlePendingClick(const QPointF &scenePoint)
     switch (m_pending) {
     case Pending::None:
         return false;
+    case Pending::PickObjects: {
+        // Un clic ajoute ou retire ; ce qui ne correspond pas au filtre le dit
+        // au lieu d'etre ignore. Ignorer en silence, c'est faire croire que le
+        // clic a rate alors qu'il a porte sur le mauvais type d'objet.
+        Folio *folio = m_document->currentFolio();
+        Entity *hit = folio ? entityAt(scenePoint) : nullptr;
+        if (!hit) {
+            // Rien sous le curseur : on laisse le glisser tracer une fenetre
+            // de designation, comme dans l'outil Selection.
+            return false;
+        }
+        if (!matchesFilter(hit, m_pickFilter)) {
+            Q_EMIT statusMessage(m_pickFilter == PickFilter::Wires
+                                         ? tr("Ce n'est pas un fil. %1").arg(m_pickPrompt)
+                                         : tr("Ce n'est pas un appareil. %1").arg(m_pickPrompt));
+            return true;
+        }
+        QSet<QString> chosen = m_selection;
+        if (chosen.contains(hit->id()))
+            chosen.remove(hit->id());
+        else
+            chosen.insert(hit->id());
+        setSelection(chosen);
+        Q_EMIT statusMessage(tr("%n élément(s) désigné(s) — Entrée pour valider.", "",
+                                int(chosen.size())));
+        return true;
+    }
     case Pending::MoveBase:
         m_moveBase = scenePoint;
         m_pending = Pending::MoveTarget;
@@ -2344,11 +2446,19 @@ void FolioView::mousePressEvent(QMouseEvent *event)
             return;
         }
         if (m_pending != Pending::None || m_stretchArmed) {
+            // Abandonner une designation rend la main sans rien faire : la
+            // suite prevue est jetee, sinon elle se declencherait au geste
+            // suivant.
+            const bool wasPicking = m_pending == Pending::PickObjects;
+            m_pickThen = nullptr;
+            m_pickPrompt.clear();
             m_pending = Pending::None;
             m_stretchArmed = false;
             m_stretchWindow = QRectF();
             m_rubber = QRectF();
-            Q_EMIT statusMessage(tr("Geste annulé."));
+            setCursor(Qt::BlankCursor);
+            Q_EMIT statusMessage(wasPicking ? tr("Désignation abandonnée.")
+                                            : tr("Geste annulé."));
             update();
             return;
         }
@@ -2582,6 +2692,24 @@ void FolioView::mouseReleaseEvent(QMouseEvent *event)
 
     case Drag::Rubber: {
         QSet<QString> found = entitiesIn(m_rubber, m_rubberCrossing);
+        if (m_pending == Pending::PickObjects) {
+            // Pendant une designation, la fenetre AJOUTE et ne retient que ce
+            // que la commande sait traiter : encadrer un depart entier pour
+            // couper un fil ne doit pas embarquer les appareils.
+            const Folio *folio = m_document->currentFolio();
+            QSet<QString> kept = m_selection;
+            for (const QString &id : std::as_const(found)) {
+                if (folio && matchesFilter(folio->entity(id), m_pickFilter))
+                    kept.insert(id);
+            }
+            setSelection(kept);
+            Q_EMIT statusMessage(tr("%n élément(s) désigné(s) — Entrée pour valider.", "",
+                                    int(kept.size())));
+            m_rubber = QRectF();
+            m_drag = Drag::None;
+            update();
+            return;
+        }
         if (event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier))
             found.unite(m_selection);
         setSelection(found);
@@ -2652,6 +2780,12 @@ void FolioView::keyPressEvent(QKeyEvent *event)
         return;
     case Qt::Key_Return:
     case Qt::Key_Enter:
+        // Entree valide la designation et rend la main a la commande, comme
+        // chez AutoCAD.
+        if (m_pending == Pending::PickObjects) {
+            finishPick();
+            return;
+        }
         if (m_tool == Tool::Polyline && m_shapePoints.size() >= 2) {
             commitShape();
             return;
@@ -2797,6 +2931,41 @@ void FolioView::paintPendingGesture(QPainter &painter) const
     if (m_pending == Pending::MeasureDistance) {
         paintMeasure(painter);
         return;
+    }
+
+    if (m_pending == Pending::PickObjects) {
+        // L'invite est ecrite sous le curseur, pas seulement dans la barre
+        // d'etat : c'est la qu'on regarde pendant qu'on designe, et c'est tout
+        // le defaut qu'on corrige. Elle rappelle aussi les deux touches qui
+        // terminent — sans quoi on ne sait pas comment sortir.
+        painter.save();
+        // ATTENTION : paintPendingGesture peint dans le repere du DESSIN
+        // (millimetres). L'invite, elle, se pose en pixels sous le curseur —
+        // sa taille ne doit pas dependre du zoom. D'ou la remise a plat de la
+        // transformation, comme le fait la saisie dynamique.
+        painter.resetTransform();
+        painter.setFont(Theme::uiFont(9));
+        const QFontMetricsF metrics(painter.font());
+        // Tant que rien n'est designe, l'invite dit quoi faire. Des qu'on a
+        // designe, elle dit ou l'on en est et comment finir : repeter l'invite
+        // ferait une phrase trop longue pour se lire du coin de l'oeil.
+        const QString line = m_selection.isEmpty()
+                ? m_pickPrompt
+                : tr("%n désigné(s) · Entrée valide", "", int(m_selection.size()));
+        const QPointF anchor = toWidget(m_cursorMm) + QPointF(18, -26);
+        const QRectF box(anchor, QSizeF(metrics.horizontalAdvance(line) + 16,
+                                        metrics.height() + 10));
+        // Le fond est celui de la FEUILLE, pas du pourtour : c'est au-dessus
+        // du dessin que l'invite se pose, et la couleur du texte est celle qui
+        // s'y lit deja — les deux contrastent par construction.
+        QColor fill = m_style.sheet;
+        fill.setAlpha(235);
+        painter.setPen(QPen(m_style.snapGuide, 1.0));
+        painter.setBrush(fill);
+        painter.drawRoundedRect(box, 4.0, 4.0);
+        painter.setPen(m_style.text);
+        painter.drawText(box, Qt::AlignCenter, line);
+        painter.restore();
     }
 
     if (m_pending == Pending::MoveTarget) {

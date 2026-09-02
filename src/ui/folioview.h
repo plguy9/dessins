@@ -21,6 +21,7 @@
 #include <QTimer>
 #include <QWidget>
 
+#include <functional>
 #include <optional>
 
 namespace dsn {
@@ -184,6 +185,35 @@ public:
     void beginMeasureDistance();
 
     bool hasPendingGesture() const { return m_pending != Pending::None; }
+
+    // ---- LA DESIGNATION A LA DEMANDE -----------------------------------
+    //
+    // C'est le « Select objects: » d'AutoCAD, et c'est la correction centrale
+    // du bloc A. Avant, neuf commandes exigeaient une selection prealable et
+    // refusaient sinon, en ecrivant un message dans la barre d'etat que
+    // personne ne regarde apres avoir clique dans le ruban. De l'exterieur,
+    // l'outil ne fonctionnait pas.
+    //
+    // Desormais une commande demarre TOUJOURS. Si elle a besoin d'objets, elle
+    // les demande : on clique, on encadre, Entree valide, Echap abandonne. Et
+    // si la selection convient deja, elle part directement — AutoCAD accepte
+    // les deux sens, nous aussi.
+    enum class PickFilter {
+        Any,     // n'importe quelle entite
+        Wires,   // les fils seulement
+        Symbols, // les appareils seulement
+    };
+
+    // `then` est rappelee une fois la designation validee. La commande se
+    // rappelle elle-meme : au second passage la selection convient, et elle
+    // continue son chemin normal.
+    void requestSelection(const QString &prompt, PickFilter filter, int minimum,
+                          std::function<void()> then);
+    bool isPicking() const { return m_pending == Pending::PickObjects; }
+
+    // La selection courante contient-elle deja ce qu'il faut ? C'est la
+    // question que chaque commande pose avant de demander.
+    bool selectionSatisfies(PickFilter filter, int minimum) const;
 
     // Le conseil du folio vide. Sa geometrie est publique parce qu'elle porte
     // une promesse verifiable — etre cale au centre de la feuille et en
@@ -403,9 +433,20 @@ private:
         None, MoveBase, MoveTarget, OffsetSide, StretchBase, StretchTarget,
         ScootTarget, ComponentTarget, ScaleBase, ScaleTarget, CutTarget,
         MeasureDistance,
+        // « Sélectionnez les objets » : la commande attend qu'on lui designe
+        // sur quoi porter, puis reprend d'elle-meme.
+        PickObjects,
     };
     // L'appareil designe par Scoot ou par le deplacement d'appareil, et son
     // point de depart.
+    // La designation en cours : ce qu'on demande, et ce qu'on fera ensuite.
+    QString m_pickPrompt;
+    PickFilter m_pickFilter = PickFilter::Any;
+    int m_pickMinimum = 1;
+    std::function<void()> m_pickThen;
+    bool matchesFilter(const Entity *entity, PickFilter filter) const;
+    void finishPick();
+
     QString m_componentId;
     QPointF m_componentStart;
     std::optional<QPointF> m_scootAxis;

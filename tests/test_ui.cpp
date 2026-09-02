@@ -56,6 +56,11 @@ SymbolLibrary builtinLibrary()
     return library;
 }
 
+// Designer un point a la souris. Defini plus bas, declare ici : les tests de
+// commandes en ont besoin avant, et un namespace anonyme rouvert reste le
+// meme namespace.
+void clickScene(FolioView &view, const QPointF &scene);
+
 // Une capture non vide prouve que le widget s'est reellement peint, pas
 // seulement qu'il s'est construit sans planter.
 bool hasVisibleContent(const QPixmap &pixmap)
@@ -1948,6 +1953,193 @@ TEST_CASE("La fonte gravee ne descend pas dans le contenu des panneaux", "[ui][t
         if (QWidget *content = dock->widget())
             CHECK(content->font().capitalization() == QFont::MixedCase);
     }
+}
+
+TEST_CASE("Une commande sans sélection demande au lieu de refuser", "[ui][commandes]")
+{
+    // Le défaut central du logiciel, signalé par l'utilisateur : « je ne peux
+    // même pas cliquer sur l'outil couper un fil ». Il n'était pas cassé — il
+    // exigeait une sélection préalable et refusait sinon, en écrivant dans la
+    // barre d'état, à l'opposé du regard de qui vient de cliquer dans le ruban.
+    //
+    // AutoCAD fait l'inverse : on lance la commande, ELLE demande ce qu'il lui
+    // faut. C'est ce que ce test exige, pour les six commandes du canevas.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    drawWire(folio, { QPointF(40, 60), QPointF(160, 60) });
+    placeSymbol(document.project(), folio, QStringLiteral("iec:coil"), QPointF(100, 100));
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+
+    struct Cas {
+        const char *nom;
+        std::function<void(FolioView &)> lancer;
+    };
+    const std::vector<Cas> cas{
+        { "Déplacer", [](FolioView &v) { v.beginMoveSelection(); } },
+        { "Décaler", [](FolioView &v) { v.beginOffset(5.0); } },
+        { "Échelle", [](FolioView &v) { v.beginScale(); } },
+        { "Couper un fil", [](FolioView &v) { v.beginCut(); } },
+        { "Glisser le long du fil", [](FolioView &v) { v.beginScoot(); } },
+        { "Déplacer l'appareil", [](FolioView &v) { v.beginMoveComponent(); } },
+    };
+
+    for (const Cas &c : cas) {
+        INFO("commande : " << c.nom);
+        view.clearSelection();
+        c.lancer(view);
+        // Elle ne s'est pas contentée d'un refus : elle attend qu'on désigne.
+        CHECK(view.isPicking());
+        // Et Échap rend la main proprement.
+        QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+        QApplication::sendEvent(&view, &escape);
+        CHECK_FALSE(view.isPicking());
+    }
+}
+
+TEST_CASE("La désignation filtre, valide et rend la main à la commande",
+          "[ui][commandes]")
+{
+    // Le cycle complet de « Select objects: ». Le filtre compte autant que le
+    // reste : désigner un appareil quand la commande attend un fil doit être
+    // refusé et dit, pas ignoré — un clic ignoré passe pour un clic raté.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    Wire *wire = drawWire(folio, { QPointF(40, 60), QPointF(160, 60) });
+    auto *coil = placeSymbol(document.project(), folio, QStringLiteral("iec:coil"),
+                             QPointF(100, 120));
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+    view.snapEngine().setGridSnapEnabled(false);
+
+    view.beginCut();
+    REQUIRE(view.isPicking());
+
+    // L'appareil ne convient pas : il n'entre pas dans la désignation.
+    clickScene(view, coil->placement.position);
+    CHECK(view.selection().isEmpty());
+    CHECK(view.isPicking());
+
+    // Le fil convient.
+    clickScene(view, QPointF(100, 60));
+    CHECK(view.selection().contains(wire->id()));
+
+    // Entrée valide et la commande reprend : elle attend maintenant le point
+    // de coupure, ce qui n'est plus une désignation.
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(&view, &enter);
+    CHECK_FALSE(view.isPicking());
+    CHECK(view.hasPendingGesture());
+
+    // Et le geste va jusqu'au bout : le fil est coupé en deux.
+    clickScene(view, QPointF(100, 60));
+    CHECK(folio->entitiesOfType<Wire>().size() == 2);
+}
+
+TEST_CASE("Une commande part directement si la sélection convient déjà",
+          "[ui][commandes]")
+{
+    // AutoCAD accepte les deux sens — sélectionner puis agir, ou agir puis
+    // désigner. Perdre le premier en gagnant le second serait un mauvais
+    // échange : c'est le geste de l'habitué.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    Wire *wire = drawWire(folio, { QPointF(40, 60), QPointF(160, 60) });
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+
+    view.setSelection({ wire->id() });
+    view.beginCut();
+    CHECK_FALSE(view.isPicking());   // rien à demander
+    CHECK(view.hasPendingGesture()); // elle attend déjà le point de coupure
+}
+
+TEST_CASE("Une commande qui ne peut rien faire est grisée", "[ui][commandes]")
+{
+    // Avant le bloc A, 62 actions sur 66 restaient noires et cliquables quoi
+    // qu'il arrive : elles écrivaient un refus dans la barre d'état, à
+    // l'opposé du regard de qui vient de cliquer dans le ruban. Un bouton qui
+    // a l'air disponible et ne répond pas est un bouton cassé.
+    //
+    // La règle du grisage est « impossible », pas « rien de sélectionné » :
+    // une commande qui a besoin d'objets les demande.
+    MainWindow window;
+    window.resize(1400, 900);
+
+    auto byLabel = [&](const QString &label) -> QAction * {
+        for (QAction *action : window.findChildren<QAction *>()) {
+            if (action->text().remove(QLatin1Char('&')) == label)
+                return action;
+        }
+        return nullptr;
+    };
+
+    QAction *cut = byLabel(QStringLiteral("Couper un fil"));
+    QAction *join = byLabel(QStringLiteral("Joindre les fils"));
+    QAction *scoot = byLabel(QStringLiteral("Glisser le long du fil"));
+    QAction *zoomFit = byLabel(QStringLiteral("Ajuster au folio"));
+    REQUIRE(cut);
+    REQUIRE(join);
+    REQUIRE(scoot);
+    REQUIRE(zoomFit);
+
+    // Folio vide : rien à couper, rien à joindre, aucun appareil à glisser.
+    CHECK_FALSE(cut->isEnabled());
+    CHECK_FALSE(join->isEnabled());
+    CHECK_FALSE(scoot->isEnabled());
+    // Mais ce qui ne dépend de rien reste disponible.
+    CHECK(zoomFit->isEnabled());
+
+    Document *document = window.findChild<Document *>();
+    REQUIRE(document);
+    Folio *folio = document->currentFolio();
+    REQUIRE(folio);
+
+    // On passe par une vraie commande : le grisage doit se rafraîchir tout
+    // seul quand le dessin change, sinon il ment jusqu'au prochain clic.
+    auto addWire = [&](const QPointF &from, const QPointF &to) {
+        auto wire = std::make_unique<Wire>();
+        wire->points = { from, to };
+        document->push(std::make_unique<AddEntityCommand>(document->project(), folio->id(),
+                                                          std::move(wire),
+                                                          QStringLiteral("Tracer")));
+    };
+
+    addWire(QPointF(40, 60), QPointF(120, 60));
+    CHECK(cut->isEnabled());
+    CHECK_FALSE(join->isEnabled()); // il en faut deux
+    CHECK_FALSE(scoot->isEnabled());
+
+    addWire(QPointF(120, 60), QPointF(200, 60));
+    CHECK(join->isEnabled());
+
+    // Un appareil : glisser le long du fil devient possible.
+    auto coil = std::make_unique<SymbolInstance>();
+    coil->definitionId = QStringLiteral("iec:coil");
+    coil->placement.position = QPointF(100, 100);
+    document->push(std::make_unique<AddEntityCommand>(document->project(), folio->id(),
+                                                      std::move(coil),
+                                                      QStringLiteral("Poser")));
+    CHECK(scoot->isEnabled());
+
+    // Et tout redevient impossible si l'on annule jusqu'au folio vide.
+    while (document->commands().canUndo())
+        document->undo();
+    CHECK_FALSE(cut->isEnabled());
+    CHECK_FALSE(join->isEnabled());
+    CHECK_FALSE(scoot->isEnabled());
 }
 
 TEST_CASE("Un panneau se tasse par son bouton et revient par sa commande",

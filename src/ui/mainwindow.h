@@ -22,6 +22,23 @@ namespace dsn {
 
 class DockTitle;
 
+// Ce qui rend une commande IMPOSSIBLE — jamais « ce que l'utilisateur a oublie
+// de faire ». La nuance est tout le bloc A : une commande qui a besoin d'objets
+// les demande (voir FolioView::requestSelection), donc l'absence de selection
+// ne la grise pas. Ce qui la grise, c'est qu'il n'y ait rien dans le folio sur
+// quoi elle puisse porter — couper un fil dans un dossier sans un seul fil.
+enum class Need {
+    Always,     // rien a exiger
+    Undo,
+    Redo,
+    Clipboard,
+    AnyEntity,  // le folio porte au moins une entite
+    TwoEntities,// au moins deux : aligner, repartir
+    AnyWire,
+    TwoWires,   // joindre
+    AnySymbol,
+};
+
 class FolioNavigator;
 class ReportPanel;
 class SymbolPalette;
@@ -102,6 +119,8 @@ private:
 
     // Affichage
     void applyTheme(bool dark);
+    // Grise ce qui ne peut rien faire. Appelee par updateActions.
+    void applyNeeds();
     void refreshIcons();
 
     // Ligne de commande
@@ -202,6 +221,10 @@ private:
     QHash<QToolButton *, QAction *> m_statusToggles;
     QList<QAction *> m_toolActions;
     QHash<QAction *, int> m_actionGlyphs; // action -> Icons::Glyph, pour le rehabillage
+    // Ce qui rend chaque commande impossible. Toute action passee par make() y
+    // figure : c'est ce qui permet a updateActions de n'en oublier aucune, et
+    // a un test de le verifier.
+    QHash<QAction *, Need> m_actionNeeds;
     class QToolBar *m_toolBar = nullptr;
     class Ribbon *m_ribbon = nullptr;
     // La barre de menus, retenue explicitement. setMenuWidget() detache celle

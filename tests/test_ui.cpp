@@ -9,6 +9,7 @@
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QFontMetricsF>
+#include <QHash>
 #include <QSet>
 #include <QDockWidget>
 #include <QToolBar>
@@ -1742,4 +1743,243 @@ TEST_CASE("Toutes les barres d'outils tiennent dans la fenetre", "[ui][theme]")
         }
         CHECK(hidden == 0);
     }
+}
+
+// --------------------------------------------------------------------------
+// Dessin de formes
+
+namespace {
+
+// Un clic complet a un point du dessin. Les tests de trace en enchainent
+// plusieurs : une forme se donne en deux ou trois points.
+void clickScene(FolioView &view, const QPointF &scene)
+{
+    const QPointF widget = view.mapFromScene(scene);
+    QMouseEvent move(QEvent::MouseMove, widget, view.mapToGlobal(widget), Qt::NoButton,
+                     Qt::NoButton, Qt::NoModifier);
+    QMouseEvent press(QEvent::MouseButtonPress, widget, view.mapToGlobal(widget),
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, widget, view.mapToGlobal(widget),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &move);
+    QApplication::sendEvent(&view, &press);
+    QApplication::sendEvent(&view, &release);
+}
+
+const GraphicItem *soleGraphic(const Folio &folio)
+{
+    const auto graphics = folio.entitiesOfType<GraphicItem>();
+    return graphics.size() == 1 ? graphics.front() : nullptr;
+}
+
+} // namespace
+
+TEST_CASE("Le rectangle se trace en deux clics", "[ui][dessin]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+    view.snapEngine().setGridSnapEnabled(false);
+    view.setTool(FolioView::Tool::Rectangle);
+
+    clickScene(view, QPointF(60, 60));
+    clickScene(view, QPointF(140, 110));
+
+    const GraphicItem *shape = soleGraphic(*folio);
+    REQUIRE(shape);
+    CHECK(shape->shape.kind == Primitive::Kind::Rect);
+    const QRectF box = shape->boundingBox();
+    CHECK_THAT(box.width(), WithinAbs(80.0, 0.6));
+    CHECK_THAT(box.height(), WithinAbs(50.0, 0.6));
+
+    // L'outil reste arme : on trace rarement un seul encadre.
+    CHECK(view.tool() == FolioView::Tool::Rectangle);
+}
+
+TEST_CASE("Le cercle prend son centre puis son rayon", "[ui][dessin]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+    view.snapEngine().setGridSnapEnabled(false);
+    view.setTool(FolioView::Tool::Circle);
+
+    clickScene(view, QPointF(100, 100));
+    clickScene(view, QPointF(130, 100));
+
+    const GraphicItem *shape = soleGraphic(*folio);
+    REQUIRE(shape);
+    CHECK(shape->shape.kind == Primitive::Kind::Circle);
+    CHECK_THAT(shape->shape.radius, WithinAbs(30.0, 0.6));
+}
+
+TEST_CASE("L'arc passe par ses trois points", "[ui][dessin]")
+{
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+    view.snapEngine().setGridSnapEnabled(false);
+    view.setTool(FolioView::Tool::Arc);
+
+    // Demi-cercle de rayon 40 centre en (100,100) : depart a droite, sommet
+    // en haut, arrivee a gauche.
+    clickScene(view, QPointF(140, 100));
+    clickScene(view, QPointF(100, 60));
+    clickScene(view, QPointF(60, 100));
+
+    const GraphicItem *shape = soleGraphic(*folio);
+    REQUIRE(shape);
+    CHECK(shape->shape.kind == Primitive::Kind::Arc);
+    CHECK_THAT(shape->shape.radius, WithinAbs(40.0, 0.8));
+    // Le sens retenu est celui qui passe par le point du milieu. Sans ce
+    // choix, un arc sur deux part du mauvais cote du cercle.
+    CHECK(shape->shape.spanAngle > 0.0);
+    CHECK_THAT(std::abs(shape->shape.spanAngle), WithinAbs(180.0, 2.0));
+}
+
+TEST_CASE("Trois points alignes ne font pas un arc", "[ui][dessin]")
+{
+    // Poser un segment a la place laisserait croire que c'est un arc.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+    view.snapEngine().setGridSnapEnabled(false);
+    view.setTool(FolioView::Tool::Arc);
+
+    clickScene(view, QPointF(60, 100));
+    clickScene(view, QPointF(100, 100));
+    clickScene(view, QPointF(140, 100));
+
+    CHECK(folio->entitiesOfType<GraphicItem>().empty());
+}
+
+TEST_CASE("Une forme creuse se designe par son contour", "[ui][dessin][selection]")
+{
+    // Sans cette regle, un encadre de zone avalerait tous les clics de la
+    // zone qu'il encadre — et il est justement fait pour en encadrer une.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    auto frame = std::make_unique<GraphicItem>();
+    frame->shape = Primitive::rect(QRectF(60, 60, 100, 60));
+    const QString frameId = frame->id();
+    folio->addEntity(std::move(frame));
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+    view.snapEngine().setGridSnapEnabled(false);
+
+    // Au milieu du rectangle : rien n'est pris.
+    clickScene(view, QPointF(110, 90));
+    CHECK(view.selection().isEmpty());
+
+    // Sur son bord : il est pris.
+    clickScene(view, QPointF(110, 60));
+    CHECK(view.selection().contains(frameId));
+}
+
+TEST_CASE("Ortho ne s'applique pas aux formes qu'il aplatirait", "[ui][dessin]")
+{
+    // Ortho est allume par defaut. Applique au coin oppose d'un rectangle il
+    // l'aplatit, au rayon d'un cercle il le force sur un axe, aux points d'un
+    // arc il les aligne — trois outils sur six seraient inutilisables au
+    // premier essai. La contrainte ne vaut donc que la ou une droite est le
+    // sujet : fil, ligne, polyligne, deplacement.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.show();
+    view.zoomToFit();
+    view.snapEngine().setGridSnapEnabled(false);
+    REQUIRE(view.snapEngine().orthoEnabled());
+
+    view.setTool(FolioView::Tool::Rectangle);
+    clickScene(view, QPointF(60, 60));
+    clickScene(view, QPointF(140, 110));
+
+    const GraphicItem *shape = soleGraphic(*folio);
+    REQUIRE(shape);
+    CHECK(shape->boundingBox().height() > 40.0);
+
+    // Mais la ligne, elle, reste bien contrainte : c'est tout l'interet
+    // d'ortho, et un trait de rappel se trace droit.
+    view.setTool(FolioView::Tool::Line);
+    clickScene(view, QPointF(60, 200));
+    clickScene(view, QPointF(140, 215));
+
+    const auto graphics = folio->entitiesOfType<GraphicItem>();
+    REQUIRE(graphics.size() == 2);
+    const Primitive &line = graphics.back()->shape;
+    REQUIRE(line.points.size() == 2);
+    CHECK_THAT(line.points.first().y(), WithinAbs(line.points.last().y(), 1e-6));
+}
+
+TEST_CASE("Aucun glyphe n'est vide ni ne repete un autre", "[ui][theme][icones]")
+{
+    // La regle du projet : deux commandes differentes ne doivent jamais
+    // partager un glyphe, sinon la barre d'outils devient illisible. Elle
+    // n'etait tenue que par l'oeil — les trois exports (PDF, DXF, CSV) ont
+    // partage le meme dessin pendant tout ce temps.
+    dsn::Theme::apply(*qobject_cast<QApplication *>(QCoreApplication::instance()), true);
+
+    QHash<QByteArray, int> seen;
+    for (int i = 0; i < int(dsn::Icons::Glyph::Count); ++i) {
+        const auto glyph = dsn::Icons::Glyph(i);
+        CAPTURE(i);
+
+        // Rendu a seize pixels : c'est la taille ou une icone sera lue dans
+        // une grille de petits boutons, donc celle qui doit rester lisible.
+        QPixmap pixmap(16, 16);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        dsn::Icons::icon(glyph, QColor(Qt::white)).paint(&painter, QRect(0, 0, 16, 16));
+        painter.end();
+
+        const QImage image = pixmap.toImage().convertToFormat(QImage::Format_ARGB32);
+        int inked = 0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                if (qAlpha(image.pixel(x, y)) > 24)
+                    ++inked;
+            }
+        }
+        // Un glyphe qui ne dessine rien est un bouton vide dans la barre.
+        CHECK(inked > 6);
+
+        const QByteArray key(reinterpret_cast<const char *>(image.constBits()),
+                             int(image.sizeInBytes()));
+        const auto known = seen.constFind(key);
+        if (known != seen.constEnd()) {
+            CAPTURE(known.value());
+            FAIL("le glyphe " << i << " est identique au glyphe " << known.value());
+        }
+        seen.insert(key, i);
+    }
+    CHECK(seen.size() == int(dsn::Icons::Glyph::Count));
 }

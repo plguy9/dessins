@@ -118,11 +118,35 @@ const QPointF *FolioView::gestureOrigin() const
     // l'accrochage perpendiculaire et aux contraintes de direction.
     if (!m_wirePoints.isEmpty())
         return &m_wirePoints.last();
+    if (!m_shapePoints.isEmpty())
+        return &m_shapePoints.last();
     // Un deplacement ou un etirement en a une aussi, des que le point de base
     // est pose : leur second point merite la meme contrainte et la meme cote.
     if (m_pending == Pending::MoveTarget || m_pending == Pending::StretchTarget)
         return &m_moveBase;
     return nullptr;
+}
+
+bool FolioView::directionConstrained() const
+{
+    // Ortho et le suivi polaire ne valent que la ou une droite est le sujet :
+    // un fil, une ligne, une polyligne, un deplacement. Appliquee au coin
+    // oppose d'un rectangle, la contrainte l'aplatit ; au rayon d'un cercle,
+    // elle le force sur un axe ; aux points d'un arc, elle les aligne — et un
+    // arc dont les trois points sont alignes n'existe pas.
+    //
+    // AutoCAD applique la contrainte partout et laisse l'utilisateur eteindre
+    // ortho avant chaque arc. Ortho etant allume par defaut chez nous, cela
+    // rendrait trois outils sur six inutilisables au premier essai.
+    switch (m_tool) {
+    case Tool::Rectangle:
+    case Tool::Circle:
+    case Tool::Arc:
+    case Tool::Polygon:
+        return false;
+    default:
+        return true;
+    }
 }
 
 QString FolioView::gestureExclusion() const
@@ -196,7 +220,9 @@ QPointF FolioView::snap(const QPointF &scenePoint) const
     // puis la grille. L'ordre compte : un point du dessin vaut toujours mieux
     // qu'un point calcule.
     if (const QPointF *from = gestureOrigin()) {
-        const QPointF constrained = m_snapEngine.constrain(*from, scenePoint);
+        const QPointF constrained = directionConstrained()
+                ? m_snapEngine.constrain(*from, scenePoint)
+                : scenePoint;
         if (m_snapEngine.gridSnapEnabled())
             return m_snapEngine.snapToGridPoint(constrained);
         return constrained;
@@ -215,6 +241,65 @@ void FolioView::snapSettingsTouched()
 
 // --------------------------------------------------------------------------
 // Selection
+
+namespace {
+
+// Une forme creuse se designe par son contour, pas par sa boite. Sans cette
+// regle, un encadre de zone pose sur un folio avalerait tous les clics de la
+// zone qu'il encadre — et il est justement fait pour en encadrer une.
+bool graphicOutlineHit(const Primitive &shape, const QPointF &p, double tolerance)
+{
+    switch (shape.kind) {
+    case Primitive::Kind::Line:
+    case Primitive::Kind::Polyline:
+        for (int i = 1; i < shape.points.size(); ++i) {
+            if (pointOnSegment(p, shape.points.at(i - 1), shape.points.at(i), tolerance))
+                return true;
+        }
+        return false;
+    case Primitive::Kind::Rect: {
+        if (shape.points.size() < 2)
+            return false;
+        const QRectF r = normalized(shape.points.first(), shape.points.last());
+        if (shape.filled)
+            return r.adjusted(-tolerance, -tolerance, tolerance, tolerance).contains(p);
+        const QPointF corners[5] = { r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft(),
+                                     r.topLeft() };
+        for (int i = 1; i < 5; ++i) {
+            if (pointOnSegment(p, corners[i - 1], corners[i], tolerance))
+                return true;
+        }
+        return false;
+    }
+    case Primitive::Kind::Circle:
+    case Primitive::Kind::Arc: {
+        if (shape.points.isEmpty())
+            return false;
+        const QPointF c = shape.points.first();
+        const double distance = std::hypot(p.x() - c.x(), p.y() - c.y());
+        if (shape.filled && shape.kind == Primitive::Kind::Circle)
+            return distance <= shape.radius + tolerance;
+        if (std::abs(distance - shape.radius) > tolerance)
+            return false;
+        if (shape.kind == Primitive::Kind::Circle)
+            return true;
+        // Un arc n'est pas un cercle : le point doit tomber dans le secteur
+        // reellement trace, sinon on attrape la partie qui n'existe pas.
+        const double angle = std::atan2(-(p.y() - c.y()), p.x() - c.x()) * 180.0
+                / std::numbers::pi;
+        double offset = std::fmod(angle - shape.startAngle, 360.0);
+        if (offset < 0.0)
+            offset += 360.0;
+        const double span = shape.spanAngle;
+        return span >= 0.0 ? offset <= span : offset >= 360.0 + span;
+    }
+    case Primitive::Kind::Text:
+        return shape.bounds().adjusted(-tolerance, -tolerance, tolerance, tolerance).contains(p);
+    }
+    return false;
+}
+
+} // namespace
 
 Entity *FolioView::entityAt(const QPointF &scenePoint) const
 {
@@ -235,6 +320,11 @@ Entity *FolioView::entityAt(const QPointF &scenePoint) const
                                    tolerance))
                     return entity;
             }
+            continue;
+        }
+        if (const auto *graphic = dynamic_cast<const GraphicItem *>(entity)) {
+            if (graphicOutlineHit(graphic->shape, scenePoint, tolerance))
+                return entity;
             continue;
         }
         const QRectF bounds = entity->boundingBox();
@@ -260,6 +350,32 @@ bool FolioView::entityTouchesRect(const Entity &entity, const QRectF &rect) cons
     return !bounds.isNull() && rect.intersects(bounds);
 }
 
+QSet<QString> FolioView::expandToGroup(const QSet<QString> &ids) const
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return ids;
+
+    // Un groupe se prend en entier. On collecte d'abord les groupes touches,
+    // puis tous leurs membres : designer un seul element d'un cartouche
+    // dessine a la main doit emmener le cartouche.
+    QSet<QString> groups;
+    for (const QString &id : ids) {
+        const Entity *entity = folio->entity(id);
+        if (entity && entity->isGrouped())
+            groups.insert(entity->group());
+    }
+    if (groups.isEmpty())
+        return ids;
+
+    QSet<QString> out = ids;
+    for (const EntityPtr &entity : folio->entities()) {
+        if (entity->isGrouped() && groups.contains(entity->group()))
+            out.insert(entity->id());
+    }
+    return out;
+}
+
 QSet<QString> FolioView::entitiesIn(const QRectF &sceneRect, bool crossing) const
 {
     QSet<QString> found;
@@ -275,7 +391,10 @@ QSet<QString> FolioView::entitiesIn(const QRectF &sceneRect, bool crossing) cons
         if (hit)
             found.insert(entity->id());
     }
-    return found;
+    // Un groupe effleure par une capture vient en entier, comme au clic :
+    // deux gestes de designation qui ne rendent pas le meme groupe seraient
+    // impossibles a expliquer.
+    return expandToGroup(found);
 }
 
 void FolioView::rebuildGrips()
@@ -460,6 +579,7 @@ void FolioView::setTool(Tool tool)
         m_pendingSymbol.clear();
         m_pendingPrototype.reset();
     }
+    m_shapePoints.clear();
     setCursor(Qt::BlankCursor);
     Q_EMIT toolChanged(tool);
     update();
@@ -480,6 +600,8 @@ void FolioView::setPendingSymbol(const QString &definitionId, const SymbolInstan
 
 void FolioView::cancelPending()
 {
+    m_measurePoints.clear();
+    m_shapePoints.clear();
     // Les reperes acquis appartiennent a la commande en cours : les garder
     // ferait suivre des alignements sans rapport avec le geste suivant.
     m_snapEngine.clearTracked();
@@ -816,6 +938,338 @@ void FolioView::joinSelectedWires()
     Q_EMIT statusMessage(tr("%n soudure(s).", "", joined));
 }
 
+namespace {
+
+// Centre du cercle circonscrit a trois points. Sans lui, pas d'arc par trois
+// points — et c'est la facon dont on trace un arc quand on sait ou il part,
+// par ou il passe et ou il arrive, ce qui est le cas sur un plan.
+std::optional<QPointF> circumcenter(const QPointF &a, const QPointF &b, const QPointF &c)
+{
+    const double d = 2.0 * (a.x() * (b.y() - c.y()) + b.x() * (c.y() - a.y())
+                            + c.x() * (a.y() - b.y()));
+    if (std::abs(d) < 1e-9)
+        return std::nullopt; // trois points alignes : aucun cercle ne passe par eux
+    const double aa = a.x() * a.x() + a.y() * a.y();
+    const double bb = b.x() * b.x() + b.y() * b.y();
+    const double cc = c.x() * c.x() + c.y() * c.y();
+    return QPointF((aa * (b.y() - c.y()) + bb * (c.y() - a.y()) + cc * (a.y() - b.y())) / d,
+                   (aa * (c.x() - b.x()) + bb * (a.x() - c.x()) + cc * (b.x() - a.x())) / d);
+}
+
+// Angle d'un point vu du centre, dans la convention de Primitive : degres,
+// sens trigonometrique visuel, origine a trois heures. L'axe y de l'ecran
+// descend, d'ou le signe.
+double angleFrom(const QPointF &center, const QPointF &p)
+{
+    return std::atan2(-(p.y() - center.y()), p.x() - center.x()) * 180.0 / std::numbers::pi;
+}
+
+double normalizedAngle(double degrees)
+{
+    double a = std::fmod(degrees, 360.0);
+    if (a < 0.0)
+        a += 360.0;
+    return a;
+}
+
+} // namespace
+
+std::optional<Primitive> FolioView::pendingShape(const QPointF &cursor) const
+{
+    if (m_shapePoints.isEmpty())
+        return std::nullopt;
+    const QPointF first = m_shapePoints.first();
+
+    switch (m_tool) {
+    case Tool::Line: {
+        if (samePoint(first, cursor))
+            return std::nullopt;
+        return Primitive::line(first, cursor);
+    }
+    case Tool::Rectangle: {
+        const QRectF r = normalized(first, cursor);
+        if (r.width() < kConnectTolerance || r.height() < kConnectTolerance)
+            return std::nullopt;
+        return Primitive::rect(r);
+    }
+    case Tool::Circle: {
+        const double radius = std::hypot(cursor.x() - first.x(), cursor.y() - first.y());
+        if (radius < kConnectTolerance)
+            return std::nullopt;
+        Primitive p;
+        p.kind = Primitive::Kind::Circle;
+        p.points = { first };
+        p.radius = radius;
+        return p;
+    }
+    case Tool::Polygon: {
+        const double radius = std::hypot(cursor.x() - first.x(), cursor.y() - first.y());
+        if (radius < kConnectTolerance || m_polygonSides < 3)
+            return std::nullopt;
+        // Polygone regulier inscrit, premier sommet sous le curseur : on
+        // choisit ainsi l'orientation en meme temps que la taille.
+        const double start = angleFrom(first, cursor) * std::numbers::pi / 180.0;
+        QVector<QPointF> points;
+        for (int i = 0; i <= m_polygonSides; ++i) {
+            const double a = start + 2.0 * std::numbers::pi * i / m_polygonSides;
+            points.append(first + QPointF(std::cos(a) * radius, -std::sin(a) * radius));
+        }
+        return Primitive::polyline(points);
+    }
+    case Tool::Arc: {
+        if (m_shapePoints.size() < 2)
+            return std::nullopt;
+        const QPointF through = m_shapePoints.at(1);
+        const QPointF end = m_shapePoints.size() >= 3 ? m_shapePoints.at(2) : cursor;
+        const auto center = circumcenter(first, through, end);
+        if (!center)
+            return std::nullopt;
+
+        Primitive p;
+        p.kind = Primitive::Kind::Arc;
+        p.points = { *center };
+        p.radius = std::hypot(first.x() - center->x(), first.y() - center->y());
+        p.startAngle = angleFrom(*center, first);
+        // Le sens est celui qui passe par le point du milieu. Sans ce choix,
+        // un arc sur deux part du mauvais cote du cercle.
+        const double toMiddle = normalizedAngle(angleFrom(*center, through) - p.startAngle);
+        const double toEnd = normalizedAngle(angleFrom(*center, end) - p.startAngle);
+        p.spanAngle = toMiddle <= toEnd ? toEnd : toEnd - 360.0;
+        return p;
+    }
+    case Tool::Polyline: {
+        QVector<QPointF> points = m_shapePoints;
+        if (!samePoint(points.last(), cursor))
+            points.append(cursor);
+        if (points.size() < 2)
+            return std::nullopt;
+        return Primitive::polyline(points);
+    }
+    default:
+        return std::nullopt;
+    }
+}
+
+void FolioView::placeShapePoint(const QPointF &point)
+{
+    // Le nombre de points attendus depend de l'outil : deux pour un
+    // rectangle ou un cercle, trois pour un arc, autant qu'on veut pour une
+    // polyligne.
+    const int wanted = m_tool == Tool::Arc ? 3
+            : m_tool == Tool::Polyline     ? -1
+                                           : 2;
+
+    if (!m_shapePoints.isEmpty() && samePoint(point, m_shapePoints.last()))
+        return;
+    m_shapePoints.append(point);
+
+    if (wanted > 0 && m_shapePoints.size() >= wanted) {
+        commitShape();
+        return;
+    }
+
+    switch (m_tool) {
+    case Tool::Line:
+        Q_EMIT statusMessage(tr("Ligne : cliquer le second point."));
+        break;
+    case Tool::Rectangle:
+        Q_EMIT statusMessage(tr("Rectangle : cliquer le coin opposé."));
+        break;
+    case Tool::Circle:
+        Q_EMIT statusMessage(tr("Cercle : cliquer un point du contour, ou taper le rayon."));
+        break;
+    case Tool::Polygon:
+        Q_EMIT statusMessage(tr("Polygone à %n côtés : cliquer un sommet, ou taper le rayon.",
+                                "", m_polygonSides));
+        break;
+    case Tool::Arc:
+        Q_EMIT statusMessage(m_shapePoints.size() == 1
+                                     ? tr("Arc : cliquer un point par lequel il passe.")
+                                     : tr("Arc : cliquer le point d'arrivée."));
+        break;
+    case Tool::Polyline:
+        Q_EMIT statusMessage(tr("Polyligne : %n sommet(s) — Entrée pour terminer, "
+                                "Retour arrière pour défaire.", "", int(m_shapePoints.size())));
+        break;
+    default:
+        break;
+    }
+    update();
+}
+
+void FolioView::commitShape()
+{
+    Folio *folio = m_document->currentFolio();
+    // La forme se construit sur les points deja poses, jamais sur le curseur
+    // re-accroche : au moment de valider, le dernier point est dans la liste,
+    // et le re-accrocher le ferait passer une seconde fois par la contrainte
+    // de direction — avec pour origine le point qu'il vient de produire. Un
+    // trait tire a l'horizontale finissait ainsi par un coude vertical.
+    const QPointF cursor = m_shapePoints.last();
+    const auto shape = pendingShape(cursor);
+    if (!folio || !shape) {
+        // Un arc dont les trois points sont alignes n'existe pas : le dire
+        // vaut mieux que de poser un segment a la place et laisser croire que
+        // c'est un arc.
+        if (m_tool == Tool::Arc && m_shapePoints.size() >= 3)
+            Q_EMIT statusMessage(tr("Ces trois points sont alignés : aucun arc ne passe "
+                                    "par eux."));
+        m_shapePoints.clear();
+        update();
+        return;
+    }
+
+    auto item = std::make_unique<GraphicItem>();
+    item->shape = *shape;
+    m_document->push(std::make_unique<AddEntityCommand>(m_document->project(), folio->id(),
+                                                        std::move(item), tr("Dessiner")));
+    m_shapePoints.clear();
+    // L'outil reste arme : on trace rarement un seul encadre.
+    Q_EMIT statusMessage(tr("Forme posée."));
+    update();
+}
+
+void FolioView::paintShapePreview(QPainter &painter) const
+{
+    if (m_shapePoints.isEmpty())
+        return;
+    const auto shape = pendingShape(m_cursorInside ? snap(m_cursorMm) : m_shapePoints.last());
+    if (!shape)
+        return;
+
+    painter.save();
+    QPen pen(m_style.selection);
+    pen.setWidthF(m_style.wireWidth);
+    pen.setStyle(Qt::DashLine);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+
+    switch (shape->kind) {
+    case Primitive::Kind::Line:
+        if (shape->points.size() >= 2)
+            painter.drawLine(shape->points.first(), shape->points.last());
+        break;
+    case Primitive::Kind::Polyline:
+        painter.drawPolyline(shape->points.constData(), int(shape->points.size()));
+        break;
+    case Primitive::Kind::Rect:
+        if (shape->points.size() >= 2)
+            painter.drawRect(QRectF(shape->points.first(), shape->points.last()));
+        break;
+    case Primitive::Kind::Circle:
+        painter.drawEllipse(shape->points.first(), shape->radius, shape->radius);
+        break;
+    case Primitive::Kind::Arc: {
+        const QPointF c = shape->points.first();
+        const QRectF box(c.x() - shape->radius, c.y() - shape->radius, shape->radius * 2.0,
+                         shape->radius * 2.0);
+        painter.drawArc(box, int(shape->startAngle * 16), int(shape->spanAngle * 16));
+        break;
+    }
+    case Primitive::Kind::Text:
+        break;
+    }
+    painter.restore();
+}
+
+void FolioView::beginMeasureDistance()
+{
+    setTool(Tool::Select);
+    m_measurePoints.clear();
+    m_pending = Pending::MeasureDistance;
+    Q_EMIT statusMessage(tr("Mesurer : cliquer le premier point."));
+    update();
+}
+
+void FolioView::beginMeasureArea()
+{
+    setTool(Tool::Select);
+    m_measurePoints.clear();
+    m_pending = Pending::MeasureArea;
+    Q_EMIT statusMessage(tr("Surface : cliquer les sommets, Entrée pour fermer le contour."));
+    update();
+}
+
+QString FolioView::measureReport() const
+{
+    if (m_measurePoints.size() < 2)
+        return QString();
+
+    if (m_pending == Pending::MeasureDistance || m_measurePoints.size() == 2) {
+        const QPointF a = m_measurePoints.first();
+        const QPointF b = m_measurePoints.last();
+        const QPointF d = b - a;
+        const double length = std::hypot(d.x(), d.y());
+        // L'angle est donne dans la convention du dessinateur : zero a
+        // l'horizontale, positif vers le haut. L'axe y de l'ecran descend,
+        // d'ou le signe.
+        double angle = std::atan2(-d.y(), d.x()) * 180.0 / std::numbers::pi;
+        if (angle < 0.0)
+            angle += 360.0;
+        return tr("Distance %1 mm   ΔX %2   ΔY %3   angle %4°")
+                .arg(length, 0, 'f', 2)
+                .arg(d.x(), 0, 'f', 2)
+                .arg(-d.y(), 0, 'f', 2)
+                .arg(angle, 0, 'f', 1);
+    }
+
+    // Surface d'un polygone quelconque par la formule du lacet. La valeur
+    // absolue rend le sens de saisie sans importance : on mesure une surface,
+    // pas une orientation.
+    double twice = 0.0;
+    double perimeter = 0.0;
+    for (int i = 0; i < m_measurePoints.size(); ++i) {
+        const QPointF &a = m_measurePoints.at(i);
+        const QPointF &b = m_measurePoints.at((i + 1) % m_measurePoints.size());
+        twice += a.x() * b.y() - b.x() * a.y();
+        perimeter += std::hypot(b.x() - a.x(), b.y() - a.y());
+    }
+    const double area = std::abs(twice) / 2.0;
+    return tr("Surface %1 mm² (%2 m²)   périmètre %3 mm   %n sommet(s)", "",
+              int(m_measurePoints.size()))
+            .arg(area, 0, 'f', 1)
+            .arg(area / 1e6, 0, 'f', 4)
+            .arg(perimeter, 0, 'f', 1);
+}
+
+void FolioView::paintMeasure(QPainter &painter) const
+{
+    if (m_measurePoints.isEmpty())
+        return;
+
+    QVector<QPointF> path = m_measurePoints;
+    if (m_cursorInside)
+        path.append(snap(m_cursorMm));
+
+    painter.save();
+    QPen pen(m_style.snapGuide);
+    pen.setWidthF(m_style.wireWidth);
+    pen.setStyle(Qt::DashLine);
+    painter.setPen(pen);
+    if (m_pending == Pending::MeasureArea && path.size() > 2) {
+        // Le contour se ferme a l'ecran des trois sommets : c'est la surface
+        // qu'on mesure, et on doit la voir avant de valider.
+        QColor fill = m_style.snapGuide;
+        fill.setAlpha(40);
+        painter.setBrush(fill);
+        painter.drawPolygon(path.constData(), int(path.size()));
+    } else {
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPolyline(path.constData(), int(path.size()));
+    }
+
+    QPen marks(m_style.snapMarker);
+    marks.setWidthF(m_style.wireWidth * 1.2);
+    painter.setPen(marks);
+    painter.setBrush(Qt::NoBrush);
+    for (const QPointF &p : m_measurePoints) {
+        const double r = 1.4;
+        painter.drawLine(p + QPointF(-r, -r), p + QPointF(r, r));
+        painter.drawLine(p + QPointF(-r, r), p + QPointF(r, -r));
+    }
+    painter.restore();
+}
+
 void FolioView::applyScale(double factor)
 {
     Folio *folio = m_document->currentFolio();
@@ -956,6 +1410,14 @@ void FolioView::placeAt(const QPointF &scenePoint)
     case Tool::Text:
         placeTextAt(scenePoint);
         return;
+    case Tool::Line:
+    case Tool::Rectangle:
+    case Tool::Circle:
+    case Tool::Arc:
+    case Tool::Polyline:
+    case Tool::Polygon:
+        placeShapePoint(scenePoint);
+        return;
     case Tool::Trim:
     case Tool::Extend:
     case Tool::Select:
@@ -1029,9 +1491,14 @@ bool FolioView::handleTypedKey(QKeyEvent *event)
 {
     // La saisie n'a de sens que pendant un geste : hors commande, un chiffre
     // reste libre pour d'autres usages.
-    const bool commandRunning = !m_wirePoints.isEmpty() || m_pending != Pending::None
-            || m_tool == Tool::Symbol || m_tool == Tool::Junction || m_tool == Tool::Label
-            || m_tool == Tool::Text || m_tool == Tool::Wire;
+    // La cote au clavier vaut pour tout ce qui trace : un cercle se donne
+    // aussi bien par son rayon tape que par un clic sur son contour.
+    const bool commandRunning = !m_wirePoints.isEmpty() || !m_shapePoints.isEmpty()
+            || m_pending != Pending::None || m_tool == Tool::Symbol
+            || m_tool == Tool::Junction || m_tool == Tool::Label || m_tool == Tool::Text
+            || m_tool == Tool::Wire || m_tool == Tool::Line || m_tool == Tool::Rectangle
+            || m_tool == Tool::Circle || m_tool == Tool::Arc || m_tool == Tool::Polyline
+            || m_tool == Tool::Polygon;
 
     if (m_typing) {
         switch (event->key()) {
@@ -1167,6 +1634,32 @@ bool FolioView::handlePendingClick(const QPointF &scenePoint)
         update();
         return true;
     }
+    case Pending::MeasureDistance: {
+        m_measurePoints.append(scenePoint);
+        if (m_measurePoints.size() < 2) {
+            Q_EMIT statusMessage(tr("Mesurer : cliquer le second point."));
+            update();
+            return true;
+        }
+        const QString report = measureReport();
+        m_pending = Pending::None;
+        m_measurePoints.clear();
+        Q_EMIT statusMessage(report);
+        Q_EMIT measured(report);
+        update();
+        return true;
+    }
+    case Pending::MeasureArea:
+        // Le contour continue jusqu'a Entree : le nombre de sommets n'est pas
+        // connu d'avance, contrairement a une distance.
+        m_measurePoints.append(scenePoint);
+        if (m_measurePoints.size() >= 3)
+            Q_EMIT statusMessage(measureReport());
+        else
+            Q_EMIT statusMessage(tr("Surface : %n sommet(s), continuer ou Entrée pour "
+                                    "fermer.", "", int(m_measurePoints.size())));
+        update();
+        return true;
     case Pending::CutTarget: {
         Folio *folio = m_document->currentFolio();
         m_pending = Pending::None;
@@ -1787,6 +2280,12 @@ void FolioView::mousePressEvent(QMouseEvent *event)
     case Tool::Junction:
     case Tool::Label:
     case Tool::Text:
+    case Tool::Line:
+    case Tool::Rectangle:
+    case Tool::Circle:
+    case Tool::Arc:
+    case Tool::Polyline:
+    case Tool::Polygon:
         placeAt(snapped);
         return;
 
@@ -1816,18 +2315,24 @@ void FolioView::mousePressEvent(QMouseEvent *event)
     }
 
     Entity *hit = entityAt(scenePoint);
-    const bool additive = event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier);
+    const bool additive = event->modifiers() & Qt::ShiftModifier;
+    // Ctrl designe un membre seul a l'interieur d'un groupe, comme chez
+    // AutoCAD : sans cette porte de sortie, un element groupe par erreur
+    // devient impossible a rattraper autrement qu'en degroupant tout.
+    const bool intoGroup = event->modifiers() & Qt::ControlModifier;
 
     if (hit) {
+        const QSet<QString> touched = intoGroup ? QSet<QString>{ hit->id() }
+                                                : expandToGroup({ hit->id() });
         if (additive) {
             QSet<QString> updated = m_selection;
             if (updated.contains(hit->id()))
-                updated.remove(hit->id());
+                updated.subtract(touched);
             else
-                updated.insert(hit->id());
+                updated.unite(touched);
             setSelection(updated);
         } else if (!m_selection.contains(hit->id())) {
-            setSelection({ hit->id() });
+            setSelection(touched);
         }
         m_drag = Drag::Move;
         m_dragStartScene = snapped;
@@ -2033,11 +2538,29 @@ void FolioView::keyPressEvent(QKeyEvent *event)
         return;
     case Qt::Key_Return:
     case Qt::Key_Enter:
+        if (m_pending == Pending::MeasureArea && m_measurePoints.size() >= 3) {
+            const QString report = measureReport();
+            m_pending = Pending::None;
+            m_measurePoints.clear();
+            Q_EMIT statusMessage(report);
+            Q_EMIT measured(report);
+            update();
+            return;
+        }
+        if (m_tool == Tool::Polyline && m_shapePoints.size() >= 2) {
+            commitShape();
+            return;
+        }
         if (!m_wirePoints.isEmpty())
             commitWire();
         return;
     case Qt::Key_Backspace:
         // Retire le dernier coude plutot que d'annuler tout le trace.
+        if (m_shapePoints.size() > 1) {
+            m_shapePoints.removeLast();
+            update();
+            return;
+        }
         if (m_wirePoints.size() > 1) {
             m_wirePoints.removeLast();
             update();
@@ -2156,6 +2679,11 @@ void FolioView::paintPendingGesture(QPainter &painter) const
     const Folio *folio = m_document->currentFolio();
     if (!folio)
         return;
+
+    if (m_pending == Pending::MeasureDistance || m_pending == Pending::MeasureArea) {
+        paintMeasure(painter);
+        return;
+    }
 
     if (m_pending == Pending::MoveTarget) {
         // Fantome de la selection sous le curseur : sans lui, on choisit le
@@ -2656,6 +3184,7 @@ void FolioView::paintEvent(QPaintEvent *event)
     paintPolarGuide(painter);
     paintPendingWire(painter);
     paintPendingSymbol(painter);
+    paintShapePreview(painter);
     paintPendingGesture(painter);
     paintTracking(painter);
     paintSnapFeedback(painter);

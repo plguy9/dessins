@@ -28,7 +28,14 @@ class FolioView : public QWidget
     Q_OBJECT
 
 public:
-    enum class Tool { Select, Wire, Symbol, Junction, Label, Text, Trim, Extend };
+    // Les outils modaux. Les cinq derniers sont les formes du panneau
+    // « Dessin » d'AutoCAD : elles ne conduisent pas le courant, elles
+    // annotent — un encadre de zone, un reperage, un fond de plan. Elles
+    // produisent des GraphicItem, jamais des fils.
+    enum class Tool {
+        Select, Wire, Symbol, Junction, Label, Text, Trim, Extend,
+        Line, Rectangle, Circle, Arc, Polyline, Polygon
+    };
     Q_ENUM(Tool)
 
     explicit FolioView(Document *document, QWidget *parent = nullptr);
@@ -140,6 +147,13 @@ public:
     // JOINDRE (JOIN) : souder les fils colineaires de la selection.
     void joinSelectedWires();
 
+    // MESURER — les utilitaires d'AutoCAD. Une mesure ne modifie rien et ne
+    // laisse rien : elle se lit dans la barre d'etat et dans l'historique de
+    // la ligne de commande, puis disparait. Coter un plan est un autre geste,
+    // qui pose une entite.
+    void beginMeasureDistance();
+    void beginMeasureArea();
+
     bool hasPendingGesture() const { return m_pending != Pending::None; }
     void mirrorSelection();
     void nudgeSelection(const QPointF &deltaMm);
@@ -168,6 +182,10 @@ Q_SIGNALS:
     void cursorMoved(const QPointF &positionMm, const QString &zone);
     void toolChanged(FolioView::Tool tool);
     void statusMessage(const QString &message);
+    // Le resultat d'une mesure, pour l'historique de la ligne de commande :
+    // une valeur qu'on relit vaut mieux qu'une valeur qui s'efface au bout de
+    // quelques secondes.
+    void measured(const QString &report);
     void entityActivated(const QString &entityId);
     // Un symbole vient d'etre pose. La fenetre principale decide d'ouvrir ou
     // non la boite du composant : le catalogue et le reglage lui appartiennent.
@@ -225,6 +243,9 @@ private:
     // Origine du geste en cours, s'il y en a une.
     const QPointF *gestureOrigin() const;
     QString gestureExclusion() const;
+    // Vrai quand la contrainte de direction (ortho, polaire) a un sens pour
+    // l'outil courant.
+    bool directionConstrained() const;
 
     Entity *entityAt(const QPointF &scenePoint) const;
     // Deux modes de selection rectangulaire, comme dans AutoCAD :
@@ -233,8 +254,23 @@ private:
     // effleure. Le sens du geste decide, et la couleur du cadre l'annonce.
     QSet<QString> entitiesIn(const QRectF &sceneRect, bool crossing) const;
     bool entityTouchesRect(const Entity &entity, const QRectF &rect) const;
+    // Etend une selection a tous les membres des groupes qu'elle touche.
+    QSet<QString> expandToGroup(const QSet<QString> &ids) const;
 
     void beginWireAt(const QPointF &point);
+
+    // Trace de forme en cours. Un vecteur separe de m_wirePoints : un fil se
+    // termine par une entite electrique, une forme par une entite graphique,
+    // et melanger les deux etats ferait poser un fil avec l'outil cercle.
+    QVector<QPointF> m_shapePoints;
+    int m_polygonSides = 6;
+    void placeShapePoint(const QPointF &point);
+    void commitShape();
+    void paintShapePreview(QPainter &painter) const;
+    // La forme que le trace en cours produirait, ou rien si elle n'est pas
+    // encore definie. Sert au trace de l'apercu comme a la pose : une seule
+    // construction, donc l'apercu ne peut pas mentir sur le resultat.
+    std::optional<Primitive> pendingShape(const QPointF &cursor) const;
     void commitWire();
     void cancelPending();
     void placeSymbolAt(const QPointF &point);
@@ -277,6 +313,7 @@ private:
     enum class Pending {
         None, MoveBase, MoveTarget, OffsetSide, StretchBase, StretchTarget,
         ScootTarget, ComponentTarget, ScaleBase, ScaleTarget, CutTarget,
+        MeasureDistance, MeasureArea,
     };
     // L'appareil designe par Scoot ou par le deplacement d'appareil, et son
     // point de depart.
@@ -291,6 +328,12 @@ private:
     double m_scaleRadius = 0.0;
     double m_scaleFactor = 1.0;
     void applyScale(double factor);
+
+    // Points de la mesure en cours. Deux pour une distance, n pour une
+    // surface.
+    QVector<QPointF> m_measurePoints;
+    void paintMeasure(QPainter &painter) const;
+    QString measureReport() const;
 
     // Trouve l'appareil a manipuler dans la selection, ou rien.
     SymbolInstance *selectedComponent() const;

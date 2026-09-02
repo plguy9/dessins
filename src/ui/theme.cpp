@@ -11,6 +11,8 @@
 #include <QPixmap>
 #include <QProxyStyle>
 #include <QStyleFactory>
+
+#include <numbers>
 #include <QWidget>
 
 namespace dsn {
@@ -751,12 +753,36 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawRect(QRectF(3, 9, 18, 8));
         p.drawPolyline(QPolygonF({ { 7, 14 }, { 7, 21 }, { 17, 21 }, { 17, 14 } }));
         break;
+    // Les trois exports partageaient un glyphe. Trois commandes differentes
+    // sous la meme icone rendent la barre illisible : chacune porte donc, dans
+    // la meme feuille, la marque de ce qu'elle produit — un aplat pour la page
+    // imprimee, des sommets pour le vectoriel, une grille pour le tableau.
     case Glyph::ExportPdf:
+        p.drawPolyline(QPolygonF({ { 5, 3 }, { 14, 3 }, { 19, 8 }, { 19, 21 }, { 5, 21 },
+                                   { 5, 3 } }));
+        p.drawPolyline(QPolygonF({ { 14, 3 }, { 14, 8 }, { 19, 8 } }));
+        fill(stroke);
+        p.drawRect(QRectF(8, 13, 8, 5));
+        strokeOnly();
+        break;
     case Glyph::ExportDxf:
+        p.drawPolyline(QPolygonF({ { 5, 3 }, { 14, 3 }, { 19, 8 }, { 19, 21 }, { 5, 21 },
+                                   { 5, 3 } }));
+        p.drawPolyline(QPolygonF({ { 14, 3 }, { 14, 8 }, { 19, 8 } }));
+        p.drawPolyline(QPolygonF({ { 8, 18 }, { 11, 12 }, { 14, 16 }, { 17, 11 } }));
+        fill(stroke);
+        for (const QPointF &v : { QPointF(8, 18), QPointF(11, 12), QPointF(14, 16),
+                                  QPointF(17, 11) })
+            p.drawEllipse(v, 1.1, 1.1);
+        strokeOnly();
+        break;
     case Glyph::ExportCsv:
-        p.drawPolyline(QPolygonF({ { 6, 3 }, { 14, 3 }, { 19, 8 }, { 19, 21 }, { 6, 21 }, { 6, 3 } }));
-        p.drawLine(QPointF(12, 10), QPointF(12, 18));
-        p.drawPolyline(QPolygonF({ { 9, 15 }, { 12, 18 }, { 15, 15 } }));
+        p.drawPolyline(QPolygonF({ { 5, 3 }, { 14, 3 }, { 19, 8 }, { 19, 21 }, { 5, 21 },
+                                   { 5, 3 } }));
+        p.drawPolyline(QPolygonF({ { 14, 3 }, { 14, 8 }, { 19, 8 } }));
+        p.drawRect(QRectF(8, 12, 8, 6));
+        p.drawLine(QPointF(12, 12), QPointF(12, 18));
+        p.drawLine(QPointF(8, 15), QPointF(16, 15));
         break;
     case Glyph::Undo:
         p.drawArc(QRectF(4, 8, 16, 13), 0, 180 * 16);
@@ -960,6 +986,8 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawPolyline(QPolygonF({ { 4, 20 }, { 4, 16 }, { 15, 5 }, { 19, 9 }, { 8, 20 }, { 4, 20 } }));
         p.drawLine(QPointF(13, 7), QPointF(17, 11));
         break;
+    case Glyph::Count:
+        break;
     case Glyph::Theme:
         p.drawEllipse(QPointF(12, 12), 7.5, 7.5);
         fill(stroke);
@@ -999,6 +1027,109 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawLine(QPointF(3, 16), QPointF(11, 16));
         p.drawLine(QPointF(15, 4), QPointF(15, 20));
         p.drawLine(QPointF(18, 8), QPointF(21, 8));
+        break;
+    case Glyph::Line:
+        // Un segment et ses deux extremites : c'est ce qu'on pose, et c'est
+        // ce qui le distingue du fil, qui conduit.
+        p.drawLine(QPointF(5, 19), QPointF(19, 5));
+        fill(stroke);
+        p.drawEllipse(QPointF(5, 19), 1.7, 1.7);
+        p.drawEllipse(QPointF(19, 5), 1.7, 1.7);
+        strokeOnly();
+        break;
+    case Glyph::Rectangle:
+        p.drawRect(QRectF(3.5, 6, 17, 12));
+        break;
+    case Glyph::Circle:
+        p.drawEllipse(QPointF(12, 12), 8.5, 8.5);
+        break;
+    case Glyph::Arc:
+        // Un demi-tour ouvert vers le bas, avec ses deux bouts : sans eux on
+        // le confond avec le cercle a seize pixels.
+        p.drawArc(QRectF(3, 6, 18, 18), 0, 180 * 16);
+        fill(stroke);
+        p.drawEllipse(QPointF(3, 15), 1.6, 1.6);
+        p.drawEllipse(QPointF(21, 15), 1.6, 1.6);
+        strokeOnly();
+        break;
+    case Glyph::Polyline:
+        // Une ligne brisee et ses sommets : ce sont les sommets qui la
+        // distinguent de la ligne simple.
+        p.drawPolyline(QPolygonF({ { 3, 18 }, { 9, 8 }, { 15, 16 }, { 21, 5 } }));
+        fill(stroke);
+        for (const QPointF &v : { QPointF(3, 18), QPointF(9, 8), QPointF(15, 16),
+                                  QPointF(21, 5) })
+            p.drawEllipse(v, 1.5, 1.5);
+        strokeOnly();
+        break;
+    case Glyph::Polygon: {
+        // Un hexagone regulier : la forme que le mot evoque, et celle que
+        // l'outil propose par defaut.
+        QPolygonF hexagon;
+        for (int i = 0; i < 6; ++i) {
+            const double a = std::numbers::pi / 6.0 + i * std::numbers::pi / 3.0;
+            hexagon << QPointF(12 + std::cos(a) * 9.0, 12 - std::sin(a) * 9.0);
+        }
+        p.drawPolygon(hexagon);
+        break;
+    }
+    case Glyph::Group:
+        // Deux elements et le cadre en equerres qui les tient ensemble.
+        p.drawRect(QRectF(6.5, 6.5, 5, 5));
+        p.drawRect(QRectF(12.5, 12.5, 5, 5));
+        p.drawPolyline(QPolygonF({ { 6, 2.5 }, { 2.5, 2.5 }, { 2.5, 6 } }));
+        p.drawPolyline(QPolygonF({ { 18, 2.5 }, { 21.5, 2.5 }, { 21.5, 6 } }));
+        p.drawPolyline(QPolygonF({ { 6, 21.5 }, { 2.5, 21.5 }, { 2.5, 18 } }));
+        p.drawPolyline(QPolygonF({ { 18, 21.5 }, { 21.5, 21.5 }, { 21.5, 18 } }));
+        break;
+    case Glyph::Ungroup:
+        // Les memes elements, mais les equerres se sont ecartees : le lien
+        // est rompu, et cela se voit sans lire le libelle.
+        p.drawRect(QRectF(4.5, 6.5, 5, 5));
+        p.drawRect(QRectF(14.5, 12.5, 5, 5));
+        p.drawPolyline(QPolygonF({ { 7, 2.5 }, { 3.5, 2.5 }, { 3.5, 5.5 } }));
+        p.drawPolyline(QPolygonF({ { 17, 21.5 }, { 20.5, 21.5 }, { 20.5, 18.5 } }));
+        break;
+    case Glyph::MeasureLength:
+        // Une ligne de cote : deux traits d'attache, une fleche a chaque bout.
+        p.drawLine(QPointF(4, 4), QPointF(4, 20));
+        p.drawLine(QPointF(20, 4), QPointF(20, 20));
+        p.drawLine(QPointF(4, 12), QPointF(20, 12));
+        p.drawPolyline(QPolygonF({ { 7.5, 9 }, { 4, 12 }, { 7.5, 15 } }));
+        p.drawPolyline(QPolygonF({ { 16.5, 9 }, { 20, 12 }, { 16.5, 15 } }));
+        break;
+    case Glyph::MeasureArea: {
+        // Un contour quelconque et ses hachures paralleles : c'est la surface
+        // qu'on mesure, pas son pourtour. Le contour est volontairement
+        // irregulier — une surface se prend sur n'importe quelle forme, et un
+        // rectangle se confondrait avec le glyphe du rectangle.
+        p.drawPolygon(QPolygonF({ { 4, 7 }, { 20, 5 }, { 19, 19 }, { 5, 17 } }));
+        QPen light = p.pen();
+        light.setWidthF(0.9);
+        p.setPen(light);
+        // Quatre diagonales a quarante-cinq degres, calees dans le contour.
+        p.drawLine(QPointF(6, 11), QPointF(10, 7));
+        p.drawLine(QPointF(6, 15), QPointF(14, 7));
+        p.drawLine(QPointF(8, 17), QPointF(18, 7));
+        p.drawLine(QPointF(12, 17), QPointF(18, 11));
+        p.setPen(pen);
+        break;
+    }
+    case Glyph::Join:
+        // Deux traits qui se rejoignent, et le point de soudure.
+        p.drawLine(QPointF(3, 12), QPointF(10.5, 12));
+        p.drawLine(QPointF(13.5, 12), QPointF(21, 12));
+        fill(stroke);
+        p.drawEllipse(QPointF(12, 12), 2.4, 2.4);
+        strokeOnly();
+        break;
+    case Glyph::Break:
+        // Le meme trait, mais l'intervalle reste ouvert et les deux bords
+        // sont marques : c'est exactement l'inverse de joindre.
+        p.drawLine(QPointF(3, 12), QPointF(9, 12));
+        p.drawLine(QPointF(15, 12), QPointF(21, 12));
+        p.drawLine(QPointF(9, 7), QPointF(9, 17));
+        p.drawLine(QPointF(15, 7), QPointF(15, 17));
         break;
     case Glyph::Extend:
         // Le meme trait, mais allonge jusqu'a la limite.

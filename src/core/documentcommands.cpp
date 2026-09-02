@@ -629,4 +629,83 @@ void AlignEntitiesCommand::undo() { apply(-1.0); }
 
 QString AlignEntitiesCommand::text() const { return alignModeLabel(m_mode); }
 
+// --------------------------------------------------------------------------
+// GROUPE
+
+GroupEntitiesCommand::GroupEntitiesCommand(Project &project, QString folioId,
+                                           const QStringList &entityIds, bool group)
+    : m_project(project), m_folioId(std::move(folioId)), m_grouping(group)
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+
+    // Un groupe se prend ou se lache en entier. Designer un seul de ses
+    // membres suffit donc a emmener les autres.
+    QSet<QString> groups;
+    QStringList targets;
+    for (const QString &id : entityIds) {
+        const Entity *entity = folio->entity(id);
+        if (!entity)
+            continue;
+        targets.append(id);
+        if (entity->isGrouped())
+            groups.insert(entity->group());
+    }
+    if (!groups.isEmpty()) {
+        for (const EntityPtr &entity : folio->entities()) {
+            if (entity->isGrouped() && groups.contains(entity->group())
+                && !targets.contains(entity->id())) {
+                targets.append(entity->id());
+            }
+        }
+    }
+    if (targets.size() < (group ? 2 : 1))
+        return;
+
+    m_group = group ? newId() : QString();
+    for (const QString &id : std::as_const(targets)) {
+        const Entity *entity = folio->entity(id);
+        if (entity)
+            m_before.append({ id, entity->group() });
+    }
+}
+
+QStringList GroupEntitiesCommand::affectedIds() const
+{
+    QStringList ids;
+    ids.reserve(m_before.size());
+    for (const auto &pair : m_before)
+        ids.append(pair.first);
+    return ids;
+}
+
+void GroupEntitiesCommand::redo()
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+    for (const auto &pair : m_before) {
+        if (Entity *entity = folio->entity(pair.first))
+            entity->setGroup(m_group);
+    }
+}
+
+void GroupEntitiesCommand::undo()
+{
+    Folio *folio = m_project.folio(m_folioId);
+    if (!folio)
+        return;
+    for (const auto &pair : m_before) {
+        if (Entity *entity = folio->entity(pair.first))
+            entity->setGroup(pair.second);
+    }
+}
+
+QString GroupEntitiesCommand::text() const
+{
+    return m_grouping ? QStringLiteral("Grouper %1 elements").arg(m_before.size())
+                      : QStringLiteral("Degrouper");
+}
+
 } // namespace dsn

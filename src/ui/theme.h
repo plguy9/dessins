@@ -87,7 +87,14 @@ public:
         ZoomIn, ZoomOut, ZoomFit, Grid, Snap, Tracking, Palette2,
         Renumber, Check, Info, Palette, Folios, Properties, Reports,
         Scale, Stretch, Array, Align, Trim, Extend,
-        Plus, Minus, Duplicate, Up, Down, Edit, Theme
+        Line, Rectangle, Circle, Arc, Polyline, Polygon,
+        Group, Ungroup, MeasureLength, MeasureArea, Join, Break,
+        Plus, Minus, Duplicate, Up, Down, Edit, Theme,
+
+        // Sentinelle : elle permet de parcourir tous les glyphes sans en
+        // tenir la liste a jour ailleurs. Un test s'en sert pour verifier
+        // qu'aucun glyphe n'est vide et qu'aucun n'en repete un autre.
+        Count
     };
 
     static QIcon icon(Glyph glyph, const QColor &color = QColor());

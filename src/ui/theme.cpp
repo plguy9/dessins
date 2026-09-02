@@ -856,6 +856,14 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawPolyline(QPolygonF({ { 9, 4 }, { 5, 4 }, { 5, 21 }, { 19, 21 }, { 19, 4 }, { 15, 4 } }));
         p.drawRect(QRectF(9, 2, 6, 4));
         break;
+    case Glyph::PasteKeepTags:
+        // Le meme presse-papiers, avec l'etiquette qui reste accrochee : c'est
+        // exactement ce que la commande promet de ne pas toucher.
+        p.drawPolyline(QPolygonF({ { 9, 4 }, { 5, 4 }, { 5, 21 }, { 14, 21 } }));
+        p.drawPolyline(QPolygonF({ { 15, 4 }, { 19, 4 }, { 19, 11 } }));
+        p.drawRect(QRectF(9, 2, 6, 4));
+        p.drawPolygon(QPolygonF({ { 13, 14 }, { 20, 14 }, { 22, 17.5 }, { 20, 21 }, { 13, 21 } }));
+        break;
     case Glyph::Delete:
         p.drawLine(QPointF(4, 6), QPointF(20, 6));
         p.drawPolyline(QPolygonF({ { 6, 6 }, { 7, 21 }, { 17, 21 }, { 18, 6 } }));

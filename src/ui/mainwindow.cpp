@@ -143,6 +143,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     m_document->newProject(library);
 
     m_view = new FolioView(m_document, this);
+    // Le canevas ne se sert de la base des modules que pour une chose :
+    // deplacer une carte collee vers un emplacement libre. Elle est detenue
+    // ici, chargee une fois, et prêtée.
+    m_view->setPlcDatabase(&m_plc);
     setCentralWidget(m_view);
 
     createDocks();
@@ -167,6 +171,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     connect(m_view, &FolioView::statusMessage, this,
             [this](const QString &message) { statusBar()->showMessage(message, 6000); });
     connect(m_view, &FolioView::zoomChanged, this, [this] { updateActions(); });
+    connect(m_view, &FolioView::clipboardChanged, this, &MainWindow::updateActions);
     connect(m_document, &Document::modifiedChanged, this, &MainWindow::updateTitle);
     connect(m_view, &FolioView::contextMenuRequested, this, &MainWindow::showCanvasContextMenu);
     connect(m_view, &FolioView::componentPlaced, this, [this](const QString &id) {
@@ -375,7 +380,17 @@ void MainWindow::createActions()
     m_copyAction = make(editMenu, G::Copy, tr("&Copier"), QKeySequence::Copy,
                         tr("Copier la sélection"), [this] { m_view->copySelection(); });
     m_pasteAction = make(editMenu, G::Paste, tr("C&oller"), QKeySequence::Paste,
-                         tr("Coller sous le curseur"), [this] { m_view->pasteClipboard(); });
+                         tr("Coller sous le curseur en re-repérant les copies"),
+                         [this] { m_view->pasteClipboard(); });
+    // Coller a l'identique existe pour le geste inverse, tout aussi reel :
+    // deplacer un circuit d'un folio a l'autre, ou l'appareil doit garder son
+    // identite. Il est second parce qu'il cree des doublons quand on s'en sert
+    // pour dupliquer.
+    m_pasteKeepAction = make(editMenu, G::PasteKeepTags, tr("Coller à l'&identique"),
+                             QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_V),
+                             tr("Coller en conservant les repères — pour déplacer "
+                                "un circuit, pas pour le dupliquer"),
+                             [this] { m_view->pasteClipboard(true); });
     m_deleteAction = make(editMenu, G::Delete, tr("&Supprimer"), QKeySequence::Delete,
                           tr("Supprimer la sélection"), [this] { m_view->deleteSelection(); });
     m_selectAllAction = make(editMenu, G::Select, tr("&Tout sélectionner"),
@@ -685,7 +700,7 @@ void MainWindow::createActions()
     }
     viewMenu->addSeparator();
 
-    auto addToggle = [&](QMenu *menu, bool onToolBar, G glyph, const QString &text, bool checked,
+    auto addToggle = [&](QMenu *menu, G glyph, const QString &text, bool checked,
                          const QString &tip, auto slot) {
         auto *action = new QAction(Icons::icon(glyph), text, this);
         action->setCheckable(true);
@@ -701,20 +716,20 @@ void MainWindow::createActions()
     };
 
     createDraftingToggles(viewMenu);
-    addToggle(viewMenu, false, G::SymbolPlace, tr("&Numéros de broches"), false, QString(),
+    addToggle(viewMenu, G::SymbolPlace, tr("&Numéros de broches"), false, QString(),
               [this](bool on) {
                   RenderStyle style = m_view->style();
                   style.showPinNumbers = on;
                   m_view->setStyle(style);
               });
-    addToggle(viewMenu, false, G::Check, tr("&Broches non raccordées"), true,
+    addToggle(viewMenu, G::Check, tr("&Broches non raccordées"), true,
               tr("Marquer d'une croix les broches en l'air"), [this](bool on) {
                   RenderStyle style = m_view->style();
                   style.showUnconnectedPins = on;
                   m_view->setStyle(style);
               });
     viewMenu->addSeparator();
-    m_darkAction = addToggle(viewMenu, false, G::Theme, tr("Thème &sombre"), true, QString(),
+    m_darkAction = addToggle(viewMenu, G::Theme, tr("Thème &sombre"), true, QString(),
                              [this](bool on) { applyTheme(on); });
     viewMenu->addSeparator();
     for (QDockWidget *dock : findChildren<QDockWidget *>())
@@ -1505,8 +1520,10 @@ void MainWindow::registerCommands()
            tr("Supprimer la sélection"), [this] { m_view->deleteSelection(); });
     simple(QStringLiteral("COPIER"), { QStringLiteral("CP"), QStringLiteral("CO") },
            tr("Copier la sélection"), [this] { m_view->copySelection(); });
-    simple(QStringLiteral("COLLER"), { QStringLiteral("CC") }, tr("Coller"),
-           [this] { m_view->pasteClipboard(); });
+    simple(QStringLiteral("COLLER"), { QStringLiteral("CC") },
+           tr("Coller en re-repérant les copies"), [this] { m_view->pasteClipboard(); });
+    simple(QStringLiteral("COLLERIDENT"), { QStringLiteral("CCI") },
+           tr("Coller en conservant les repères"), [this] { m_view->pasteClipboard(true); });
     simple(QStringLiteral("PIVOTER"), { QStringLiteral("RO"), QStringLiteral("RT") },
            tr("Pivoter d'un quart de tour"), [this] { m_view->rotateSelection(true); });
     simple(QStringLiteral("MIROIR"), { QStringLiteral("MI") }, tr("Retourner la sélection"),
@@ -1814,6 +1831,11 @@ void MainWindow::showCanvasContextMenu(const QPoint &globalPos)
         menu.addAction(m_highlightAction);
     } else {
         menu.addAction(m_pasteAction);
+        // Coller a l'identique n'apparait au clic droit que s'il y a de quoi
+        // coller : une entree grisee de plus au milieu d'un menu court coute
+        // plus qu'elle n'apprend.
+        if (m_view->hasClipboard())
+            menu.addAction(m_pasteKeepAction);
         menu.addAction(m_selectAllAction);
     }
 
@@ -1888,6 +1910,7 @@ void MainWindow::createRibbon()
         // ---- Accueil : de quoi tracer un schema de bout en bout ----------
         { "Accueil", "Presse-papiers", false, "Copier", "" },
         { "Accueil", "Presse-papiers", false, "Coller", "" },
+        { "Accueil", "Presse-papiers", false, "Coller à l'identique", "" },
         { "Accueil", "Presse-papiers", false, "Supprimer", "" },
         { "Accueil", "Presse-papiers", false, "Tout sélectionner", "" },
 
@@ -2124,6 +2147,9 @@ void MainWindow::updateActions()
     m_redoAction->setText(m_document->commands().canRedo()
                                   ? tr("&Rétablir : %1").arg(m_document->commands().redoText())
                                   : tr("&Rétablir"));
+
+    m_pasteAction->setEnabled(m_view->hasClipboard());
+    m_pasteKeepAction->setEnabled(m_view->hasClipboard());
 
     const int count = m_view->selection().size();
     m_selectionLabel->setText(count == 0 ? tr("aucune sélection")

@@ -226,6 +226,71 @@ TEST_CASE("Le copier-coller decale la copie et lui donne un identifiant", "[ui][
     CHECK(symbols.at(0)->id() != symbols.at(1)->id());
 }
 
+TEST_CASE("Un circuit colle depuis le canevas est re-repere en une annulation",
+          "[ui][view][circuitcopy]")
+{
+    // Le collage construit ses copies, les re-repere, puis les pose : tout
+    // tient dans une macro. Une annulation qui ne rendrait que la moitie du
+    // travail laisserait le dossier dans un etat que personne n'a demande.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    auto *coil = placeSymbol(document.project(), folio, QStringLiteral("iec:coil"),
+                             QPointF(100, 100));
+    coil->setDesignation(QStringLiteral("KM1"));
+    Wire *wire = drawWire(folio, { QPointF(60, 100), QPointF(95, 100) });
+    wire->number = QStringLiteral("101");
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.setSelection({ coil->id(), wire->id() });
+    view.copySelection();
+    view.pasteClipboard();
+
+    REQUIRE(folio->entityCount() == 4);
+    for (const SymbolInstance *symbol : folio->entitiesOfType<SymbolInstance>()) {
+        if (symbol->id() == coil->id())
+            continue;
+        CHECK(symbol->designation() != QStringLiteral("KM1"));
+        CHECK_FALSE(symbol->designation().isEmpty());
+    }
+    for (const Wire *pasted : folio->entitiesOfType<Wire>()) {
+        if (pasted->id() != wire->id())
+            CHECK(pasted->number.isEmpty());
+    }
+
+    document.undo();
+    CHECK(folio->entityCount() == 2);
+    CHECK(coil->designation() == QStringLiteral("KM1"));
+    CHECK(wire->number == QStringLiteral("101"));
+}
+
+TEST_CASE("Coller a l'identique conserve les reperes", "[ui][view][circuitcopy]")
+{
+    // La commande jumelle sert a deplacer un circuit d'un folio a l'autre :
+    // l'appareil doit y garder son identite. Elle cree deliberement un
+    // doublon tant que l'original n'est pas efface — c'est pour cela qu'elle
+    // est seconde, et pas le raccourci par defaut.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    auto *coil = placeSymbol(document.project(), folio, QStringLiteral("iec:coil"),
+                             QPointF(100, 100));
+    coil->setDesignation(QStringLiteral("KM1"));
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.setSelection({ coil->id() });
+    view.copySelection();
+    view.pasteClipboard(true);
+
+    const auto symbols = folio->entitiesOfType<SymbolInstance>();
+    REQUIRE(symbols.size() == 2);
+    CHECK(symbols.at(0)->designation() == QStringLiteral("KM1"));
+    CHECK(symbols.at(1)->designation() == QStringLiteral("KM1"));
+    CHECK(symbols.at(0)->id() != symbols.at(1)->id());
+}
+
 TEST_CASE("La palette liste, filtre et rend ses apercus", "[ui][palette]")
 {
     SymbolLibrary library = builtinLibrary();
@@ -2117,6 +2182,45 @@ TEST_CASE("La palette de commandes survit au ruban", "[ui][ruban][palette]")
             ++fromMenus;
     }
     CHECK(fromMenus > 60);
+}
+
+TEST_CASE("Les deux collages se grisent tant que le presse-papiers est vide",
+          "[ui][ruban][circuitcopy]")
+{
+    // Une commande de collage active sur un presse-papiers vide ne fait rien
+    // et ne dit rien : l'utilisateur croit avoir rate le raccourci. Le grisage
+    // n'est juste que si quelque chose le reveille — d'ou le signal du
+    // canevas, que ce test verifie du meme coup.
+    MainWindow window;
+    window.resize(1400, 900);
+
+    QAction *paste = nullptr;
+    QAction *pasteKeep = nullptr;
+    for (QAction *action : window.findChildren<QAction *>()) {
+        const QString label = action->text().remove(QLatin1Char('&'));
+        if (label == QStringLiteral("Coller"))
+            paste = action;
+        else if (label == QStringLiteral("Coller à l'identique"))
+            pasteKeep = action;
+    }
+    REQUIRE(paste);
+    REQUIRE(pasteKeep);
+    CHECK_FALSE(paste->isEnabled());
+    CHECK_FALSE(pasteKeep->isEnabled());
+
+    FolioView *view = window.findChild<FolioView *>();
+    Document *document = window.findChild<Document *>();
+    REQUIRE(view);
+    REQUIRE(document);
+    Folio *folio = document->currentFolio();
+    REQUIRE(folio);
+    auto *symbol = placeSymbol(document->project(), folio, QStringLiteral("iec:coil"),
+                               QPointF(100, 100));
+    view->setSelection({ symbol->id() });
+    view->copySelection();
+
+    CHECK(paste->isEnabled());
+    CHECK(pasteKeep->isEnabled());
 }
 
 TEST_CASE("Le ruban se replie et rend la place au dessin", "[ui][ruban]")

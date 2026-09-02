@@ -8,6 +8,7 @@
 #include "core/edittools.h"
 #include "core/wiretools.h"
 #include "render/foliopainter.h"
+#include "rules/circuitcopy.h"
 #include "rules/crossref.h"
 
 #include <QInputDialog>
@@ -1800,10 +1801,11 @@ void FolioView::copySelection()
         if (const Entity *entity = folio->entity(id))
             m_clipboard.push_back(entity->clone());
     }
+    Q_EMIT clipboardChanged();
     Q_EMIT statusMessage(tr("%n élément(s) copié(s)", "", int(m_clipboard.size())));
 }
 
-void FolioView::pasteClipboard()
+void FolioView::pasteClipboard(bool keepTags)
 {
     Folio *folio = m_document->currentFolio();
     if (!folio || m_clipboard.empty())
@@ -1818,12 +1820,29 @@ void FolioView::pasteClipboard()
     }
     const QPointF offset = snap(m_cursorMm) - snapToGrid(bounds.topLeft(), m_style.gridStep);
 
+    // Les copies sont construites, deplacees, puis re-reperees AVANT d'entrer
+    // dans le document : rien n'y entre en double, meme le temps d'une
+    // commande, et le collage reste une seule annulation. Le re-reperage a
+    // besoin de la position finale — la reference de ligne en depend.
+    std::vector<EntityPtr> copies;
+    copies.reserve(m_clipboard.size());
+    for (const EntityPtr &source : m_clipboard) {
+        EntityPtr copy = source->clone();
+        copy->setId(newId());
+        copy->translate(offset);
+        copies.push_back(std::move(copy));
+    }
+
+    CircuitCopyResult retagged;
+    if (!keepTags) {
+        static const PlcDatabase kNoModules;
+        retagged = CircuitCopy::retag(copies, m_document->project(), m_document->profile(),
+                                      m_plc ? *m_plc : kNoModules, folio);
+    }
+
     QSet<QString> pasted;
     m_document->pushMacro(tr("Coller"), [&] {
-        for (const EntityPtr &source : m_clipboard) {
-            EntityPtr copy = source->clone();
-            copy->setId(newId());
-            copy->translate(offset);
+        for (EntityPtr &copy : copies) {
             pasted.insert(copy->id());
             m_document->push(std::make_unique<AddEntityCommand>(m_document->project(),
                                                                 folio->id(), std::move(copy),
@@ -1831,6 +1850,19 @@ void FolioView::pasteClipboard()
         }
     });
     setSelection(pasted);
+
+    // Dire ce qui a change : un collage muet laisse croire que les reperes ont
+    // ete conserves, et l'erreur ne se voit qu'a la nomenclature.
+    const int count = int(pasted.size());
+    if (keepTags) {
+        Q_EMIT statusMessage(tr("%n élément(s) collé(s) à l'identique — repères conservés.",
+                                "", count));
+    } else if (retagged.total() > 0) {
+        Q_EMIT statusMessage(tr("%n élément(s) collé(s) — %1.", "", count)
+                                     .arg(retagged.summary()));
+    } else {
+        Q_EMIT statusMessage(tr("%n élément(s) collé(s)", "", count));
+    }
 }
 
 void FolioView::highlightNetOfSelection()

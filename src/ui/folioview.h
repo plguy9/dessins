@@ -13,6 +13,7 @@
 #include "core/wiretype.h"
 #include "document.h"
 #include "render/renderstyle.h"
+#include "rules/plc.h"
 
 #include <QHash>
 #include <QSet>
@@ -167,7 +168,20 @@ public:
     void mirrorSelection();
     void nudgeSelection(const QPointF &deltaMm);
     void copySelection();
-    void pasteClipboard();
+    // Coller. Le re-reperage est le comportement par defaut : un depart moteur
+    // colle en gardant KM1 fait un dessin juste et une nomenclature fausse,
+    // et l'erreur ne se voit qu'au cablage.
+    //
+    // `keepTags` sert au cas inverse, tout aussi reel : deplacer un circuit
+    // d'un folio a l'autre, ou le meme appareil doit garder son identite.
+    void pasteClipboard(bool keepTags = false);
+    void pasteClipboardKeepingTags() { pasteClipboard(true); }
+    bool hasClipboard() const { return !m_clipboard.empty(); }
+
+    // La base des modules d'automates, pour que le collage sache deplacer une
+    // carte copiee vers un emplacement libre. Le canevas ne s'en sert a rien
+    // d'autre : c'est la fenetre principale qui la detient.
+    void setPlcDatabase(const PlcDatabase *plc) { m_plc = plc; }
 
     // Met en evidence le potentiel de la selection : le geste qui permet de
     // suivre un fil a travers un folio dense.
@@ -186,6 +200,9 @@ Q_SIGNALS:
     // pour qu'il reprenne ses propres actions avec leurs raccourcis.
     void contextMenuRequested(const QPoint &globalPos);
     void selectionChanged();
+    // Le presse-papiers vient de changer : les deux commandes de collage se
+    // grisent quand il est vide, et rien d'autre ne les reveille.
+    void clipboardChanged();
     void zoomChanged(double pixelsPerMm);
     void snapSettingsChanged();
     void cursorMoved(const QPointF &positionMm, const QString &zone);
@@ -428,6 +445,7 @@ private:
     std::optional<SnapHit> m_hoverCandidate;
     // QVector exige un type copiable, ce que EntityPtr n'est pas.
     std::vector<EntityPtr> m_clipboard;
+    const PlcDatabase *m_plc = nullptr;
 };
 
 } // namespace dsn

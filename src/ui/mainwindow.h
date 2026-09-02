@@ -167,6 +167,7 @@ private:
     // leur icone et leur raccourci, au lieu d'etre redecrites.
     QAction *m_copyAction = nullptr;
     QAction *m_pasteAction = nullptr;
+    QAction *m_pasteKeepAction = nullptr;
     QAction *m_deleteAction = nullptr;
     QAction *m_selectAllAction = nullptr;
     QAction *m_rotateAction = nullptr;

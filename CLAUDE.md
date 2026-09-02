@@ -138,6 +138,30 @@ sont délibérés et documentés dans le code :
   3. **Un seul compteur de points.** `%B` (octet) et `%b` (bit) sont des
      vues dérivées de `%P`, pas une seconde numérotation : c'est ce qui fait
      que Siemens groupe par 8 et Omron par 16 sans code séparé.
+- **`rules/circuitcopy.*`** — copier un circuit, comme le *Copy Circuit*
+  d'AutoCAD Electrical. Coller un départ moteur en gardant `KM1` fait un
+  dessin juste et une nomenclature fausse, et l'erreur ne se voit qu'au
+  câblage. Quatre décisions :
+  1. **Le re-repérage se fait sur les copies, avant leur entrée dans le
+     document.** Rien n'y entre en double, même le temps d'une commande : le
+     collage reste une seule annulation et l'audit ne voit jamais l'état
+     intermédiaire.
+  2. **Le repère vient de `Numbering::designateNew`**, pas d'un incrément
+     maison : même format, même ordre de lecture, même départage que la
+     régénération globale. Elles ne diffèrent que par ce qu'elles s'interdisent
+     de bousculer — la globale évite les repères verrouillés, celle du lot les
+     évite tous.
+  3. **Ce qui nomme un potentiel n'est pas re-repéré.** Huit départs se
+     branchent tous sur L1/L2/L3 : renommer l'étiquette de la copie
+     débrancherait le circuit qu'on vient de copier. Les flèches de signal font
+     exception — deux sources du même code sont une faute — et une paire
+     source/destination copiée ensemble reçoit **un seul** nouveau code.
+  4. **Une borne garde son bornier et change de numéro.** Copier cinq bornes de
+     X1, c'est cinq bornes de plus dans X1, jamais cinq borniers.
+  Le repère de fil est **libéré**, pas recalculé : il dépend du potentiel, donc
+  du dessin une fois les copies posées. `Coller à l'identique` (Ctrl+Maj+V)
+  existe pour le geste inverse — déplacer un circuit d'un folio à l'autre, où
+  l'appareil doit garder son identité.
 - **`rules/audit.*`** — l'audit électrique. Deux règles : **tout constat
   porte un lieu** (folio, entité, zone du cadre) — un message qui dit
   « repère en double » sans dire lequel ni où coûte plus de temps qu'il n'en
@@ -365,21 +389,17 @@ La distribution se fait par la page GitHub Releases.
 Relevé lors de la revue du ruban, dans l'ordre où il s'en apercevra. Ce ne
 sont pas des détails d'interface : ce sont des commandes qui manquent.
 
-1. **Copier un circuit avec re-repérage.** `pasteClipboard` clone les entités
-   *avec leurs repères* : dupliquer un départ moteur crée des doublons que
-   l'audit signale à juste titre. Chez AutoCAD Electrical, on copie un circuit
-   et il est re-repéré. C'est le geste n° 1 d'un folio de puissance.
-2. **Fil multiple (bus L1/L2/L3) d'un geste.** Le modèle porte déjà n
+1. **Fil multiple (bus L1/L2/L3) d'un geste.** Le modèle porte déjà n
    conducteurs (`Wire::conductors`) ; seule la commande manque.
-3. **Fixer / libérer un repère sur une sélection** (`numberLocked`,
+2. **Fixer / libérer un repère sur une sélection** (`numberLocked`,
    `designationLocked`) — ce qu'on fait juste avant de relancer Ctrl+R.
-4. **Appliquer un type de fil à une sélection déjà tracée** : le sélecteur du
+3. **Appliquer un type de fil à une sélection déjà tracée** : le sélecteur du
    ruban n'arme que le tracé à venir.
-5. **Rechercher / remplacer du texte dans tout le dossier.**
-6. **Remplacer un symbole posé** sans perdre son repère ni ses raccordements.
-7. **Effacer un composant en refermant le fil** — l'insertion coupe et
+4. **Rechercher / remplacer du texte dans tout le dossier.**
+5. **Remplacer un symbole posé** sans perdre son repère ni ses raccordements.
+6. **Effacer un composant en refermant le fil** — l'insertion coupe et
    rebranche, la suppression devrait recoudre.
-8. **Cotations.** Elles n'existent pas : ce n'est pas une case de ruban mais
+7. **Cotations.** Elles n'existent pas : ce n'est pas une case de ruban mais
    un type d'entité, un tracé, un export DXF et des accrochages.
 
 ## Prochaines étapes envisagées (dans l'ordre de valeur)

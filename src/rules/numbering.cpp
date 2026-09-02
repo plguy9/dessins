@@ -126,6 +126,18 @@ QSet<QString> Numbering::usedDesignations(const Project &project)
     return used;
 }
 
+QSet<QString> Numbering::allDesignations(const Project &project)
+{
+    QSet<QString> used;
+    for (const Folio *folio : project.folios()) {
+        for (const SymbolInstance *symbol : folio->entitiesOfType<SymbolInstance>()) {
+            if (!symbol->designation().isEmpty())
+                used.insert(symbol->designation());
+        }
+    }
+    return used;
+}
+
 NumberingResult Numbering::numberWires(Project &project, const Netlist &netlist,
                                        const Profile &profile)
 {
@@ -237,10 +249,26 @@ NumberingResult Numbering::numberWires(Project &project, const Netlist &netlist,
     return result;
 }
 
-NumberingResult Numbering::designateDevices(Project &project, const Profile &profile)
+namespace {
+
+// Un appareil a designer, accompagne de l'endroit ou il se trouve. Le folio
+// ne se deduit pas de l'appareil : la designation d'un lot colle travaille
+// sur des copies qui ne sont pas encore posees dans leur folio.
+struct DesignationTarget {
+    SymbolInstance *symbol = nullptr;
+    const Folio *folio = nullptr;
+    int folioIndex = 0;
+};
+
+// Le coeur de la designation, partage par la regeneration globale et par la
+// designation d'un lot. `taken` arrive rempli par l'appelant : c'est la seule
+// chose qui distingue les deux usages — la regeneration globale n'evite que
+// les reperes verrouilles, la designation de lot les evite tous.
+NumberingResult designateTargets(const QVector<DesignationTarget> &targets,
+                                 const Project &project, const DesignationRule &rule,
+                                 QSet<QString> taken)
 {
     NumberingResult result;
-    const DesignationRule &rule = profile.designation;
 
     // Un appareil multi-blocs (bobine + contacts auxiliaires) partage une seule
     // designation : on raisonne par groupe, pas par instance.
@@ -258,47 +286,46 @@ NumberingResult Numbering::designateDevices(Project &project, const Profile &pro
     QHash<QString, Group> groups;
     QVector<QString> order;
 
-    const auto folios = project.folios();
-    for (int folioIndex = 0; folioIndex < int(folios.size()); ++folioIndex) {
-        Folio *folio = folios[std::size_t(folioIndex)];
-        for (SymbolInstance *symbol : folio->entitiesOfType<SymbolInstance>()) {
-            const SymbolDefinition *definition = project.library.definition(symbol->definitionId);
-            if (!definition)
-                continue;
+    for (const DesignationTarget &target : targets) {
+        SymbolInstance *symbol = target.symbol;
+        if (!symbol)
+            continue;
+        const SymbolDefinition *definition = project.library.definition(symbol->definitionId);
+        if (!definition)
+            continue;
 
-            QString prefix = rule.prefixByDeviceKind.value(definition->deviceKind);
-            if (prefix.isEmpty())
-                prefix = definition->designationPrefix;
-            if (prefix.isEmpty())
-                prefix = QStringLiteral("A");
+        QString prefix = rule.prefixByDeviceKind.value(definition->deviceKind);
+        if (prefix.isEmpty())
+            prefix = definition->designationPrefix;
+        if (prefix.isEmpty())
+            prefix = QStringLiteral("A");
 
-            const QString key = symbol->deviceGroup.isEmpty()
-                    ? QStringLiteral("#") + symbol->id()
-                    : QStringLiteral("g:") + symbol->deviceGroup;
+        const QString key = symbol->deviceGroup.isEmpty()
+                ? QStringLiteral("#") + symbol->id()
+                : QStringLiteral("g:") + symbol->deviceGroup;
 
-            auto it = groups.find(key);
-            if (it == groups.end()) {
-                Group group;
-                group.key = key;
-                group.folioIndex = folioIndex;
-                group.folio = folio;
-                group.anchor = symbol->placement.position;
-                group.prefix = prefix;
-                it = groups.insert(key, group);
-                order.append(key);
-            } else if (folioIndex < it->folioIndex
-                       || (folioIndex == it->folioIndex
-                           && readingOrder(symbol->placement.position, it->anchor))) {
-                it->folioIndex = folioIndex;
-                it->folio = folio;
-                it->anchor = symbol->placement.position;
-            }
+        auto it = groups.find(key);
+        if (it == groups.end()) {
+            Group group;
+            group.key = key;
+            group.folioIndex = target.folioIndex;
+            group.folio = target.folio;
+            group.anchor = symbol->placement.position;
+            group.prefix = prefix;
+            it = groups.insert(key, group);
+            order.append(key);
+        } else if (target.folioIndex < it->folioIndex
+                   || (target.folioIndex == it->folioIndex
+                       && readingOrder(symbol->placement.position, it->anchor))) {
+            it->folioIndex = target.folioIndex;
+            it->folio = target.folio;
+            it->anchor = symbol->placement.position;
+        }
 
-            it->members.append(symbol);
-            if (symbol->designationLocked && !symbol->designation().isEmpty()) {
-                it->locked = true;
-                it->lockedDesignation = symbol->designation();
-            }
+        it->members.append(symbol);
+        if (symbol->designationLocked && !symbol->designation().isEmpty()) {
+            it->locked = true;
+            it->lockedDesignation = symbol->designation();
         }
     }
 
@@ -310,7 +337,6 @@ NumberingResult Numbering::designateDevices(Project &project, const Profile &pro
         return readingOrder(ga.anchor, gb.anchor);
     });
 
-    QSet<QString> taken = usedDesignations(project);
     QHash<QString, int> counters; // cle : prefixe, ou folio + prefixe
 
     for (const QString &key : std::as_const(order)) {
@@ -376,6 +402,37 @@ NumberingResult Numbering::designateDevices(Project &project, const Profile &pro
     }
 
     return result;
+}
+
+} // namespace
+
+NumberingResult Numbering::designateDevices(Project &project, const Profile &profile)
+{
+    QVector<DesignationTarget> targets;
+    const auto folios = project.folios();
+    for (int folioIndex = 0; folioIndex < int(folios.size()); ++folioIndex) {
+        Folio *folio = folios[std::size_t(folioIndex)];
+        for (SymbolInstance *symbol : folio->entitiesOfType<SymbolInstance>())
+            targets.append({ symbol, folio, folioIndex });
+    }
+    return designateTargets(targets, project, profile.designation, usedDesignations(project));
+}
+
+NumberingResult Numbering::designateNew(const Project &project, const Profile &profile,
+                                        const QVector<SymbolInstance *> &symbols,
+                                        const Folio *destination)
+{
+    // Le rang du folio sert a la designation par folio et a l'ordre de
+    // lecture ; hors projet, le lot se comporte comme s'il etait sur le
+    // premier folio plutot que de n'etre nulle part.
+    const int index = destination ? project.indexOf(destination->id()) : -1;
+
+    QVector<DesignationTarget> targets;
+    targets.reserve(symbols.size());
+    for (SymbolInstance *symbol : symbols)
+        targets.append({ symbol, destination, std::max(0, index) });
+
+    return designateTargets(targets, project, profile.designation, allDesignations(project));
 }
 
 NumberingResult Numbering::renumberAll(Project &project, const Profile &profile)

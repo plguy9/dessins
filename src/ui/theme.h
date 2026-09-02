@@ -81,7 +81,7 @@ class Icons
 public:
     enum class Glyph {
         New, Open, Save, Print, ExportPdf, ExportDxf, ExportCsv,
-        Undo, Redo, Copy, Paste, Delete,
+        Undo, Redo, Copy, Paste, PasteKeepTags, Delete,
         Select, Wire, Junction, LabelTag, Text, SymbolPlace,
         Rotate, Mirror, Highlight,
         ZoomIn, ZoomOut, ZoomFit, Grid, Snap, Tracking, Palette2,

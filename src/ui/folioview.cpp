@@ -3422,6 +3422,10 @@ FolioView::EmptyHintLayout FolioView::layoutEmptyHint(const Folio &folio) const
     const QFontMetricsF keyMetrics(keys);
     const QFontMetricsF textMetrics(font());
 
+    // Tout ce qui suit est mesure en UNITES DE DESSIN, jamais en pixels : le
+    // bloc est compose une fois pour toutes a cette taille, puis mis a
+    // l'echelle de la feuille. Composer directement en pixels liait sa taille
+    // a la fenetre, et le conseil changeait de proportion a chaque zoom.
     for (const HintStep &step : steps) {
         layout.keyWidth = std::max(layout.keyWidth,
                                    keyMetrics.horizontalAdvance(step.key) + 2 * kHintCapPadding);
@@ -3430,31 +3434,39 @@ FolioView::EmptyHintLayout FolioView::layoutEmptyHint(const Folio &folio) const
     }
     layout.lineHeight = textMetrics.height() + 9.0;
 
-    const double blockWidth = layout.keyWidth + kHintColumnGap + layout.textWidth;
-    const double blockHeight = kHintTitleHeight + kHintLeadHeight + kHintLeadGap
+    const double designWidth = layout.keyWidth + kHintColumnGap + layout.textWidth;
+    const double designHeight = kHintTitleHeight + kHintLeadHeight + kHintLeadGap
             + steps.size() * layout.lineHeight;
+    layout.design = QRectF(0.0, 0.0, designWidth, designHeight);
 
-    // Le conseil est cale au centre de LA FEUILLE, pas de la fenetre. Ancre a
-    // la fenetre, il se decalait des qu'un panneau s'ouvrait ou se fermait, et
-    // il ne tombait au milieu de la feuille dans aucune configuration.
-    //
-    // On centre sur la partie VISIBLE de la feuille plutot que sur la feuille
-    // entiere : zoome de pres, son centre sort de l'ecran, et un conseil
-    // invisible n'apprend rien. Les deux coincident des que la feuille tient
-    // dans la vue, c'est-a-dire dans le cas normal.
-    const QRectF sheet(toWidget(folio.sheetRect().topLeft()),
-                       toWidget(folio.sheetRect().bottomRight()));
-    QRectF anchor = sheet.normalized().intersected(QRectF(rect()));
-    if (anchor.isEmpty())
-        anchor = QRectF(rect());
+    const QRectF sheet = QRectF(toWidget(folio.sheetRect().topLeft()),
+                                toWidget(folio.sheetRect().bottomRight()))
+                                 .normalized();
 
-    const QPointF centre = anchor.center();
-    layout.block = QRectF(centre.x() - blockWidth / 2.0, centre.y() - blockHeight / 2.0,
-                          blockWidth, blockHeight);
-    // Le titre et l'accroche sont centres sur la meme verticale que le bloc,
-    // sur une bande assez large pour les accueillir sans les couper.
-    layout.band = QRectF(centre.x() - anchor.width() / 2.0, layout.block.top(),
-                         anchor.width(), blockHeight);
+    // Le conseil appartient a la FEUILLE : il en occupe une fraction fixe et
+    // se centre dessus. Compose a taille de pixel constante, il paraissait
+    // enorme sur une feuille dezoomee et minuscule sur une feuille zoomee —
+    // c'est ce que l'utilisateur a releve. Lie a la feuille, il garde la meme
+    // proportion a tous les zooms.
+    layout.scale = 1.0;
+    if (sheet.height() > 1.0 && designHeight > 0.0)
+        layout.scale = sheet.height() * kHintSheetFraction / designHeight;
+
+    // Un garde-fou, et un seul : zoome tres pres, un dixieme de la feuille
+    // deborde largement la fenetre, et un conseil plus grand que la vue
+    // n'apprend rien. Il ne joue jamais aux zooms de travail.
+    if (designWidth > 0.0 && designHeight > 0.0) {
+        layout.scale = std::min(layout.scale,
+                                std::min(width() * 0.9 / designWidth,
+                                         height() * 0.9 / designHeight));
+    }
+    layout.scale = std::max(layout.scale, 0.01);
+
+    const QSizeF painted(designWidth * layout.scale, designHeight * layout.scale);
+    const QPointF centre = sheet.isEmpty() ? QRectF(rect()).center() : sheet.center();
+    layout.block = QRectF(centre.x() - painted.width() / 2.0,
+                          centre.y() - painted.height() / 2.0, painted.width(),
+                          painted.height());
     return layout;
 }
 
@@ -3501,29 +3513,35 @@ void FolioView::paintEmptyHint(QPainter &painter, const Folio &folio) const
 
     const QVector<HintStep> steps = emptyHintSteps();
     const EmptyHintLayout layout = layoutEmptyHint(folio);
-    const double top = layout.block.top();
-    const double left = layout.block.left();
-    const QRectF band = layout.band;
+
+    // Le bloc se dessine dans ses unites de composition, et c'est le peintre
+    // qui le met a l'echelle de la feuille. Recalculer chaque coordonnee a la
+    // main donnerait le meme resultat au prix d'un facteur repete vingt fois,
+    // dont un oublie tot ou tard.
+    painter.save();
+    painter.translate(layout.block.topLeft());
+    painter.scale(layout.scale, layout.scale);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    const double width = layout.design.width();
 
     painter.setFont(title);
     painter.setPen(strong);
-    painter.drawText(QRectF(band.left(), top, band.width(), kHintTitleHeight),
+    painter.drawText(QRectF(0.0, 0.0, width, kHintTitleHeight),
                      Qt::AlignHCenter | Qt::AlignTop,
                      tr("Ce folio est vide — par où commencer"));
     painter.setFont(font());
     painter.setPen(faint);
-    painter.drawText(QRectF(band.left(), top + kHintTitleHeight + 2.0, band.width(),
-                            kHintLeadHeight),
+    painter.drawText(QRectF(0.0, kHintTitleHeight + 2.0, width, kHintLeadHeight),
                      Qt::AlignHCenter | Qt::AlignTop,
                      tr("Posez un appareil en cliquant dans la palette, à gauche."));
 
-    double y = top + kHintTitleHeight + kHintLeadHeight + kHintLeadGap;
-    painter.setRenderHint(QPainter::Antialiasing, true);
+    double y = kHintTitleHeight + kHintLeadHeight + kHintLeadGap;
     for (const HintStep &step : steps) {
         painter.setFont(keys);
         const double capWidth = keyMetrics.horizontalAdvance(step.key) + 2 * kHintCapPadding;
-        const QRectF cap(left + layout.keyWidth - capWidth,
-                         y + (layout.lineHeight - 21.0) / 2.0, capWidth, 21.0);
+        const QRectF cap(layout.keyWidth - capWidth, y + (layout.lineHeight - 21.0) / 2.0,
+                         capWidth, 21.0);
         painter.setPen(QPen(capBorder, 1.0));
         painter.setBrush(capFill);
         painter.drawRoundedRect(cap, 4.0, 4.0);
@@ -3532,11 +3550,12 @@ void FolioView::paintEmptyHint(QPainter &painter, const Folio &folio) const
         painter.drawText(cap, Qt::AlignCenter, step.key);
         painter.setFont(font());
         painter.setPen(faint);
-        painter.drawText(QRectF(left + layout.keyWidth + kHintColumnGap, y, layout.textWidth,
+        painter.drawText(QRectF(layout.keyWidth + kHintColumnGap, y, layout.textWidth,
                                 layout.lineHeight),
                          Qt::AlignLeft | Qt::AlignVCenter, step.what);
         y += layout.lineHeight;
     }
+    painter.restore();
 }
 
 } // namespace dsn

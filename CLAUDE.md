@@ -297,12 +297,22 @@ Et ce qui distingue toujours notre interface de celle d'AutoCAD :
   Le garde-fou de la grille compte des **marques**, pas des points : les
   carreaux coûtent la somme des deux directions, les points leur produit, et
   un seuil unique ferait disparaître des carreaux qu'on trace sans effort.
-- **Le conseil du folio vide est calé au centre de la feuille**, pas de la
-  fenêtre (décision utilisateur, 2026-09-02). Ancré à la fenêtre il se
-  décalait dès qu'un panneau s'ouvrait. Il se centre sur la partie *visible*
-  de la feuille : zoomé de près, le centre de la feuille sort de l'écran, et
-  un conseil invisible n'apprend rien. `FolioView::emptyHintRect()` expose sa
-  géométrie pour qu'un test lise la promesse au lieu de compter des pixels.
+- **Le conseil du folio vide appartient à la feuille** (décision utilisateur,
+  2026-09-02). Il était composé en pixels et ancré à la fenêtre : il se
+  décalait dès qu'un panneau s'ouvrait, et surtout il paraissait énorme sur
+  une feuille dézoomée et minuscule sur une feuille zoomée — *« je ne veux
+  pas qu'il grossisse en zoomant dézoomant »*. Il est maintenant composé en
+  **unités de dessin**, puis mis à l'échelle par le peintre : il se centre sur
+  la feuille et en occupe une part fixe, `kHintSheetFraction` (un dixième de
+  la hauteur, le chiffre demandé). C'est la seule constante à toucher pour le
+  rendre plus ou moins discret ; tout le reste suit.
+  Un seul garde-fou, qui ne joue jamais aux zooms de travail : zoomé très
+  près, un dixième de la feuille déborde la fenêtre, et un conseil plus grand
+  que la vue n'apprend rien. `FolioView::emptyHintRect()` expose sa géométrie
+  pour qu'un test lise les deux promesses — centré, et à proportion constante
+  sur trois zooms — au lieu de compter des pixels.
+  **Réserve** : à un dixième de la hauteur, le texte descend à environ cinq
+  pixels et n'est plus lisible ; c'est lisible vers un cinquième.
 - **`ui/commandpalette.*`** (Ctrl+Maj+P, F1) — tout ce que le logiciel sait
   faire, cherché en français, avec le raccourci et le menu où la commande
   se trouve. Elle est **remplie à chaque ouverture** depuis les menus et la

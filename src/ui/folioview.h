@@ -191,10 +191,16 @@ public:
     bool hasPendingGesture() const { return m_pending != Pending::None; }
 
     // Le conseil du folio vide. Sa geometrie est publique parce qu'elle porte
-    // une promesse verifiable — etre cale au centre de la feuille — et qu'un
-    // test doit pouvoir la lire sans compter des pixels.
+    // une promesse verifiable — etre cale au centre de la feuille et en
+    // occuper une part fixe — et qu'un test doit pouvoir la lire sans compter
+    // des pixels.
     bool showsEmptyHint() const;
     QRectF emptyHintRect() const;
+
+    // Part de la HAUTEUR de la feuille occupee par le conseil. C'est le seul
+    // chiffre a toucher pour le rendre plus ou moins discret : tout le reste
+    // du bloc est compose en unites de dessin et suit ce facteur.
+    static constexpr double kHintSheetFraction = 0.10;
     void mirrorSelection();
     void nudgeSelection(const QPointF &deltaMm);
     void copySelection();
@@ -376,9 +382,15 @@ private:
 
     // La mise en page du conseil, partagee par le trace et par emptyHintRect :
     // deux calculs finiraient par decrire deux blocs differents.
+    //
+    // Le bloc est compose en UNITES DE DESSIN, puis mis a l'echelle de la
+    // feuille. Le composer en pixels liait sa taille a la fenetre : il
+    // paraissait enorme sur une feuille dezoomee et minuscule sur une feuille
+    // zoomee, alors qu'il doit garder la meme proportion partout.
     struct EmptyHintLayout {
-        QRectF block;      // les deux colonnes, titre et accroche compris
-        QRectF band;       // la bande sur laquelle titre et accroche se centrent
+        QRectF design;     // le bloc en unites de composition, origine (0,0)
+        QRectF block;      // le meme, mis a l'echelle et pose dans la vue
+        double scale = 1.0;
         double keyWidth = 0.0;
         double textWidth = 0.0;
         double lineHeight = 0.0;
@@ -390,6 +402,7 @@ private:
     static constexpr double kHintLeadGap = 20.0;
     static constexpr double kHintColumnGap = 18.0;
     static constexpr double kHintCapPadding = 9.0;
+
 
     // Gestes en deux ou trois clics, a la maniere de la ligne de commande
     // d'AutoCAD : la vue attend un point, puis un autre.

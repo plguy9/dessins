@@ -2440,6 +2440,42 @@ TEST_CASE("Le conseil du folio vide est calé au centre de la feuille", "[ui][ac
     CHECK(view.emptyHintRect().isNull());
 }
 
+TEST_CASE("Le conseil garde la même proportion à tous les zooms", "[ui][accueil]")
+{
+    // Demande utilisateur : « je ne veux pas que le message grossisse en
+    // zoomant dézoomant, je veux qu'il reste au milieu de la feuille, pas très
+    // gros, 1/10 de la feuille ». Composé à taille de pixel constante, il
+    // paraissait énorme sur une feuille dézoomée et minuscule sur une feuille
+    // zoomée. Lié à la feuille, son rapport à elle ne bouge plus.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(1000, 700);
+    view.show();
+
+    auto ratio = [&] {
+        const QRectF sheet = QRectF(view.mapFromScene(folio->sheetRect().topLeft()),
+                                    view.mapFromScene(folio->sheetRect().bottomRight()))
+                                     .normalized();
+        REQUIRE(sheet.height() > 1.0);
+        return view.emptyHintRect().height() / sheet.height();
+    };
+
+    view.zoomToFit();
+    const double fitted = ratio();
+    CHECK_THAT(fitted, WithinAbs(FolioView::kHintSheetFraction, 0.01));
+
+    // Deux fois plus près : la feuille double dans la vue, le conseil aussi.
+    view.setZoom(view.zoom() * 2.0);
+    CHECK_THAT(ratio(), WithinAbs(fitted, 0.01));
+
+    // Et deux fois plus loin.
+    view.setZoom(view.zoom() / 4.0);
+    CHECK_THAT(ratio(), WithinAbs(fitted, 0.01));
+}
+
 TEST_CASE("Le conseil suit la feuille quand elle se deplace", "[ui][accueil]")
 {
     // C'est la promesse exacte : « collé au centre de la feuille ». Zoomer

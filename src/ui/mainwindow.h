@@ -11,6 +11,8 @@
 #include <QHash>
 #include <QMainWindow>
 
+class QMenuBar;
+
 class QComboBox;
 class QLabel;
 class QToolButton;
@@ -46,6 +48,14 @@ private Q_SLOTS:
 private:
     void createDocks();
     void createActions();
+    // Le ruban se monte apres les menus : il presente leurs QAction, il n'en
+    // cree aucune. Les menus restent la source de verite — la palette de
+    // commandes les parcourt.
+    void createRibbon();
+    // Toutes les actions des menus, indexees par leur libelle nettoye. C'est
+    // le meme parcours que celui de la palette de commandes : une action
+    // absente des menus est absente des deux.
+    QHash<QString, QAction *> indexMenuActions() const;
     void createStatusBar();
     void updateTitle();
     void updateActions();
@@ -74,6 +84,11 @@ private:
     void editTerminalStrips();
     // Modification : le groupe « Modifier » du ruban d'AutoCAD.
     void arraySelection();
+    void groupSelection(bool group);
+    // Demande le nombre de cotes du polygone. Faux si l'utilisateur renonce.
+    bool askPolygonSides();
+    void measureDistance();
+    void measureArea();
     void alignSelection(AlignMode mode);
     void matchProperties();
     // Automates : la meme boite pose une carte et reprend une carte posee.
@@ -161,14 +176,13 @@ private:
     QAction *m_offsetAction = nullptr;
     QAction *m_stretchAction = nullptr;
     QAction *m_editComponentAction = nullptr;
-    QToolBar *m_modifyToolBar = nullptr;
-    QToolBar *m_toolsToolBar = nullptr;
-    QToolBar *m_viewToolBar = nullptr;
     QAction *m_scaleAction = nullptr;
     QAction *m_arrayAction = nullptr;
     QAction *m_joinAction = nullptr;
     QAction *m_cutAction = nullptr;
     QAction *m_matchAction = nullptr;
+    QAction *m_groupAction = nullptr;
+    QAction *m_ungroupAction = nullptr;
     QList<QAction *> m_alignActions;
     QAction *m_scootAction = nullptr;
     QAction *m_moveComponentAction = nullptr;
@@ -183,6 +197,12 @@ private:
     QList<QAction *> m_toolActions;
     QHash<QAction *, int> m_actionGlyphs; // action -> Icons::Glyph, pour le rehabillage
     class QToolBar *m_toolBar = nullptr;
+    class Ribbon *m_ribbon = nullptr;
+    // La barre de menus, retenue explicitement. setMenuWidget() detache celle
+    // de QMainWindow : menuBar() en fabriquerait ensuite une neuve et vide, et
+    // la palette de commandes — qui se remplit en parcourant les menus — se
+    // retrouverait sans une seule commande.
+    QMenuBar *m_menuBar = nullptr;
     class QMenu *m_recentMenu = nullptr;
     bool m_dark = true;
 };

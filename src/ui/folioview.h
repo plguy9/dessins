@@ -151,6 +151,15 @@ public:
     // laisse rien : elle se lit dans la barre d'etat et dans l'historique de
     // la ligne de commande, puis disparait. Coter un plan est un autre geste,
     // qui pose une entite.
+    int polygonSides() const { return m_polygonSides; }
+    void setPolygonSides(int sides) { m_polygonSides = qBound(3, sides, 64); }
+
+    // PANORAMIQUE (PAN). Le bouton du milieu et la barre d'espace le font
+    // deja, mais l'un et l'autre sont des gestes qu'on ne devine pas. Armer
+    // le mode donne au panoramique une commande, comme chez AutoCAD — et
+    // « P » y est deja pris par Prolonger, d'ou l'alias PAN.
+    void beginPan();
+
     void beginMeasureDistance();
     void beginMeasureArea();
 
@@ -381,6 +390,7 @@ private:
     int m_hotGrip = -1;      // poignee survolee
     int m_draggedGrip = -1;  // poignee tiree
     bool m_spaceHeld = false;
+    bool m_panArmed = false;
     bool m_cursorInside = false;
     bool m_zoomWindowArmed = false;
 

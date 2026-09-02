@@ -483,6 +483,62 @@ QToolButton[statusToggle="true"]:checked {
     color: %ACCENT%;
 }
 
+/* --- ruban -------------------------------------------------------------
+   Les boutons du ruban n'heritent pas du min-height des boutons ordinaires :
+   leur hauteur vient de constantes C++ (Ribbon::kRowHeight), et un min-height
+   de feuille de style reecrirait la taille minimale du widget en silence. */
+QToolButton[ribbonLarge="true"] {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 4px 8px 3px 8px;
+    min-height: 0;
+    font-size: 8.5pt;
+}
+QToolButton[ribbonSmall="true"], QToolButton[ribbonQuick="true"] {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    padding: 3px;
+    min-height: 0;
+}
+QToolButton[ribbonLarge="true"]:hover, QToolButton[ribbonSmall="true"]:hover,
+QToolButton[ribbonQuick="true"]:hover { background: %HOVER%; }
+QToolButton[ribbonLarge="true"]:pressed, QToolButton[ribbonSmall="true"]:pressed,
+QToolButton[ribbonQuick="true"]:pressed { background: %ACCENTSOFT%; }
+QToolButton[ribbonLarge="true"]:checked, QToolButton[ribbonSmall="true"]:checked,
+QToolButton[ribbonQuick="true"]:checked {
+    background: %ACCENTSOFT%;
+    color: %ACCENT%;
+}
+QToolButton[ribbonLarge="true"]:disabled, QToolButton[ribbonSmall="true"]:disabled,
+QToolButton[ribbonQuick="true"]:disabled { color: %FAINT%; }
+QToolButton[ribbonFold="true"] {
+    background: transparent;
+    border: none;
+    padding: 4px 6px;
+    min-height: 0;
+}
+QToolButton[ribbonFold="true"]:hover { background: %HOVER%; border-radius: 5px; }
+
+/* Les onglets du ruban : un souligne d'accent, comme les autres onglets du
+   logiciel. Pas de graisse variable — le mot changerait de largeur en
+   devenant actif, et toute la rangee se decalerait. */
+QTabBar[ribbon="true"]::tab {
+    background: transparent;
+    color: %MUTED%;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 6px 14px;
+    margin: 0 1px;
+    font-size: 9pt;
+}
+QTabBar[ribbon="true"]::tab:hover { color: %TEXT%; }
+QTabBar[ribbon="true"]::tab:selected {
+    color: %ACCENT%;
+    border-bottom-color: %ACCENT%;
+}
+
 QSplitter::handle { background: %BORDER%; }
 QSplitter::handle:horizontal { width: 1px; }
 QSplitter::handle:vertical { height: 1px; }
@@ -1027,6 +1083,27 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawLine(QPointF(3, 16), QPointF(11, 16));
         p.drawLine(QPointF(15, 4), QPointF(15, 20));
         p.drawLine(QPointF(18, 8), QPointF(21, 8));
+        break;
+    case Glyph::LabelFolio:
+        // Une etiquette qui porte un numero de page : le renvoi dit sur quel
+        // folio le potentiel se poursuit.
+        p.drawPolyline(QPolygonF({ { 3, 8 }, { 15, 8 }, { 20, 12 }, { 15, 16 }, { 3, 16 },
+                                   { 3, 8 } }));
+        p.drawLine(QPointF(8, 11), QPointF(8, 13.5));
+        p.drawLine(QPointF(11.5, 11), QPointF(11.5, 13.5));
+        break;
+    case Glyph::SignalOut:
+        // La fleche de source : le signal quitte le potentiel, la pointe sort
+        // du trait.
+        p.drawLine(QPointF(3, 12), QPointF(12, 12));
+        p.drawPolygon(QPolygonF({ { 12, 7 }, { 21, 12 }, { 12, 17 } }));
+        break;
+    case Glyph::SignalIn:
+        // La fleche de destination : le meme dessin retourne, la pointe
+        // rejoint le trait. Source et destination doivent se distinguer d'un
+        // coup d'oeil — c'est tout ce qui les separe sur un folio.
+        p.drawLine(QPointF(21, 12), QPointF(12, 12));
+        p.drawPolygon(QPolygonF({ { 12, 7 }, { 3, 12 }, { 12, 17 } }));
         break;
     case Glyph::Line:
         // Un segment et ses deux extremites : c'est ce qu'on pose, et c'est

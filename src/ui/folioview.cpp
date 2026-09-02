@@ -602,6 +602,10 @@ void FolioView::cancelPending()
 {
     m_measurePoints.clear();
     m_shapePoints.clear();
+    if (m_panArmed) {
+        m_panArmed = false;
+        setCursor(Qt::BlankCursor);
+    }
     // Les reperes acquis appartiennent a la commande en cours : les garder
     // ferait suivre des alignements sans rapport avec le geste suivant.
     m_snapEngine.clearTracked();
@@ -1170,6 +1174,15 @@ void FolioView::paintShapePreview(QPainter &painter) const
         break;
     }
     painter.restore();
+}
+
+void FolioView::beginPan()
+{
+    setTool(Tool::Select);
+    m_panArmed = true;
+    setCursor(Qt::OpenHandCursor);
+    Q_EMIT statusMessage(tr("Panoramique : tirer pour déplacer la vue, Échap pour sortir."));
+    update();
 }
 
 void FolioView::beginMeasureDistance()
@@ -2216,7 +2229,8 @@ void FolioView::mousePressEvent(QMouseEvent *event)
     const QPointF scenePoint = toScene(widgetPoint);
     const QPointF snapped = snap(scenePoint);
 
-    if (event->button() == Qt::MiddleButton || (m_spaceHeld && event->button() == Qt::LeftButton)) {
+    if (event->button() == Qt::MiddleButton
+        || ((m_spaceHeld || m_panArmed) && event->button() == Qt::LeftButton)) {
         m_drag = Drag::Pan;
         m_dragStartWidget = widgetPoint;
         setCursor(Qt::ClosedHandCursor);

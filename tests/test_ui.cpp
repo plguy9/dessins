@@ -2,6 +2,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <QApplication>
+#include <QMenuBar>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
@@ -27,6 +28,7 @@
 #include "ui/draftingsettingsdialog.h"
 #include "ui/pagesetupdialog.h"
 #include "ui/reportpanel.h"
+#include "ui/ribbon.h"
 #include "ui/startpage.h"
 #include "ui/surferdialog.h"
 #include "ui/terminalstripdialog.h"
@@ -1982,4 +1984,155 @@ TEST_CASE("Aucun glyphe n'est vide ni ne repete un autre", "[ui][theme][icones]"
         seen.insert(key, i);
     }
     CHECK(seen.size() == int(dsn::Icons::Glyph::Count));
+}
+
+TEST_CASE("Toute commande de menu porte une icone", "[ui][theme][icones]")
+{
+    // Le ruban presente les memes QAction que les menus. Une action sans
+    // icone s'y affiche en toutes lettres au milieu d'icones : le panneau
+    // perd son alignement et sa largeur triple. C'est arrive aux quatre
+    // sortes d'etiquette, creees sans icone parce qu'elles n'allaient qu'au
+    // menu.
+    MainWindow window;
+    QStringList naked;
+    std::function<void(QMenu *, const QString &)> walk = [&](QMenu *menu,
+                                                             const QString &path) {
+        for (QAction *action : menu->actions()) {
+            if (action->isSeparator())
+                continue;
+            const QString label = QString(action->text()).remove(QLatin1Char('&'));
+            if (QMenu *sub = action->menu()) {
+                walk(sub, path + QStringLiteral(" > ") + label);
+                continue;
+            }
+            // Les entrees engendrees a l'execution — fichiers recents, bascules
+            // de panneaux ancrables, profils metier — n'ont pas de glyphe
+            // propre et n'ont pas de place au ruban.
+            if (action->icon().isNull())
+                naked.append(path + QStringLiteral(" > ") + label);
+        }
+    };
+    for (QAction *m : window.menuBar()->actions()) {
+        if (QMenu *menu = m->menu())
+            walk(menu, QString(m->text()).remove(QLatin1Char('&')));
+    }
+
+    // Les seules exceptions admises, nommement.
+    const QStringList allowed{ QStringLiteral("Fichier"), QStringLiteral("Affichage"),
+                               QStringLiteral("Projet > Profil métier"),
+                               QStringLiteral("Symboles"), QStringLiteral("Aide") };
+    QStringList unexpected;
+    for (const QString &entry : naked) {
+        bool excused = false;
+        for (const QString &prefix : allowed)
+            excused = excused || entry.startsWith(prefix);
+        if (!excused)
+            unexpected.append(entry);
+    }
+    CAPTURE(unexpected.join(QStringLiteral(" | ")));
+    CHECK(unexpected.isEmpty());
+}
+
+// --------------------------------------------------------------------------
+// Ruban
+
+TEST_CASE("Tout ce qui est au ruban est aussi au menu", "[ui][ruban]")
+{
+    // C'est l'invariant qui gouverne le ruban. La palette de commandes se
+    // remplit en parcourant les menus : une commande qui ne serait QU'au
+    // ruban serait introuvable a la palette et sur l'ecran d'accueil. Le
+    // ruban est une seconde vue sur le repertoire des menus, jamais une
+    // troisieme source.
+    MainWindow window;
+    Ribbon *ribbon = window.findChild<Ribbon *>();
+    REQUIRE(ribbon);
+    CHECK(ribbon->pageCount() >= 4);
+
+    QSet<QAction *> inMenus;
+    std::function<void(QMenu *)> walk = [&](QMenu *menu) {
+        for (QAction *action : menu->actions()) {
+            if (action->isSeparator())
+                continue;
+            if (QMenu *sub = action->menu())
+                walk(sub);
+            else
+                inMenus.insert(action);
+        }
+    };
+    QMenuBar *bar = window.findChild<QMenuBar *>();
+    REQUIRE(bar);
+    for (QAction *m : bar->actions()) {
+        if (QMenu *menu = m->menu())
+            walk(menu);
+    }
+    REQUIRE(inMenus.size() > 60);
+
+    int placed = 0;
+    for (int i = 0; i < ribbon->pageCount(); ++i) {
+        RibbonPage *page = ribbon->page(i);
+        REQUIRE(page);
+        // Un onglet sans panneau nomme n'est qu'une rangee d'icones : c'est
+        // exactement ce qu'on remplace.
+        CHECK_FALSE(page->panels().isEmpty());
+        for (RibbonPanel *panel : page->panels()) {
+            CHECK_FALSE(panel->title().isEmpty());
+            for (QAction *action : panel->ribbonActions()) {
+                CAPTURE(action->text());
+                CHECK(inMenus.contains(action));
+                ++placed;
+            }
+        }
+    }
+    for (QAction *action : ribbon->quickActions()) {
+        CAPTURE(action->text());
+        CHECK(inMenus.contains(action));
+    }
+    // Assez de commandes pour que le ruban serve vraiment.
+    CHECK(placed > 60);
+}
+
+TEST_CASE("La palette de commandes survit au ruban", "[ui][ruban][palette]")
+{
+    // setMenuWidget() detache la barre de menus de QMainWindow : menuBar() en
+    // fabrique ensuite une neuve et vide. La palette, qui parcourt les menus,
+    // s'est retrouvee sans une seule commande — un test l'a rattrape avant
+    // qu'on le voie a l'usage.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+
+    auto *palette = window.findChild<CommandPalette *>();
+    if (!palette) {
+        QMetaObject::invokeMethod(&window, "openCommandPalette");
+        palette = window.findChild<CommandPalette *>();
+    }
+    REQUIRE(palette);
+
+    const auto entries = palette->visibleEntries();
+    int fromMenus = 0;
+    for (const auto &entry : entries) {
+        // Les entrees venues des menus portent le nom du menu en groupe ;
+        // celles de la ligne de commande portent « Ligne de commande ».
+        if (!entry.group.startsWith(QStringLiteral("Ligne de commande")))
+            ++fromMenus;
+    }
+    CHECK(fromMenus > 60);
+}
+
+TEST_CASE("Le ruban se replie et rend la place au dessin", "[ui][ruban]")
+{
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+    Ribbon *ribbon = window.findChild<Ribbon *>();
+    REQUIRE(ribbon);
+
+    const int expanded = ribbon->sizeHint().height();
+    ribbon->setCollapsed(true);
+    const int collapsed = ribbon->sizeHint().height();
+    CHECK(collapsed < expanded);
+    // Les onglets restent : replier ne doit pas rendre le ruban introuvable.
+    CHECK(collapsed >= Ribbon::kTabHeight);
+    ribbon->setCollapsed(false);
+    CHECK(ribbon->sizeHint().height() == expanded);
 }

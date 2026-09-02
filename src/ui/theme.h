@@ -89,6 +89,7 @@ public:
         Scale, Stretch, Array, Align, Trim, Extend,
         Line, Rectangle, Circle, Arc, Polyline, Polygon,
         Group, Ungroup, MeasureLength, MeasureArea, Join, Break,
+        LabelFolio, SignalOut, SignalIn,
         Plus, Minus, Duplicate, Up, Down, Edit, Theme,
 
         // Sentinelle : elle permet de parcourir tous les glyphes sans en

@@ -171,11 +171,43 @@ sont délibérés et documentés dans le code :
   F1 la palette de commandes, F2 éditer le composant, F4 le Surfer. Portée application, parce
   qu'on lâche une touche de fonction sans regarder où est le curseur.
 
-## Interface — ce qui la distingue d'AutoCAD
+## Interface — le ruban, et ce qui l'entoure
 
-AutoCAD 2026 a supprimé ses barres d'outils au profit du ruban : plus
-découvrable, mais lent et encombrant. Sa ligne de commande est l'inverse.
-Nous prenons les deux bouts sans le ruban :
+**Décision révisée (utilisateur, 2026-09-02).** Ce guide disait « nous prenons
+les deux bouts sans le ruban ». L'utilisateur a tranché l'inverse, capture
+d'AutoCAD à l'appui : *« je trouve ça très mal organisé et pas du tout
+adapté »*. Une rangée d'icônes sans hiérarchie oblige à survoler chaque bouton
+pour retrouver une commande ; **un panneau nommé dit où chercher avant qu'on
+ait cherché** — c'est la vraie force du ruban, et elle ne s'obtient pas
+autrement. Nous gardons donc les deux bouts **et** le ruban.
+
+- **`ui/ribbon.*`** — onglets (Accueil, Insertion, Annoter, Projet, Vue), et
+  sous l'onglet actif une rangée de panneaux séparés par un filet, chacun
+  portant son nom gravé dessous. Un ou deux gros boutons par panneau (icône
+  32 px + libellé), le reste en grille de petites icônes sur deux rangées —
+  la hauteur d'un panneau ne dépend donc pas de son contenu.
+- **Le ruban ne détient aucune commande.** Chaque bouton représente une
+  `QAction` déjà posée dans un menu : rien ne s'y connecte, ne s'y grise ni
+  ne s'y coche, le bouton suit son action. **Les menus restent la source de
+  vérité** — la palette de commandes se remplit en les parcourant, et une
+  commande qui ne serait qu'au ruban serait introuvable à la palette. Un test
+  (`[ui][ruban]`) le tient.
+- **`m_menuBar` est retenu explicitement** : `setMenuWidget()` détache la
+  barre de menus de QMainWindow, et `menuBar()` en fabrique ensuite une neuve
+  et vide. La palette s'est retrouvée sans une seule commande — un test l'a
+  rattrapé avant l'usage.
+- **La barre d'accès rapide** (nouveau, ouvrir, enregistrer, imprimer,
+  annuler, rétablir) est à gauche des onglets. Critère : les commandes qu'on
+  appelle sans y penser, et qui ne doivent dépendre ni de l'onglet ouvert ni
+  du repli du ruban. Sans elle, Annuler finissait en petite icône dans le
+  dernier panneau — la seule vraie régression sur la barre d'outils.
+- **Le clic sur l'onglet actif replie le ruban**, comme chez AutoCAD. Les
+  onglets restent : replier ne doit pas le rendre introuvable.
+- **Toute commande de menu porte une icône** (test `[ui][icones]`). Une action
+  sans icône s'affiche en toutes lettres au milieu des icônes du ruban, et le
+  panneau perd son alignement.
+
+Et ce qui distingue toujours notre interface de celle d'AutoCAD :
 
 - **`ui/commandpalette.*`** (Ctrl+Maj+P, F1) — tout ce que le logiciel sait
   faire, cherché en français, avec le raccourci et le menu où la commande
@@ -189,7 +221,11 @@ Nous prenons les deux bouts sans le ruban :
   simple « c'est vide ».
 - Les icônes sont dessinées à l'exécution (`Icons::Glyph`) : deux commandes
   différentes ne doivent jamais partager un glyphe, sinon la barre d'outils
-  devient illisible.
+  devient illisible. **Un test le vérifie** en rendant chaque glyphe à 16 px
+  et en comparant les images : la règle n'était tenue que par l'œil, et les
+  trois exports (PDF, DXF, CSV) ont partagé le même dessin depuis le début.
+  `Glyph::Count` ferme l'énumération pour que le test n'ait pas de liste à
+  tenir à jour.
 - **Sept menus** : Fichier, Édition, **Modification**, Outils, Affichage,
   Projet, Symboles, Aide. Modification est le groupe « Modifier » du ruban
   d'AutoCAD ; il était dilué dans Édition, où il voisinait le presse-papiers.
@@ -323,6 +359,28 @@ La distribution se fait par la page GitHub Releases.
    le zip dans un dossier vierge et prouve que `arcus.exe` y démarre,
    puis publie `arcus-vX.Y.Z-windows-x64.zip` en Release.
    Sans `publier`, le déclenchement manuel est un essai à blanc.
+
+## Ce qu'un dessinateur venu d'AutoCAD cherchera et ne trouvera pas
+
+Relevé lors de la revue du ruban, dans l'ordre où il s'en apercevra. Ce ne
+sont pas des détails d'interface : ce sont des commandes qui manquent.
+
+1. **Copier un circuit avec re-repérage.** `pasteClipboard` clone les entités
+   *avec leurs repères* : dupliquer un départ moteur crée des doublons que
+   l'audit signale à juste titre. Chez AutoCAD Electrical, on copie un circuit
+   et il est re-repéré. C'est le geste n° 1 d'un folio de puissance.
+2. **Fil multiple (bus L1/L2/L3) d'un geste.** Le modèle porte déjà n
+   conducteurs (`Wire::conductors`) ; seule la commande manque.
+3. **Fixer / libérer un repère sur une sélection** (`numberLocked`,
+   `designationLocked`) — ce qu'on fait juste avant de relancer Ctrl+R.
+4. **Appliquer un type de fil à une sélection déjà tracée** : le sélecteur du
+   ruban n'arme que le tracé à venir.
+5. **Rechercher / remplacer du texte dans tout le dossier.**
+6. **Remplacer un symbole posé** sans perdre son repère ni ses raccordements.
+7. **Effacer un composant en refermant le fil** — l'insertion coupe et
+   rebranche, la suppression devrait recoudre.
+8. **Cotations.** Elles n'existent pas : ce n'est pas une case de ruban mais
+   un type d'entité, un tracé, un export DXF et des accrochages.
 
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 

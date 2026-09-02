@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QLineEdit>
+#include <QSettings>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QFontMetricsF>
@@ -308,6 +309,73 @@ TEST_CASE("La palette liste, filtre et rend ses apercus", "[ui][palette]")
     REQUIRE(coil);
     const QIcon icon = SymbolPalette::renderIcon(*coil, 48, RenderStyle::screen());
     CHECK(hasVisibleContent(icon.pixmap(48, 48)));
+}
+
+TEST_CASE("La grille montre autant de symboles que la liste", "[ui][palette]")
+{
+    // La grille est une autre vue, pas un autre contenu : si elle en montrait
+    // moins, on chercherait un symbole qui existe et on ne le trouverait pas.
+    QSettings().remove(QStringLiteral("ui/recentSymbols"));
+    SymbolLibrary library = builtinLibrary();
+    SymbolPalette palette;
+    palette.setLibrary(&library);
+    palette.setNorm(QStringLiteral("IEC"));
+    palette.resize(250, 600);
+
+    palette.setGridMode(true);
+    const int inGrid = palette.visibleCount();
+    palette.setGridMode(false);
+    const int inList = palette.visibleCount();
+
+    CHECK(inGrid > 0);
+    CHECK(inGrid == inList);
+}
+
+TEST_CASE("Les récents remontent ce qui a été posé, dans l'ordre", "[ui][palette]")
+{
+    // Sur un départ moteur on repose les mêmes cinq symboles : les rechercher
+    // à chaque fois est le vrai coût du panneau. L'ordre compte autant que la
+    // liste — le dernier posé est celui qu'on repose.
+    QSettings().remove(QStringLiteral("ui/recentSymbols"));
+    SymbolLibrary library = builtinLibrary();
+    SymbolPalette palette;
+    palette.setLibrary(&library);
+    palette.setNorm(QStringLiteral("IEC"));
+    palette.resize(250, 600);
+
+    palette.noteUsed(QStringLiteral("iec:coil"));
+    palette.noteUsed(QStringLiteral("iec:contact-no"));
+    palette.noteUsed(QStringLiteral("iec:coil")); // repose : il repasse devant
+
+    CHECK(palette.recent().size() == 2);
+    CHECK(palette.recent().first() == QStringLiteral("iec:coil"));
+
+    // Un symbole seulement survolé dans la palette n'entre pas : seul ce qui
+    // est réellement posé compte.
+    palette.noteUsed(QString());
+    CHECK(palette.recent().size() == 2);
+
+    QSettings().remove(QStringLiteral("ui/recentSymbols"));
+}
+
+TEST_CASE("La recherche de la palette réduit ce qui est montré", "[ui][palette]")
+{
+    SymbolLibrary library = builtinLibrary();
+    SymbolPalette palette;
+    palette.setLibrary(&library);
+    palette.setNorm(QStringLiteral("IEC"));
+    palette.resize(250, 600);
+
+    const int total = palette.visibleCount();
+    REQUIRE(total > 10);
+
+    auto *search = palette.findChild<QLineEdit *>();
+    REQUIRE(search);
+    search->setText(QStringLiteral("bobine"));
+    const int filtered = palette.visibleCount();
+
+    CHECK(filtered > 0);
+    CHECK(filtered < total);
 }
 
 TEST_CASE("L'editeur de symboles ouvre, modifie et enregistre", "[ui][symboleditor]")

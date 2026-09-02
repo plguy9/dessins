@@ -247,6 +247,20 @@ autrement. Nous gardons donc les deux bouts **et** le ruban.
 
 Et ce qui distingue toujours notre interface de celle d'AutoCAD :
 
+- **`ui/symbolpalette.*` — une grille de vignettes, pas une liste** (décision
+  utilisateur, 2026-09-02 : *« plus discret, cela prend trop de place »*). En
+  liste à une colonne, cinq symboles sur cent trois étaient visibles :
+  chercher voulait dire faire défiler. La grille en montre vingt-quatre dans
+  un panneau **plus étroit** (250 px au lieu de 320) — c'est l'*Icon Menu*
+  d'AutoCAD Electrical, et c'est le bon modèle parce qu'on reconnaît un
+  symbole à sa forme plus vite qu'à son nom. Trois conséquences : le nom passe
+  dans l'infobulle (« Disjoncteur magnétothermique tripolaire » tronqué à huit
+  caractères n'apprend rien et double la hauteur de chaque case) ; la
+  recherche et la catégorie tiennent sur une seule ligne ; la liste des noms
+  reste disponible d'un bouton, et le choix est retenu.
+  Une catégorie **Récemment utilisés** est alimentée par `noteUsed`, appelée
+  sur `componentPlaced` — donc par ce qui est **réellement posé**, jamais par
+  ce qui est seulement sélectionné dans la palette.
 - **Pas de panneau de propriétés ancré** (décision utilisateur, 2026-09-02 :
   *« elles ne servent à rien et prennent trop de place »*). Le bandeau de
   droite occupait la fenêtre en permanence pour un réglage qu'on ne fait que

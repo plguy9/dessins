@@ -177,6 +177,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     connect(m_document, &Document::modifiedChanged, this, &MainWindow::updateTitle);
     connect(m_view, &FolioView::contextMenuRequested, this, &MainWindow::showCanvasContextMenu);
     connect(m_view, &FolioView::componentPlaced, this, [this](const QString &id) {
+        // Les recents de la palette suivent ce qui est reellement pose, pas ce
+        // qui est selectionne : un symbole survole dans la liste n'a peut-etre
+        // jamais servi.
+        if (const auto *symbol =
+                    dynamic_cast<const SymbolInstance *>(m_document->project().findEntity(id))) {
+            m_palette->noteUsed(symbol->definitionId);
+        }
         if (m_editOnInsertAction && m_editOnInsertAction->isChecked())
             editComponent(id, true);
     });
@@ -271,9 +278,15 @@ void MainWindow::createDocks()
 
     // Largeurs de depart. Les noms de symboles et les titres de folios sont
     // longs : un panneau trop etroit les tronque des le premier affichage.
-    paletteDock->setMinimumWidth(260);
-    navigatorDock->setMinimumWidth(260);
-    resizeDocks({ paletteDock }, { 320 }, Qt::Horizontal);
+    // La grille de vignettes se contente de bien moins que la liste a une
+    // colonne : quatre symboles par rangee tiennent dans 210 pixels.
+    // La grille de vignettes se contente de bien moins que la liste a une
+    // colonne. La largeur de depart n'est pas celle de la palette seule : le
+    // navigateur de folios partage la meme colonne, et ses titres doivent
+    // rester lisibles.
+    paletteDock->setMinimumWidth(200);
+    navigatorDock->setMinimumWidth(200);
+    resizeDocks({ paletteDock }, { 250 }, Qt::Horizontal);
     resizeDocks({ paletteDock, navigatorDock }, { 3, 2 }, Qt::Vertical);
 
     // Les titres de panneaux sont graves en petites capitales : Qt ne sait

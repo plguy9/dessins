@@ -886,6 +886,24 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawEllipse(QPointF(21, 18), 1.8, 1.8);
         strokeOnly();
         break;
+    case Glyph::ViewGrid:
+        // Neuf cases et non quatre : a quatre, le dessin ne se distinguait
+        // plus de celui de la palette de symboles — le test l'a releve.
+        for (int row = 0; row < 3; ++row) {
+            for (int column = 0; column < 3; ++column)
+                p.drawRect(QRectF(4 + column * 6.0, 4 + row * 6.0, 4.0, 4.0));
+        }
+        break;
+    case Glyph::ViewList:
+        // Trois lignes avec leur puce : une liste de noms.
+        for (int i = 0; i < 3; ++i) {
+            const double y = 6.0 + i * 6.0;
+            fill(stroke);
+            p.drawEllipse(QPointF(5, y), 1.4, 1.4);
+            strokeOnly();
+            p.drawLine(QPointF(9, y), QPointF(21, y));
+        }
+        break;
     case Glyph::WireTypes:
         // Trois fils et leur pastille de couleur : le type de fil, c'est
         // d'abord une couleur qu'on lit sur le folio.

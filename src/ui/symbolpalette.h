@@ -1,20 +1,36 @@
 // Palette de symboles : recherche, categories, apercu.
 //
-// C'est le panneau le plus sollicite de la journee. Deux choses comptent : la
-// recherche doit trouver sur le nom courant comme sur le mot-cle metier, et
-// l'apercu doit etre le vrai trace du symbole, pas une icone approchante.
+// C'est le panneau le plus sollicite de la journee. Trois choses comptent.
+//
+// 1. **La recherche doit trouver sur le nom courant comme sur le mot-cle
+//    metier**, sans quoi il faut connaitre le nom exact de ce qu'on cherche.
+//
+// 2. **L'apercu doit etre le vrai trace du symbole**, pas une icone
+//    approchante : c'est a sa forme qu'un electricien reconnait un contact NF
+//    d'un contact NO, et une approximation lui ferait poser le mauvais.
+//
+// 3. **La densite.** Decision utilisateur (2026-09-02) : *« j'aimerais que ce
+//    soit plus discret, cela prend trop de place »*. En liste a une colonne,
+//    cinq symboles sur cent trois etaient visibles — chercher voulait dire
+//    faire defiler. La grille de vignettes en montre une trentaine dans la
+//    meme place ; c'est l'Icon Menu d'AutoCAD Electrical, et c'est le bon
+//    modele parce qu'on reconnait un symbole a sa forme plus vite qu'a son
+//    nom. La liste reste disponible pour qui lit les noms, et le choix est
+//    retenu.
 #pragma once
 
 #include "core/symbollibrary.h"
 #include "render/renderstyle.h"
 
 #include <QIcon>
+#include <QStringList>
 #include <QWidget>
 
 class QComboBox;
 class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
+class QToolButton;
 
 namespace dsn {
 
@@ -31,23 +47,50 @@ public:
 
     QString currentDefinitionId() const;
 
+    // Un symbole vient d'etre pose : il passe en tete des recents. C'est le
+    // seul signal fiable — un symbole seulement selectionne dans la palette
+    // n'a peut-etre jamais servi.
+    void noteUsed(const QString &definitionId);
+    QStringList recent() const { return m_recent; }
+
+    bool gridMode() const { return m_grid; }
+    void setGridMode(bool grid);
+
+    // Nombre de symboles montres, pour les tests : c'est la mesure de ce que
+    // la recherche et la categorie ont retenu.
+    int visibleCount() const;
+
     // Apercu d'une definition, dessine avec le meme peintre que le canevas.
     static QIcon renderIcon(const SymbolDefinition &definition, int pixels,
                             const RenderStyle &style);
+
+    // Clef de la categorie « Recents ». Publique parce qu'un test la vise.
+    static QString recentCategory();
 
 Q_SIGNALS:
     void symbolChosen(const QString &definitionId);
     void symbolActivated(const QString &definitionId);
 
+protected:
+    // La fleche vers le bas depuis la recherche entre dans la grille : on tape
+    // trois lettres puis on descend, sans lacher le clavier. Sans cela il faut
+    // reprendre la souris entre chaque symbole, ce qui est exactement ce qu'on
+    // fait cent fois par jour.
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private:
     void rebuildCategories();
     void rebuildList();
+    void applyViewMode();
 
     const SymbolLibrary *m_library = nullptr;
     QString m_norm = QStringLiteral("IEC");
+    QStringList m_recent;
+    bool m_grid = true;
 
     QLineEdit *m_search = nullptr;
     QComboBox *m_category = nullptr;
+    QToolButton *m_viewToggle = nullptr;
     QListWidget *m_list = nullptr;
 };
 

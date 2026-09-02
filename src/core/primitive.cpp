@@ -92,7 +92,12 @@ void Primitive::scale(const QPointF &base, double factor)
         p = scaledAbout(p, base, factor);
     radius *= factor;
     textHeight *= factor;
-    lineWidth *= factor;
+    // L'EPAISSEUR DE TRAIT NE SUIT PAS. Grossir un objet change ses
+    // dimensions, pas la plume qui le dessine : un cercle deux fois plus grand
+    // reste trace au meme trait, comme sur une planche. La mettre a l'echelle
+    // faisait grossir le trait avec la forme, ce qu'un dessinateur ne demande
+    // jamais — et sur un schema, l'epaisseur porte un sens (puissance,
+    // commande) qu'un agrandissement n'a pas a modifier.
 }
 
 QJsonObject Primitive::toJson() const

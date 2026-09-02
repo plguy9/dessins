@@ -566,27 +566,44 @@ void FolioPainter::paintSymbol(QPainter &painter, const SymbolInstance &symbol) 
     painter.save();
     painter.setWorldTransform(qt, true);
 
+    // Le stylo est en millimetres et la transformation qu'on vient de poser
+    // porte le facteur d'echelle du symbole : sans compensation, un symbole
+    // deux fois plus grand serait aussi trace deux fois plus epais. Grossir
+    // change les dimensions, pas la plume.
+    const double placed = std::abs(symbol.placement.scale);
+    const double inkScale = placed > 1e-9 ? 1.0 / placed : 1.0;
+
     if (!definition) {
         // Symbole introuvable : on trace un cadre barre plutot que rien. Un
         // trou invisible dans un schema est bien pire qu'une marque explicite.
-        painter.setPen(pen(m_style.highlight, m_style.symbolWidth));
+        painter.setPen(pen(m_style.highlight, m_style.symbolWidth * inkScale));
         painter.setBrush(Qt::NoBrush);
         const QRectF box(-5, -5, 10, 10);
         painter.drawRect(box);
         painter.drawLine(box.topLeft(), box.bottomRight());
         painter.drawLine(box.bottomLeft(), box.topRight());
         painter.restore();
+
+        // Le cadre barre dit qu'il manque un symbole ; il ne disait pas
+        // lequel. Un dessinateur qui tombe dessus a besoin du nom pour savoir
+        // quelle bibliotheque rouvrir — sans lui, la marque est une enigme.
+        painter.save();
+        painter.setPen(m_style.highlight);
+        drawTextMm(painter, symbol.placement.position + QPointF(0.0, 8.0),
+                   symbol.definitionId, 2.0, Primitive::Align::Center);
+        painter.restore();
         return;
     }
 
     painter.setBrush(Qt::NoBrush);
     for (const Primitive &primitive : definition->graphics) {
-        painter.setPen(pen(color, primitive.lineWidth > 0.0 ? primitive.lineWidth
-                                                            : m_style.symbolWidth));
+        const double width = primitive.lineWidth > 0.0 ? primitive.lineWidth
+                                                       : m_style.symbolWidth;
+        painter.setPen(pen(color, width * inkScale));
         paintPrimitive(painter, primitive);
     }
 
-    painter.setPen(pen(color, m_style.symbolWidth));
+    painter.setPen(pen(color, m_style.symbolWidth * inkScale));
     for (const Pin &pin : definition->pins) {
         if (pin.type == PinType::NotConnected)
             continue;

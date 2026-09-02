@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <catch2/catch_approx.hpp>
 #include "core/entities.h"
 #include "core/symboldef.h"
 
@@ -179,3 +180,22 @@ TEST_CASE("Une definition survit a l'aller-retour JSON", "[symboldef][io]")
     CHECK(restored.pins.first().number == QLatin1String("A1"));
     CHECK(restored.pins.first().direction == Direction::Up);
 }
+
+TEST_CASE("Grossir une forme change ses dimensions, pas son trait", "[entities][echelle]")
+{
+    // Demande utilisateur : « je ne veux pas grossir (épaissir) les fils, je
+    // veux juste des dimensions plus grosses ». Une épaisseur de trait n'est
+    // pas une dimension : c'est la plume, et elle ne change pas parce qu'on
+    // dessine plus grand. Sur un schéma elle porte en plus un sens — puissance
+    // ou commande — qu'un agrandissement n'a pas à modifier.
+    Primitive circle = Primitive::circle(QPointF(10, 10), 4.0);
+    circle.lineWidth = 0.35;
+    circle.textHeight = 2.5;
+
+    circle.scale(QPointF(0, 0), 3.0);
+
+    CHECK(circle.radius == Catch::Approx(12.0));
+    CHECK(circle.textHeight == Catch::Approx(7.5));
+    CHECK(circle.lineWidth == Catch::Approx(0.35));
+}
+

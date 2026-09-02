@@ -292,3 +292,60 @@ TEST_CASE("Les carreaux tiennent la ou les points renoncent", "[render][grille]"
     CHECK(render(GridStyle::Lines) > 0);
     CHECK(render(GridStyle::Dots) == 0); // renonce, et c'est voulu
 }
+
+TEST_CASE("Un symbole grossi garde son épaisseur de trait", "[render][echelle]")
+{
+    // Le stylo est en millimètres et la transformation du symbole porte son
+    // facteur d'échelle : sans compensation, un symbole deux fois plus grand
+    // était aussi tracé deux fois plus épais.
+    //
+    // La mesure : l'encre déposée. Un contour de périmètre p tracé au trait w
+    // couvre à peu près p×w. Doublé, son périmètre double — donc l'encre doit
+    // doubler elle aussi. Si le trait suivait l'échelle, elle quadruplerait.
+    Project project;
+    project.library.insert(twoPinDevice());
+    Folio *folio = project.addFolio(QStringLiteral("Échelle"));
+    folio->sheet = sheetFormatById(QStringLiteral("A3"));
+
+    auto inkFor = [&](double factor) {
+        Folio page(*folio);
+        auto instance = std::make_unique<SymbolInstance>();
+        instance->definitionId = QStringLiteral("iec:device");
+        instance->placement.position = QPointF(60, 45);
+        instance->placement.scale = factor;
+        page.addEntity(std::move(instance));
+
+        RenderStyle style = RenderStyle::screen();
+        style.showGrid = false;
+        style.showFrame = false;
+        style.showTitleBlock = false;
+        style.showDesignations = false;
+        style.showUnconnectedPins = false;
+
+        QImage image(600, 450, QImage::Format_ARGB32);
+        image.fill(Qt::white);
+        QPainter painter(&image);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.scale(5.0, 5.0); // 5 pixels par millimètre
+        FolioPainter(project, style).paint(painter, page);
+        painter.end();
+
+        double ink = 0.0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                // Une couverture partielle compte pour ce qu'elle vaut :
+                // l'antialiasing ne doit pas fausser la mesure.
+                ink += 1.0 - qGray(image.pixel(x, y)) / 255.0;
+            }
+        }
+        return ink;
+    };
+
+    const double single = inkFor(1.0);
+    const double doubled = inkFor(2.0);
+    REQUIRE(single > 100.0);
+
+    // Deux, et surtout pas quatre.
+    CHECK_THAT(doubled / single, WithinAbs(2.0, 0.25));
+}
+

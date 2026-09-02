@@ -88,7 +88,18 @@ sont délibérés et documentés dans le code :
   transformation), un fil déplace ses sommets, un texte grandit sa **hauteur
   de capitale** — pas son facteur de placement, sinon les deux se
   multiplieraient. Le facteur est **uniforme** : un symbole aplati n'est plus
-  le symbole normalisé qu'un lecteur reconnaît. L'annulation restaure l'état
+  le symbole normalisé qu'un lecteur reconnaît.
+  **L'épaisseur de trait ne suit pas l'échelle** (décision utilisateur,
+  2026-09-02 : *« je ne veux pas épaissir les fils, juste des dimensions plus
+  grosses »*). Grossir change les dimensions, pas la plume : un cercle deux
+  fois plus grand reste tracé au même trait, comme sur une planche. Sur un
+  schéma l'épaisseur porte en plus un sens — puissance ou commande — qu'un
+  agrandissement n'a pas à modifier. Deux endroits le tiennent :
+  `Primitive::scale` laisse `lineWidth` intact, et `FolioPainter::paintSymbol`
+  divise ses stylos par `placement.scale`, puisque la transformation posée
+  juste avant porte déjà ce facteur. Le test mesure **l'encre déposée** : en
+  doublant un symbole elle doit doubler, pas quadrupler — sans le correctif le
+  rapport valait 3,99. L'annulation restaure l'état
   figé plutôt que d'appliquer l'homothétie inverse — dix aller-retours ne
   doivent pas éloigner le symbole de sa taille.
 - **`core/edittools.*`** — RÉSEAU (ARRAY), ALIGNER/RÉPARTIR, JOINDRE, COUPER.
@@ -128,9 +139,16 @@ sont délibérés et documentés dans le code :
   **dans tout le dossier**, et le saut vers là-bas. Il travaille au projet,
   pas au folio — c'est tout son intérêt.
 - **`ui/componentdialog.*`** — la boîte « Insérer/Éditer composant », la plus
-  utilisée d'AutoCAD Electrical. Elle s'ouvre à la pose **et** au double-clic.
-  Annuler à l'insertion défait la pose : c'est pour cela qu'elle est ouverte
-  juste après le `AddEntityCommand`, jamais avant.
+  utilisée d'AutoCAD Electrical. Annuler à l'insertion défait la pose : c'est
+  pour cela qu'elle est ouverte juste après le `AddEntityCommand`, jamais
+  avant. AutoCAD l'ouvre à chaque insertion ; **nous non** (décision
+  utilisateur, 2026-09-02) : poser un symbole est le geste le plus répété de
+  la journée, et une boîte modale à chaque pose le coupe en deux. Le
+  double-clic ouvre la même boîte quand on veut vraiment régler quelque chose.
+  Le réglage reste dans le menu, et le choix est retenu.
+- **Le cadre barré d'un symbole introuvable porte son identifiant.** Il disait
+  qu'il manquait un symbole, pas lequel — un dessinateur qui tombe dessus a
+  besoin du nom pour savoir quelle bibliothèque rouvrir.
 - **`DesignationRule::tagFormat`** — `%F%N` et ses variantes. Deux modes :
   séquentiel, ou basé sur la référence de ligne (`104K` = folio 1, colonne 4),
   où deux appareils au même endroit se départagent par une lettre. Le format

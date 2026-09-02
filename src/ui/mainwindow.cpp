@@ -217,10 +217,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     // Le theme est applique en dernier : il redessine les icones et
     // reharmonise le fond du canevas avec le chrome de la fenetre.
     QSettings settings;
-    // AutoCAD ouvre la boite a chaque insertion : on fait de meme par defaut,
-    // et on retient le choix de celui qui prefere poser en serie.
+    // AutoCAD ouvre la boite a chaque insertion. Decision utilisateur
+    // (2026-09-02) : pas nous. Poser un symbole est le geste le plus repete de
+    // la journee, et une boite modale a chaque pose le coupe en deux ; le
+    // double-clic ouvre la meme boite quand on veut vraiment regler quelque
+    // chose. Le reglage reste, et le choix est retenu.
     m_editOnInsertAction->setChecked(
-            settings.value(QStringLiteral("ui/editComponentOnInsert"), true).toBool());
+            settings.value(QStringLiteral("ui/editComponentOnInsert"), false).toBool());
     connect(m_editOnInsertAction, &QAction::toggled, this, [](bool on) {
         QSettings().setValue(QStringLiteral("ui/editComponentOnInsert"), on);
     });

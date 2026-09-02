@@ -21,6 +21,7 @@ class QToolButton;
 namespace dsn {
 
 class DockTitle;
+class DockRail;
 
 // Ce qui rend une commande IMPOSSIBLE — jamais « ce que l'utilisateur a oublie
 // de faire ». La nuance est tout le bloc A : une commande qui a besoin d'objets
@@ -193,6 +194,9 @@ private:
     class CommandPalette *m_commandPalette = nullptr;
     QDockWidget *m_commandDock = nullptr;
     QList<DockTitle *> m_dockTitles;
+    // Le rail des panneaux tasses, colle au bord gauche du canevas : c'est la
+    // que la fleche reste pour ramener un panneau ferme.
+    DockRail *m_rail = nullptr;
 
     QLabel *m_cursorLabel = nullptr;
     QLabel *m_zoneLabel = nullptr;

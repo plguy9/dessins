@@ -24,6 +24,7 @@
 #include "componentdialog.h"
 #include "surferdialog.h"
 #include "appearance.h"
+#include "dockrail.h"
 #include "docktitle.h"
 #include "arraydialog.h"
 #include "busdialog.h"
@@ -42,6 +43,7 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QDockWidget>
+#include <QHBoxLayout>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFont>
@@ -151,7 +153,22 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     // deplacer une carte collee vers un emplacement libre. Elle est detenue
     // ici, chargee une fois, et prêtée.
     m_view->setPlcDatabase(&m_plc);
-    setCentralWidget(m_view);
+
+    // Le canevas est flanque du rail des panneaux tasses. Le chevron qui ferme
+    // un panneau vit dans sa barre de titre et part avec lui : sans le rail,
+    // le seul retour serait un menu, invisible depuis l'endroit meme ou le
+    // panneau vient de disparaitre. Le rail ne coute rien tant que tout est
+    // ouvert — il ne se montre que lorsqu'il a un onglet a offrir.
+    auto *centre = new QWidget(this);
+    auto *centreLayout = new QHBoxLayout(centre);
+    centreLayout->setContentsMargins(0, 0, 0, 0);
+    centreLayout->setSpacing(0);
+    m_rail = new DockRail(centre);
+    centreLayout->addWidget(m_rail);
+    centreLayout->addWidget(m_view, 1);
+    setCentralWidget(centre);
+    connect(m_rail, &DockRail::openRequested, this,
+            [this](QDockWidget *dock) { setDockVisible(dock, true); });
 
     createDocks();
     createActions();
@@ -297,9 +314,9 @@ void MainWindow::createDocks()
     };
     const DockShortcut titled[] = {
         { paletteDock, QT_TR_NOOP("Symboles"),
-          QT_TR_NOOP("Masquer la palette — Ctrl+3 la ramène") },
+          QT_TR_NOOP("Masquer la palette — le chevron du bord la ramène (Ctrl+3)") },
         { navigatorDock, QT_TR_NOOP("Folios"),
-          QT_TR_NOOP("Masquer les folios — Ctrl+4 les ramène") },
+          QT_TR_NOOP("Masquer les folios — le chevron du bord les ramène (Ctrl+4)") },
         { reportDock, QT_TR_NOOP("Rapports"), QT_TR_NOOP("Masquer les rapports") },
     };
     for (const DockShortcut &entry : titled) {
@@ -311,6 +328,14 @@ void MainWindow::createDocks()
         if (entry.dock->widget())
             entry.dock->widget()->setFont(Theme::uiFont(10));
     }
+
+    // Seuls les panneaux de la colonne de gauche prennent un onglet de rail :
+    // le rail est de ce cote. Les rapports s'ouvrent a la demande depuis leur
+    // menu et partent fermes — un onglet permanent pour eux encombrerait le
+    // bord sans que personne ne l'ait ferme.
+    m_rail->watch(paletteDock, tr("Symboles"),
+                  tr("Rouvrir la palette de symboles (Ctrl+3)"));
+    m_rail->watch(navigatorDock, tr("Folios"), tr("Rouvrir la liste des folios (Ctrl+4)"));
 
     // Largeurs de depart. Les noms de symboles et les titres de folios sont
     // longs : un panneau trop etroit les tronque des le premier affichage.
@@ -2496,6 +2521,8 @@ void MainWindow::applyTheme(bool dark)
 
     for (DockTitle *title : std::as_const(m_dockTitles))
         title->applyTheme();
+    if (m_rail)
+        m_rail->applyTheme();
 
     // Les apercus de la palette et les vignettes de folios sont redessines
     // dans les couleurs du theme : sans cela, un panneau sombre garderait des

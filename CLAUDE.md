@@ -271,6 +271,21 @@ Et ce qui distingue toujours notre interface de celle d'AutoCAD :
   l'infobulle du bouton **dit le raccourci qui le ramène**. Les commandes
   d'affichage (Ctrl+3, Ctrl+4) sont devenues des **bascules cochées**, si
   bien que le ruban montre d'un coup d'œil ce qui est ouvert.
+- **Un rail sur le bord garde la flèche** (`ui/dockrail.*`, décision
+  utilisateur, 2026-09-02 : *« la flèche doit rester pour pouvoir la
+  rouvrir ? »*). Le chevron qui tasse un panneau vit dans **sa** barre de
+  titre : il part avec lui, et le seul retour devenait un menu ou un
+  raccourci — rien à l'endroit même où le panneau venait de disparaître. Le
+  rail est une bande de 24 px collée au bord du canevas : **rien tant que
+  tout est ouvert** (c'est ce qui permet de le laisser en place), un onglet
+  par panneau tassé — chevron tourné vers le dessin, nom gravé à la
+  verticale. Le nom compte autant que le chevron : deux panneaux se tassent
+  dans la même colonne, et deux chevrons identiques ne disent pas lequel
+  ramène la palette. L'onglet **demande**, il n'ouvre pas : tout passe par
+  `MainWindow::setDockVisible`, seul endroit qui repose la largeur retenue —
+  deux chemins finiraient par diverger. Seuls les panneaux de la colonne de
+  gauche y prennent un onglet ; les rapports partent fermés à dessein, et un
+  onglet permanent pour eux encombrerait un bord que personne n'a fermé.
 - **La ligne de commande n'en est qu'une** — un utilisateur a signalé « deux
   fois une ligne de commande ». C'était l'historique et le champ, l'un
   au-dessus de l'autre, tous deux **stylés comme des champs de saisie** et

@@ -95,7 +95,7 @@ public:
         MeasureLength, Join, Break,
         LabelFolio, SignalOut, SignalIn,
         WireTypes, SaveAs, TagFormat, ZoomWindow, MoveComponent,
-        ViewGrid, ViewList, Collapse,
+        ViewGrid, ViewList, Collapse, Expand,
         Plus, Minus, Duplicate, Up, Down, Edit, Theme,
 
         // Sentinelle : elle permet de parcourir tous les glyphes sans en

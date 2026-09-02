@@ -928,6 +928,13 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawPolyline(QPolygonF({ { 14, 5 }, { 7, 12 }, { 14, 19 } }));
         p.drawLine(QPointF(18, 4), QPointF(18, 20));
         break;
+    case Glyph::Expand:
+        // Le miroir du precedent : chevron vers le dessin, montant du cote du
+        // bord. C'est l'onglet du rail — le panneau revient de la ou il est
+        // parti, et la fleche le dit.
+        p.drawPolyline(QPolygonF({ { 10, 5 }, { 17, 12 }, { 10, 19 } }));
+        p.drawLine(QPointF(6, 4), QPointF(6, 20));
+        break;
     case Glyph::ViewGrid:
         // Neuf cases et non quatre : a quatre, le dessin ne se distinguait
         // plus de celui de la palette de symboles — le test l'a releve.

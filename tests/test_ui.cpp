@@ -9,6 +9,7 @@
 #include <QLineEdit>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QAbstractButton>
 #include <QToolButton>
 #include <QSettings>
 #include <QTabWidget>
@@ -23,6 +24,7 @@
 
 #include "core/documentcommands.h"
 #include "symbols/librarystore.h"
+#include "ui/dockrail.h"
 #include "ui/docktitle.h"
 #include "ui/document.h"
 #include "ui/folioview.h"
@@ -3506,6 +3508,62 @@ TEST_CASE("Un projet neuf garde ses symboles", "[ui][document][symboles]")
     CHECK(document->project().library.count() == avant);
     // Et un symbole posé après doit se dessiner, pas se barrer.
     CHECK(document->project().library.definition(QStringLiteral("iec:opamp")) != nullptr);
+}
+
+TEST_CASE("La flèche reste sur le bord pour rouvrir un panneau tassé", "[ui][docks][rail]")
+{
+    // « Sur la section à gauche avec les symboles pour la faire disparaître :
+    // la flèche doit rester pour pouvoir la rouvrir ? » — signalé à l'usage,
+    // 2026-09-02. Elle ne restait pas : le chevron vit dans la barre de titre
+    // du panneau, donc il part avec lui, et le seul retour était un menu ou un
+    // raccourci — rien à l'endroit même où le panneau venait de disparaître.
+    //
+    // Le rail tient la promesse : rien tant que tout est ouvert, un onglet dès
+    // qu'un panneau est tassé, et cet onglet le ramène avec sa largeur.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+    QApplication::processEvents();
+
+    auto *rail = window.findChild<DockRail *>();
+    REQUIRE(rail);
+    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("dock.symbols"));
+    REQUIRE(dock);
+
+    // Tout est ouvert : le rail ne coûte pas un pixel de dessin.
+    CHECK(rail->tabs().isEmpty());
+    CHECK(rail->isHidden());
+
+    // Le geste réel : le chevron de la barre de titre du panneau.
+    auto *titre = qobject_cast<DockTitle *>(dock->titleBarWidget());
+    REQUIRE(titre);
+    auto *chevron = titre->findChild<QToolButton *>();
+    REQUIRE(chevron);
+    chevron->click();
+    QApplication::processEvents();
+
+    REQUIRE(dock->isHidden());
+    // La flèche est restée, et elle dit lequel des deux panneaux elle ramène.
+    CHECK_FALSE(rail->isHidden());
+    CHECK(rail->tabs().contains(QStringLiteral("SYMBOLES")));
+
+    // Et elle le ramène — avec de la place, comme la commande d'affichage :
+    // les deux chemins passent par setDockVisible, sinon l'un des deux
+    // oublierait la largeur.
+    QAbstractButton *onglet = nullptr;
+    for (QAbstractButton *bouton : rail->findChildren<QAbstractButton *>()) {
+        if (bouton->isVisible())
+            onglet = bouton;
+    }
+    REQUIRE(onglet);
+    onglet->click();
+    QApplication::processEvents();
+
+    CHECK_FALSE(dock->isHidden());
+    CHECK(dock->width() > 40);
+    // Le rail se retire quand il n'a plus rien à offrir.
+    CHECK(rail->tabs().isEmpty());
+    CHECK(rail->isHidden());
 }
 
 TEST_CASE("Un panneau tassé revient avec de la largeur", "[ui][docks]")

@@ -1677,7 +1677,15 @@ void MainWindow::registerCommands()
     simple(QStringLiteral("TEXTE"), { QStringLiteral("T"), QStringLiteral("DT") },
            tr("Annoter le folio"), [this] { m_view->setTool(FolioView::Tool::Text); });
     simple(QStringLiteral("INSERER"), { QStringLiteral("I") },
-           tr("Chercher un symbole dans la palette"), [this] {
+           tr("Reprendre le dernier symbole, ou en chercher un dans la palette"), [this] {
+               // Comme l'INSERT d'AutoCAD : il propose d'abord le dernier bloc
+               // insere. Ouvrir la palette pour reposer la borne qu'on vient
+               // de poser dix fois serait un aller-retour pour rien.
+               if (m_view->rearmLastSymbol()) {
+                   m_view->setTool(FolioView::Tool::Symbol);
+                   m_view->setFocus();
+                   return;
+               }
                if (auto *dock = findChild<QDockWidget *>(QStringLiteral("dock.symbols")))
                    dock->show();
                m_palette->setFocus();

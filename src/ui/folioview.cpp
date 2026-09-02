@@ -569,6 +569,11 @@ void FolioView::setTool(Tool tool)
         m_bus.reset();
     setCursor(Qt::BlankCursor);
     Q_EMIT toolChanged(tool);
+    // Revenir a l'outil Symbole les mains vides reprend le dernier pose :
+    // c'est l'INSERT d'AutoCAD, et cela evite l'aller-retour vers la palette
+    // apres chaque texte intercale dans une serie.
+    if (tool == Tool::Symbol && m_pendingSymbol.isEmpty())
+        rearmLastSymbol();
     update();
 }
 
@@ -585,6 +590,21 @@ void FolioView::setBus(const BusSpec &spec)
                             "comme un fil.", "", spec.count)
                                  .arg(spec.spacing, 0, 'f', 1));
     update();
+}
+
+bool FolioView::rearmLastSymbol()
+{
+    if (m_lastSymbol.isEmpty()
+        || !m_document->project().library.definition(m_lastSymbol)) {
+        return false;
+    }
+    const Orientation orientation = m_lastOrientation;
+    setPendingSymbol(m_lastSymbol);
+    // setPendingSymbol remet le placement a plat : on repose l'orientation
+    // apres, sinon le rearmement perdrait les quarts de tour deja faits.
+    m_pendingPlacement.orientation = orientation;
+    update();
+    return true;
 }
 
 void FolioView::setPendingSymbol(const QString &definitionId, const SymbolInstance *prototype)
@@ -2389,6 +2409,9 @@ void FolioView::placeSymbolAt(const QPointF &point)
     Folio *folio = m_document->currentFolio();
     if (!folio || m_pendingSymbol.isEmpty())
         return;
+
+    m_lastSymbol = m_pendingSymbol;
+    m_lastOrientation = m_pendingPlacement.orientation;
 
     auto instance = std::make_unique<SymbolInstance>();
     instance->definitionId = m_pendingSymbol;

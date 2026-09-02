@@ -3434,3 +3434,38 @@ TEST_CASE("Les raccourcis d'une lettre ne mangent pas le texte tapé",
     REQUIRE(textes.size() == 1);
     CHECK(textes.front()->text == piege);
 }
+
+TEST_CASE("Le dernier symbole posé reste sous la main", "[ui][insertion]")
+{
+    // Changer d'outil désarme le symbole : poser un texte au milieu d'une
+    // série de bornes obligeait à retourner dans la palette, la rechercher et
+    // la reprendre. C'est l'INSERT d'AutoCAD qui a raison — il propose
+    // toujours le dernier bloc inséré. L'essai de reproduction faisait cet
+    // aller-retour à chaque annotation intercalée.
+    Document document;
+    document.newProject(builtinLibrary());
+    FolioView view(&document);
+    view.resize(900, 700);
+    view.zoomToFit();
+
+    // Rien n'a encore été posé : il n'y a rien à reprendre.
+    CHECK_FALSE(view.rearmLastSymbol());
+
+    view.setPendingSymbol(QStringLiteral("iec:terminal"));
+    view.rotateSelection(true); // un quart de tour sur le symbole armé
+    clickScene(view, QPointF(60, 40));
+    REQUIRE(document.currentFolio()->entitiesOfType<SymbolInstance>().size() == 1);
+
+    // Un texte au milieu de la série : l'outil change, le symbole tombe.
+    view.setTool(FolioView::Tool::Text);
+    CHECK(view.pendingSymbol().isEmpty());
+
+    // Revenir à l'outil Symbole le reprend, AVEC son orientation : l'avoir
+    // fait pivoter ne doit pas être à refaire.
+    view.setTool(FolioView::Tool::Symbol);
+    CHECK(view.pendingSymbol() == QStringLiteral("iec:terminal"));
+    clickScene(view, QPointF(60, 60));
+    const auto poses = document.currentFolio()->entitiesOfType<SymbolInstance>();
+    REQUIRE(poses.size() == 2);
+    CHECK(poses.back()->placement.orientation == poses.front()->placement.orientation);
+}

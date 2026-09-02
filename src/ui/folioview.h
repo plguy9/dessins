@@ -55,6 +55,17 @@ public:
                           const SymbolInstance *prototype = nullptr);
     QString pendingSymbol() const { return m_pendingSymbol; }
 
+    // LE DERNIER SYMBOLE POSE RESTE SOUS LA MAIN.
+    //
+    // Changer d'outil desarme le symbole : poser un texte au milieu d'une
+    // serie de bornes obligeait a retourner dans la palette, la rechercher et
+    // la reprendre. C'est l'INSERT d'AutoCAD qui a raison : il propose
+    // toujours le dernier bloc insere. Revenir a l'outil Symbole rearme donc
+    // le dernier pose, AVEC son orientation — l'avoir fait pivoter trois fois
+    // ne doit pas etre a refaire.
+    QString lastPlacedSymbol() const { return m_lastSymbol; }
+    bool rearmLastSymbol();
+
     // ---- LA SAISIE DE TEXTE SUR PLACE ----------------------------------
     //
     // Poser un texte ouvrait une boite modale, une par texte. L'essai de
@@ -613,6 +624,8 @@ private:
 
     QVector<QPointF> m_wirePoints;
     QString m_pendingSymbol;
+    QString m_lastSymbol;
+    Orientation m_lastOrientation = Orientation::R0;
     std::optional<SymbolInstance> m_pendingPrototype;
     Placement m_pendingPlacement;
     Label::Scope m_labelScope = Label::Scope::Folio;

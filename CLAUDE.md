@@ -603,6 +603,16 @@ correctif désactivé. Il manquait un `QApplication::processEvents()` après
 déclenche rien, et le test ne prouvait rien. **Un test de raccourci doit
 échouer sans le correctif ; le vérifier est la seule façon de le savoir.**
 
+### Le dernier symbole reste sous la main
+
+Changer d'outil désarme le symbole : poser un texte au milieu d'une série de
+bornes obligeait à retourner dans la palette, chercher la borne et la
+reprendre. C'est **l'INSERT d'AutoCAD** qui a raison — il propose toujours le
+dernier bloc inséré. Revenir à l'outil Symbole les mains vides reprend donc le
+dernier posé, **avec son orientation** : l'avoir fait pivoter trois fois ne
+doit pas être à refaire. La commande `INSERER` (alias `I`) fait de même, et ne
+va ouvrir la palette que s'il n'y a rien à reprendre.
+
 ### Ce que l'essai a appris sans qu'on le corrige
 
 - **Un symbole doit poser ses broches sur le module de 2,5 mm.** Le relais
@@ -615,9 +625,6 @@ déclenche rien, et le test ne prouvait rien. **Un test de raccourci doit
   colonne attrape son **milieu**. D'où une règle de tracé : **les dérivations
   d'abord, la colonne commune ensuite** — tracée en dernier, elle s'accroche
   aux extrémités déjà posées, ce qu'on voulait.
-- **Changer d'outil désarme le symbole.** Poser un texte au milieu d'une série
-  de bornes oblige à retourner dans la palette. AutoCAD garde le dernier bloc
-  inséré sous la main (INSERT rappelle le précédent) ; nous non.
 - **Rien ne dit « cet appareil ne porte pas de repère ».** Les contacts secs
   dessinés à l'intérieur du boîtier Valmet appartiennent à cet appareil et ne
   doivent pas recevoir un repère `-K` propre ; le repérage automatique leur en

@@ -121,6 +121,20 @@ private:
     void applyTheme(bool dark);
     // Grise ce qui ne peut rien faire. Appelee par updateActions.
     void applyNeeds();
+
+    // ---- TASSER ET RAMENER UN PANNEAU ----------------------------------
+    //
+    // Un panneau tasse revenait « visible » mais large de zero pixel :
+    // Qt le restitue avec la largeur qu'il avait au moment ou on l'a cache,
+    // et le canevas avait pris toute la place entre-temps. Du point de vue du
+    // dessinateur, le panneau ne revenait jamais — signale sur Windows, et
+    // introuvable en rendu hors ecran, ou Qt se rattrape tout seul.
+    //
+    // On retient donc la largeur AVANT de cacher, et on la repose au retour.
+    // Les deux chemins — le chevron de la barre de titre et la commande
+    // d'affichage — passent par ici : sinon l'un des deux oublierait.
+    void setDockVisible(QDockWidget *dock, bool visible);
+    QHash<QDockWidget *, int> m_dockWidths;
     void refreshIcons();
 
     // Ligne de commande

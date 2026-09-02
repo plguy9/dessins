@@ -3469,3 +3469,77 @@ TEST_CASE("Le dernier symbole posé reste sous la main", "[ui][insertion]")
     REQUIRE(poses.size() == 2);
     CHECK(poses.back()->placement.orientation == poses.front()->placement.orientation);
 }
+
+TEST_CASE("Un projet neuf garde ses symboles", "[ui][document][symboles]")
+{
+    // LE BUG DES CADRES BARRÉS ROUGES, trouvé après trois signalements.
+    //
+    //     m_document->newProject(m_document->project().library);
+    //
+    // La bibliothèque passée EST celle du projet. newProject appelle
+    // Project::clear(), qui la vide — puis l'affecte à elle-même. Le projet
+    // se retrouve donc sans un seul symbole, et tout ce qu'on pose ensuite
+    // référence une définition introuvable : un cadre barré rouge.
+    //
+    // La palette, elle, garde les vignettes déjà construites : elle continue
+    // d'offrir cent trois symboles qui n'existent plus. D'où le geste qui le
+    // déclenche — écran d'accueil, « Nouveau projet », poser un symbole — et
+    // d'où le fait qu'il ne se voyait jamais dans un test qui ne repartait
+    // pas d'un projet neuf.
+    MainWindow window;
+    window.resize(1200, 800);
+    Document *document = window.findChild<Document *>();
+    REQUIRE(document);
+
+    const int avant = document->project().library.count();
+    REQUIRE(avant > 60);
+
+    // Le geste : Fichier ▸ Nouveau projet, ou la carte de l'écran d'accueil.
+    QAction *nouveau = nullptr;
+    for (QAction *action : window.findChildren<QAction *>()) {
+        if (action->text().remove(QLatin1Char('&')).startsWith(QStringLiteral("Nouveau projet")))
+            nouveau = action;
+    }
+    REQUIRE(nouveau);
+    nouveau->trigger();
+
+    CHECK(document->project().library.count() == avant);
+    // Et un symbole posé après doit se dessiner, pas se barrer.
+    CHECK(document->project().library.definition(QStringLiteral("iec:opamp")) != nullptr);
+}
+
+TEST_CASE("Un panneau tassé revient avec de la largeur", "[ui][docks]")
+{
+    // Le chevron de la barre de titre cache le panneau ; la commande
+    // d'affichage doit le ramener. Elle le rendait « visible » mais large de
+    // zéro pixel : Qt restaure un dock caché avec la largeur qu'il avait au
+    // moment où on l'a caché, et le canevas avait pris toute la place. Du
+    // point de vue du dessinateur, le panneau ne revenait jamais.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+    QApplication::processEvents();
+
+    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("dock.symbols"));
+    REQUIRE(dock);
+    CHECK(dock->isVisible());
+    const int largeurInitiale = dock->width();
+    REQUIRE(largeurInitiale > 0);
+
+    QAction *bascule = nullptr;
+    for (QAction *action : window.findChildren<QAction *>()) {
+        if (action->text().remove(QLatin1Char('&')).startsWith(QStringLiteral("Palette de symboles")))
+            bascule = action;
+    }
+    REQUIRE(bascule);
+
+    bascule->trigger(); // tasser
+    QApplication::processEvents();
+    CHECK_FALSE(dock->isVisible());
+
+    bascule->trigger(); // ramener
+    QApplication::processEvents();
+    CHECK(dock->isVisible());
+    // C'est CE point qui manquait : visible ne suffit pas, il faut de la place.
+    CHECK(dock->width() > 40);
+}

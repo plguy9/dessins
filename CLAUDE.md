@@ -691,6 +691,81 @@ correctifs forment une chaîne : le folio Valmet passe de **40 constats
 d'audit à 25**, les quinze « Borne sans numéro » ont disparu — les bornes sont
 numérotées toutes seules, et le dessin les montre enfin.
 
+## Les quatre défauts trouvés à l'usage réel (2026-09-02)
+
+L'utilisateur a installé la v0.9.1 et s'en est servi. Ce qu'il a rapporté vaut
+tous les essais automatiques du monde.
+
+### 1. Les cadres barrés rouges — la bibliothèque du projet se vidait
+
+Signalé trois fois, introuvable deux fois. Le correctif d'affichage — écrire
+l'identifiant sous le cadre barré — a donné la réponse au troisième
+signalement : `iec:opamp`, `iec:connector-plug`, `iec:meter-ammeter`. Des
+symboles qui **existent**. Donc le projet ne les avait plus.
+
+```cpp
+m_document->newProject(m_document->project().library);   // ← la cause
+```
+
+La bibliothèque passée **est** celle du projet. `newProject` appelle
+`Project::clear()`, qui la vide, puis l'affecte à elle-même : du vide sur du
+vide. **104 symboles → 0.** La palette, elle, garde les vignettes déjà
+construites et continue d'offrir cent trois symboles qui n'existent plus ;
+tout ce qu'on pose ensuite est un cadre barré.
+
+Le geste qui le déclenche : écran d'accueil → *Nouveau projet* → poser un
+symbole. C'est pourquoi aucun test ne l'avait vu — aucun ne repartait d'un
+projet neuf.
+
+**Le correctif est la signature** : `newProject` prend la bibliothèque **par
+valeur**. La copie est faite à l'appel, donc avant le `clear()` : l'aliasing
+devient impossible à écrire. Un commentaire dans le `.h` dit pourquoi, sinon
+quelqu'un « optimisera » en remettant une référence const.
+
+### 2. Un panneau tassé ne revenait pas
+
+Le chevron cache le panneau, la commande d'affichage doit le ramener. Elle le
+rendait visible mais **large de zéro pixel** : Qt restitue un dock caché avec
+la largeur qu'il avait au moment où on l'a caché, et le canevas avait pris
+toute la place. `MainWindow::setDockVisible` retient donc la largeur **avant**
+de cacher et la repose au retour. Les deux chemins — chevron et commande —
+passent par là, sinon l'un des deux oublierait.
+
+**Réserve honnête** : introuvable en rendu hors écran, où Qt se rattrape tout
+seul. Le test vérifie que le panneau revient avec de la largeur ; il passait
+déjà avant le correctif sur cette plateforme.
+
+### 3. La grille disparaissait au lieu de s'espacer
+
+*« Il manque des carreaux, de la résolution. »* Une grille dont les marques
+tombent à trois pixels l'une de l'autre n'est plus une grille, c'est un voile
+gris — et le garde-fou de densité l'abandonnait alors **entièrement**, ce qui
+est le pire des trois cas. `FolioPainter::displayGridStep` double le pas
+jusqu'à ce qu'il respire (7 px au moins).
+
+Deux décisions dans cette fonction :
+
+- **On double, on ne multiplie pas par un facteur quelconque.** Chaque marque
+  tracée reste ainsi sur le pas nominal, donc sur un point d'accrochage : la
+  grille ne montre jamais un point où l'on ne peut pas se poser. Un facteur
+  1,5 mettrait une marque sur deux entre deux points.
+- **On ne subdivise pas** sous le pas de la résolution en zoom avant : ce
+  serait montrer des points où l'accrochage ne se pose pas.
+
+La fonction est **pure et publique** pour qu'un test lise la règle au lieu de
+compter des pixels. La première version du test comptait des pixels et
+passait sans le correctif — elle ne prouvait rien. **Deuxième fois dans ce
+projet qu'un test est écrit faux et rattrapé en le désactivant exprès.**
+
+### 4. Une cote peut porter son unité
+
+*« Dans AutoCAD nous pouvons écrire 10 m et il sera à l'échelle comparé à
+3 cm. »* Le dessin se compte en millimètres, mais on ne pense pas un chemin
+de câbles en millimètres. `10m` vaut 10 000, `3cm` vaut 30, `2"` vaut 50,8 ;
+sans suffixe c'est le millimètre — le cas courant ne doit rien coûter à
+écrire. L'ordre du tableau d'unités compte : **`mm` avant `m`**, sinon
+« 10mm » se lirait « 10 m ».
+
 ## Ce qui a été retiré, et pourquoi (bloc A, 2026-09-02)
 
 Le logiciel avait 66 commandes de menu et une centaine d'entrées cliquables.

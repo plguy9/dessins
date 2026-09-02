@@ -65,10 +65,13 @@ QString Document::displayName() const
     return QFileInfo(m_filePath).completeBaseName();
 }
 
-void Document::newProject(const SymbolLibrary &library)
+void Document::newProject(SymbolLibrary library)
 {
+    // `library` est une COPIE (voir document.h) : la vider par clear() ne peut
+    // donc pas la vider elle-meme, meme quand l'appelant a passe la
+    // bibliotheque du projet.
     m_project.clear();
-    m_project.library = library;
+    m_project.library = std::move(library);
     m_project.info.title = tr("Nouveau projet");
     m_project.info.date = QDate::currentDate();
 

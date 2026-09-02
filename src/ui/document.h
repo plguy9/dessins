@@ -44,7 +44,16 @@ public:
     bool isModified() const { return !m_commands.isClean(); }
     QString displayName() const;
 
-    void newProject(const SymbolLibrary &library);
+    // La bibliotheque est prise PAR VALEUR, et ce n'est pas un oubli.
+    //
+    // L'appelant le plus naturel est `newProject(project().library)` — repartir
+    // d'un projet vide en gardant les symboles du poste. Avec une reference,
+    // le parametre DESIGNE alors la bibliotheque du projet : le clear() qui
+    // ouvre la fonction la vide, et l'affectation qui suit recopie du vide sur
+    // du vide. Le projet se retrouvait sans un seul symbole, et tout ce qu'on
+    // posait ensuite s'affichait en cadre barre. La copie est faite a l'appel,
+    // donc avant le clear : l'aliasing devient impossible a ecrire.
+    void newProject(SymbolLibrary library);
     bool load(const QString &path, QString *error, QStringList *warnings = nullptr);
     bool save(const QString &path, QString *error);
 

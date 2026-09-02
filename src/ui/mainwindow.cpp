@@ -304,7 +304,8 @@ void MainWindow::createDocks()
     };
     for (const DockShortcut &entry : titled) {
         auto *title = new DockTitle(tr(entry.title), tr(entry.hint), entry.dock);
-        connect(title, &DockTitle::closeRequested, entry.dock, &QWidget::hide);
+        connect(title, &DockTitle::closeRequested, this,
+                [this, dock = entry.dock] { setDockVisible(dock, false); });
         entry.dock->setTitleBarWidget(title);
         m_dockTitles.append(title);
         if (entry.dock->widget())
@@ -816,13 +817,7 @@ void MainWindow::createActions()
                                    auto *dock = findChild<QDockWidget *>(name);
                                    if (!dock)
                                        return;
-                                   if (dock->isVisible()) {
-                                       dock->hide();
-                                       return;
-                                   }
-                                   dock->show();
-                                   dock->raise();
-                                   dock->setFocus();
+                                   setDockVisible(dock, !dock->isVisible());
                                });
         action->setCheckable(true);
         if (auto *dock = findChild<QDockWidget *>(name)) {
@@ -1568,6 +1563,32 @@ void MainWindow::openCommandPalette()
 // Le repli est le seul cas ou l'on double : bandeau ferme, le message
 // retombe dans la barre d'etat plutot que de disparaitre. Cacher un panneau
 // ne doit pas rendre le logiciel muet.
+
+void MainWindow::setDockVisible(QDockWidget *dock, bool visible)
+{
+    if (!dock)
+        return;
+    if (!visible) {
+        // La largeur est retenue AVANT de cacher : apres, elle vaut zero.
+        if (dock->width() > 0)
+            m_dockWidths.insert(dock, dock->width());
+        dock->hide();
+        return;
+    }
+
+    dock->show();
+    dock->raise();
+    // Reposer la largeur, faute de quoi le panneau revient a zero pixel et
+    // parait ne pas etre revenu du tout. La valeur de repli est celle de la
+    // palette de symboles, qui est le panneau qu'on tasse et ramene le plus.
+    const int largeur = m_dockWidths.value(dock, 250);
+    resizeDocks({ dock }, { std::max(120, largeur) },
+                dockWidgetArea(dock) == Qt::TopDockWidgetArea
+                                || dockWidgetArea(dock) == Qt::BottomDockWidgetArea
+                        ? Qt::Vertical
+                        : Qt::Horizontal);
+    dock->setFocus();
+}
 
 void MainWindow::report(const QString &message)
 {

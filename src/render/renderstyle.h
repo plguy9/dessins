@@ -79,6 +79,16 @@ struct RenderStyle {
     bool lightenDarkWires = false;
 
     double gridStep = 2.5;
+
+    // Echelle d'affichage, en pixels par millimetre. Zero = inconnue (export
+    // PDF, vignette) : la grille garde alors son pas nominal.
+    //
+    // Elle sert a une seule chose, mais elle compte : ADAPTER LE PAS TRACE AU
+    // ZOOM. Une grille dont les marques tombent a trois pixels l'une de
+    // l'autre n'est plus une grille, c'est un voile gris ; et le garde-fou de
+    // densite l'abandonnait carrement — d'ou le « il manque des carreaux »
+    // signale a l'usage. On l'espace plutot que de la perdre.
+    double pixelsPerMm = 0.0;
     int gridMajorEvery = 4;
     GridStyle gridStyle = GridStyle::Dots;
     double gridCrossSize = 0.8; // demi-branche de la croix, en millimetres

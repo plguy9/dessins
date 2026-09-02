@@ -134,3 +134,37 @@ TEST_CASE("L'angle ecran se lit a l'endroit", "[coordinates]")
     CHECK_THAT(CoordinateEntry::screenAngle(QPointF(-10, 0)), WithinAbs(180.0, 1e-9));
     CHECK_THAT(CoordinateEntry::screenAngle(QPointF(0, 10)), WithinAbs(270.0, 1e-9));
 }
+
+TEST_CASE("Une cote peut porter son unité", "[coordonnees][unites]")
+{
+    // Le dessin se compte en millimètres, mais on ne pense pas un chemin de
+    // câbles en millimètres : on dit « dix mètres ». C'est le geste d'AutoCAD,
+    // signalé à l'usage — *« nous pouvons écrire 10 m et il sera à l'échelle
+    // comparé à 3 cm »*. Sans suffixe, c'est le millimètre : le cas courant ne
+    // doit rien coûter à écrire.
+    const QPointF origine(0.0, 0.0);
+    const QPointF vise(10.0, 0.0); // le curseur, vers la droite
+
+    const auto distance = [&](const QString &texte) {
+        const auto p = CoordinateEntry::resolve(texte, &origine, vise);
+        REQUIRE(p.has_value());
+        return p->x();
+    };
+
+    CHECK(distance(QStringLiteral("150")) == 150.0);    // millimètres par défaut
+    CHECK(distance(QStringLiteral("150mm")) == 150.0);
+    CHECK(distance(QStringLiteral("3cm")) == 30.0);
+    CHECK(distance(QStringLiteral("10m")) == 10000.0);
+    CHECK(distance(QStringLiteral("0.5m")) == 500.0);
+    // La casse et l'espace sont indifférentes : on ne vérifie pas sa touche
+    // Majuscule en cotant.
+    CHECK(distance(QStringLiteral("10 M")) == 10000.0);
+    // Le pouce, pour les catalogues américains.
+    CHECK(distance(QStringLiteral("2in")) == 50.8);
+
+    // « mm » doit être essayé avant « m », sinon « 10mm » se lirait « 10 m ».
+    CHECK(distance(QStringLiteral("10mm")) == 10.0);
+
+    // Une unité seule ne veut rien dire : on ne pose rien plutôt que d'inventer.
+    CHECK_FALSE(CoordinateEntry::resolve(QStringLiteral("m"), &origine, vise).has_value());
+}

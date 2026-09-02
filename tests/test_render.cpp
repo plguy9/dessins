@@ -461,3 +461,37 @@ TEST_CASE("Le numéro d'une borne se lit sur le schéma", "[render][borne]")
     // présence du champ n'aurait rien prouvé : c'est l'affichage qui manquait.
     CHECK(avecNumero > sansNumero);
 }
+
+TEST_CASE("La grille s'espace au lieu de disparaître", "[render][grille]")
+{
+    // Une grille dont les marques tombent à trois pixels l'une de l'autre
+    // n'est plus une grille, c'est un voile gris — et le garde-fou de densité
+    // l'abandonnait carrément, ce qui est le pire des trois cas. Signalé à
+    // l'usage : *« il manque des carreaux, de la résolution »*.
+    //
+    // La règle se lit ici directement, plutôt qu'en comptant des pixels :
+    // c'est le seul moyen de prouver qu'elle s'applique.
+    const double pas = 2.5;
+
+    // Échelle inconnue — PDF, vignette : le pas nominal, sans discussion.
+    CHECK(FolioPainter::displayGridStep(pas, 0.0) == pas);
+
+    // Zoom de travail : 2,5 mm à 4 px/mm font 10 px, c'est lisible tel quel.
+    CHECK(FolioPainter::displayGridStep(pas, 4.0) == pas);
+
+    // Zoom arrière : le pas double jusqu'à respirer, au lieu de se perdre.
+    const double espace = FolioPainter::displayGridStep(pas, 0.3);
+    CHECK(espace > pas);
+    CHECK(espace * 0.3 >= FolioPainter::kMinGridPixels);
+
+    // ET IL RESTE UN MULTIPLE DU PAS NOMINAL : la grille ne montre jamais un
+    // point où l'on ne peut pas s'accrocher. C'est pour cela qu'on double au
+    // lieu de multiplier par un facteur quelconque.
+    const double rapport = espace / pas;
+    CHECK(std::abs(rapport - std::round(rapport)) < 1e-9);
+    CHECK(qFuzzyCompare(std::pow(2.0, std::round(std::log2(rapport))), rapport));
+
+    // Zoom avant : on ne subdivise PAS sous le pas de la résolution — ce
+    // serait montrer des points où l'accrochage ne se pose pas.
+    CHECK(FolioPainter::displayGridStep(pas, 40.0) == pas);
+}

@@ -109,6 +109,19 @@ public:
     // d'armoire ait le meme pointille quelle que soit sa plume.
     static void applyStroke(QPen &pen, Primitive::Stroke stroke);
 
+    // LE PAS REELLEMENT TRACE, a partir du pas nominal et de l'echelle.
+    //
+    // Une grille dont les marques tombent a trois pixels l'une de l'autre
+    // n'est plus une grille, c'est un voile gris ; et le garde-fou de densite
+    // l'abandonnait alors entierement, ce qui est pire. Le pas double donc
+    // jusqu'a respirer. Les marques restent un sous-ensemble EXACT des points
+    // d'accrochage — jamais un point ou l'on ne peut pas se poser.
+    //
+    // Fonction pure, et publique, pour qu'un test lise la regle au lieu de
+    // compter des pixels : c'est le seul moyen de prouver qu'elle s'applique.
+    static double displayGridStep(double nominalStep, double pixelsPerMm);
+    static constexpr double kMinGridPixels = 7.0;
+
 private:
     void paintSymbol(QPainter &painter, const SymbolInstance &symbol) const;
     void paintWire(QPainter &painter, const Wire &wire) const;

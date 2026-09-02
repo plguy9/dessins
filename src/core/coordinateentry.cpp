@@ -12,16 +12,54 @@ namespace {
 // Un nombre, avec le point pour decimale. La virgule est reservee au
 // separateur de coordonnees : c'est la convention de toute la CAO, et la
 // respecter evite qu'une cote veuille dire deux choses.
+//
+// UNE UNITE PEUT SUIVRE. Le dessin se compte en millimetres, mais on ne pense
+// pas un chemin de cables en millimetres : on dit « dix metres ». Taper
+// « 10m » vaut donc 10 000, « 3cm » vaut 30, « 2" » vaut 50,8. Sans suffixe,
+// c'est le millimetre — le cas courant, qui ne doit rien couter a ecrire.
+// L'unite est acceptee collee au nombre ou separee par une espace, et sa
+// casse est indifferente : personne ne verifie sa touche Maj en cotant.
 std::optional<double> number(const QString &text)
 {
-    const QString trimmed = text.trimmed();
+    QString trimmed = text.trimmed();
+    if (trimmed.isEmpty())
+        return std::nullopt;
+
+    // Le pouce se note " ou in ; le reste est metrique. L'ordre du tableau
+    // compte : « mm » doit etre essaye avant « m », sinon « 10mm » se lirait
+    // « 10 m » suivi d'un « m » parasite.
+    struct Unite {
+        QLatin1String suffixe;
+        double versMillimetres;
+    };
+    static const Unite unites[] = {
+        { QLatin1String("mm"), 1.0 },
+        { QLatin1String("cm"), 10.0 },
+        { QLatin1String("dm"), 100.0 },
+        { QLatin1String("km"), 1000000.0 },
+        { QLatin1String("in"), 25.4 },
+        { QLatin1String("\""), 25.4 },
+        { QLatin1String("m"), 1000.0 },
+    };
+
+    double facteur = 1.0;
+    for (const Unite &unite : unites) {
+        if (trimmed.size() > unite.suffixe.size()
+            && trimmed.endsWith(unite.suffixe, Qt::CaseInsensitive)) {
+            trimmed.chop(unite.suffixe.size());
+            trimmed = trimmed.trimmed();
+            facteur = unite.versMillimetres;
+            break;
+        }
+    }
+
     if (trimmed.isEmpty())
         return std::nullopt;
     bool ok = false;
     const double value = trimmed.toDouble(&ok);
     if (!ok)
         return std::nullopt;
-    return value;
+    return value * facteur;
 }
 
 } // namespace

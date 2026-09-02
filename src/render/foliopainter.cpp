@@ -345,6 +345,26 @@ void FolioPainter::paintSheet(QPainter &painter, const Folio &folio) const
     painter.fillRect(sheet, m_style.sheet);
 }
 
+double FolioPainter::displayGridStep(double nominalStep, double pixelsPerMm)
+{
+    if (nominalStep <= 0.0)
+        return nominalStep;
+    // Echelle inconnue (PDF, vignette) : on garde le pas nominal.
+    if (pixelsPerMm <= 0.0)
+        return nominalStep;
+
+    double step = nominalStep;
+    // On DOUBLE, on ne multiplie pas par un facteur quelconque : chaque marque
+    // tracee reste ainsi sur le pas nominal, donc sur un point d'accrochage.
+    // Un facteur 1,5 mettrait une marque sur deux entre deux points.
+    int doublements = 0;
+    while (step * pixelsPerMm < kMinGridPixels && doublements < 16) {
+        step *= 2.0;
+        ++doublements;
+    }
+    return step;
+}
+
 void FolioPainter::paintGrid(QPainter &painter, const Folio &folio, const QRectF &clipMm) const
 {
     if (!m_style.showGrid || m_style.gridStep <= 0.0)
@@ -354,7 +374,7 @@ void FolioPainter::paintGrid(QPainter &painter, const Folio &folio, const QRectF
     if (area.isEmpty())
         return;
 
-    const double step = m_style.gridStep;
+    const double step = displayGridStep(m_style.gridStep, m_style.pixelsPerMm);
     const double major = step * std::max(1, m_style.gridMajorEvery);
 
     const int firstX = int(std::floor(area.left() / step));

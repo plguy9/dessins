@@ -3796,7 +3796,11 @@ void FolioView::paintEvent(QPaintEvent *event)
     painter.translate(m_pan);
     painter.scale(m_scale, m_scale);
 
-    FolioPainter folioPainter(m_document->project(), m_style);
+    // Le peintre a besoin de l'echelle pour espacer la grille : sans elle, une
+    // grille trop serree se perd en voile gris, ou disparait tout a fait.
+    RenderStyle styleEcran = m_style;
+    styleEcran.pixelsPerMm = m_scale;
+    FolioPainter folioPainter(m_document->project(), styleEcran);
     folioPainter.setSelection(m_selection);
     folioPainter.setHighlightedEntities(m_highlight);
     folioPainter.setUnconnectedPins(m_unconnectedPins);

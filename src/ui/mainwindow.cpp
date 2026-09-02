@@ -142,7 +142,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     // La bibliotheque integree est chargee une fois pour toutes : le logiciel
     // doit etre utilisable des le premier lancement, sans installation.
     SymbolLibrary library;
-    const LibraryLoadReport report = LibraryStore::loadAll(library);
+    const LibraryLoadReport loadReport = LibraryStore::loadAll(library);
     m_document->project().library = library;
     m_document->newProject(library);
 
@@ -172,7 +172,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         m_zoneLabel->setText(zone.isEmpty() ? tr("hors cadre") : tr("zone %1").arg(zone));
     });
     connect(m_view, &FolioView::statusMessage, this,
-            [this](const QString &message) { statusBar()->showMessage(message, 6000); });
+            [this](const QString &message) { report(message); });
+    // L'invite : ce que le geste en cours attend, en permanence sous les yeux.
+    // Elle ne defile pas avec l'historique — elle tient tant que le geste
+    // dure, et disparait avec lui.
+    connect(m_view, &FolioView::promptChanged, this,
+            [this](const QString &prompt) { m_command->setPrompt(prompt); });
     connect(m_view, &FolioView::zoomChanged, this, [this] { updateActions(); });
     connect(m_view, &FolioView::clipboardChanged, this, &MainWindow::updateActions);
     connect(m_document, &Document::modifiedChanged, this, &MainWindow::updateTitle);
@@ -239,16 +244,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     applyTheme(dark);
 
     registerCommands();
+    echoMenuCommands();
     resizeDocks({ m_commandDock }, { 108 }, Qt::Vertical);
     syncDraftingToggles();
     resize(1560, 980);
     updateTitle();
     updateActions();
 
-    statusBar()->showMessage(
-            tr("%1 symboles chargés — commencez par poser un symbole depuis la palette.")
-                    .arg(report.symbolsLoaded),
-            8000);
+    report(tr("%1 symboles chargés — commencez par poser un symbole depuis la palette.")
+           .arg(loadReport.symbolsLoaded));
 }
 
 MainWindow::~MainWindow() = default;
@@ -344,16 +348,12 @@ void MainWindow::createDocks()
     // jamais coince au clavier alors qu'on voulait tracer.
     connect(m_command, &CommandLine::escapePressed, this, [this] { m_view->setFocus(); });
 
-    connect(m_palette, &SymbolPalette::symbolChosen, this, [this](const QString &id) {
-        m_view->setPendingSymbol(id);
-        statusBar()->showMessage(
-                tr("Cliquez pour poser le symbole. R fait pivoter, M retourne, Échap annule."),
-                6000);
-    });
+    connect(m_palette, &SymbolPalette::symbolChosen, this,
+            [this](const QString &id) { m_view->setPendingSymbol(id); });
     connect(m_reports, &ReportPanel::locateRequested, this, &MainWindow::locate);
     connect(m_navigator, &FolioNavigator::pageSetupRequested, this, &MainWindow::editPageSetup);
     connect(m_navigator, &FolioNavigator::statusMessage, this,
-            [this](const QString &message) { statusBar()->showMessage(message, 4000); });
+            [this](const QString &message) { report(message); });
 }
 
 void MainWindow::createActions()
@@ -950,7 +950,7 @@ void MainWindow::editSelectedComponent()
             return;
         }
     }
-    statusBar()->showMessage(tr("Sélectionner un appareil pour l'éditer"), 4000);
+    report(tr("Sélectionner un appareil pour l'éditer"));
 }
 
 void MainWindow::surfSelection()
@@ -970,7 +970,7 @@ void MainWindow::surfSelection()
     SurferDialog dialog(m_document, target, this);
     connect(&dialog, &SurferDialog::locateRequested, this, &MainWindow::locate);
     if (!dialog.hasSites()) {
-        statusBar()->showMessage(tr("Rien de lié à cet élément dans le dossier"), 5000);
+        report(tr("Rien de lié à cet élément dans le dossier"));
         return;
     }
     dialog.exec();
@@ -1008,10 +1008,7 @@ void MainWindow::insertPlcModule()
 
     // Les champs voyagent avec la pose : tout tient dans une seule annulation.
     m_view->setPendingSymbol(PlcModule::symbolId(*def), &prototype);
-    statusBar()->showMessage(
-            tr("%1 — cliquez pour poser la carte. R fait pivoter, Échap annule.")
-                    .arg(def->partNumber),
-            8000);
+    report(tr("Carte %1 armée.").arg(def->partNumber));
 }
 
 void MainWindow::editPlcModule(const QString &entityId)
@@ -1085,12 +1082,12 @@ void MainWindow::arraySelection()
                                                           ids, dialog.spec());
     const int added = command->addedCount();
     if (added == 0) {
-        statusBar()->showMessage(tr("Réseau : ce réglage ne pose aucune copie."), 4000);
+        report(tr("Réseau : ce réglage ne pose aucune copie."));
         return;
     }
     m_document->push(std::move(command));
     m_view->update();
-    statusBar()->showMessage(tr("%n copie(s) posée(s).", "", added), 5000);
+    report(tr("%n copie(s) posée(s).", "", added));
 }
 
 void MainWindow::alignSelection(AlignMode mode)
@@ -1100,10 +1097,9 @@ void MainWindow::alignSelection(AlignMode mode)
         return;
     const QStringList ids(m_view->selection().cbegin(), m_view->selection().cend());
     if (ids.size() < AlignTools::minimumCount(mode)) {
-        statusBar()->showMessage(tr("%1 : sélectionner au moins %n élément(s).", "",
-                                    AlignTools::minimumCount(mode))
-                                         .arg(alignModeLabel(mode)),
-                                 4000);
+        report(tr("%1 : sélectionner au moins %n élément(s).", "",
+               AlignTools::minimumCount(mode))
+               .arg(alignModeLabel(mode)));
         return;
     }
 
@@ -1111,14 +1107,13 @@ void MainWindow::alignSelection(AlignMode mode)
                                                           ids, mode);
     const int moved = command->affectedCount();
     if (moved == 0) {
-        statusBar()->showMessage(tr("%1 : c'est déjà aligné.").arg(alignModeLabel(mode)), 4000);
+        report(tr("%1 : c'est déjà aligné.").arg(alignModeLabel(mode)));
         return;
     }
     m_document->push(std::move(command));
     m_view->update();
-    statusBar()->showMessage(tr("%1 : %n élément(s) déplacé(s).", "", moved)
-                                     .arg(alignModeLabel(mode)),
-                             4000);
+    report(tr("%1 : %n élément(s) déplacé(s).", "", moved)
+           .arg(alignModeLabel(mode)));
 }
 
 void MainWindow::matchProperties()
@@ -1193,10 +1188,9 @@ void MainWindow::matchProperties()
     });
 
     m_view->update();
-    statusBar()->showMessage(changed == 0
-                                     ? tr("Copier les propriétés : rien à reprendre.")
-                                     : tr("Propriétés copiées sur %n élément(s).", "", changed),
-                             5000);
+    report(changed == 0
+           ? tr("Copier les propriétés : rien à reprendre.")
+           : tr("Propriétés copiées sur %n élément(s).", "", changed));
 }
 
 void MainWindow::measureDistance() { m_view->beginMeasureDistance(); }
@@ -1227,9 +1221,8 @@ void MainWindow::newSymbol()
     editor.newDefinition();
     if (editor.exec() == QDialog::Accepted) {
         m_palette->setLibrary(&m_document->project().library);
-        statusBar()->showMessage(tr("Symbole enregistré dans votre bibliothèque : %1")
-                                         .arg(editor.savedDefinitionId()),
-                                 6000);
+        report(tr("Symbole enregistré dans votre bibliothèque : %1")
+               .arg(editor.savedDefinitionId()));
     }
 }
 
@@ -1237,7 +1230,7 @@ void MainWindow::editCurrentSymbol(bool asCopy)
 {
     const QString id = m_palette->currentDefinitionId();
     if (id.isEmpty()) {
-        statusBar()->showMessage(tr("Choisissez d'abord un symbole dans la palette"), 4000);
+        report(tr("Choisissez d'abord un symbole dans la palette"));
         return;
     }
     SymbolEditor editor(&m_document->project().library, this);
@@ -1247,8 +1240,7 @@ void MainWindow::editCurrentSymbol(bool asCopy)
         m_document->invalidateNetlist();
         m_document->project().resolveSymbolBounds();
         m_view->update();
-        statusBar()->showMessage(tr("Symbole enregistré : %1").arg(editor.savedDefinitionId()),
-                                 6000);
+        report(tr("Symbole enregistré : %1").arg(editor.savedDefinitionId()));
     }
 }
 
@@ -1277,7 +1269,6 @@ void MainWindow::createDraftingToggles(QMenu *menu)
                 return;
             slot(on);
             m_view->snapSettingsTouched();
-            statusBar()->showMessage(QString(), 0);
         });
         menu->addAction(action);
         m_actionGlyphs.insert(action, int(glyph));
@@ -1360,7 +1351,7 @@ void MainWindow::editDraftingSettings()
         applyTheme(m_dark);
         m_view->snapSettingsTouched();
         syncDraftingToggles();
-        statusBar()->showMessage(tr("Affichage revenu aux valeurs du thème."), 4000);
+        report(tr("Affichage revenu aux valeurs du thème."));
         return;
     }
 
@@ -1370,7 +1361,7 @@ void MainWindow::editDraftingSettings()
     Appearance::save(style, m_dark);
     m_view->snapSettingsTouched();
     syncDraftingToggles();
-    statusBar()->showMessage(tr("Paramètres de dessin appliqués"), 4000);
+    report(tr("Paramètres de dessin appliqués"));
 }
 
 void MainWindow::editPageSetup()
@@ -1400,10 +1391,9 @@ void MainWindow::editPageSetup()
 
     m_view->zoomToFit();
     m_navigator->refresh();
-    statusBar()->showMessage(all ? tr("Mise en page appliquée à %n folio(s)", "",
-                                      m_document->folioCount())
-                                 : tr("Mise en page du folio appliquée"),
-                             5000);
+    report(all ? tr("Mise en page appliquée à %n folio(s)", "",
+           m_document->folioCount())
+           : tr("Mise en page du folio appliquée"));
 }
 
 void MainWindow::zoomCommand(const QStringList &arguments)
@@ -1497,6 +1487,81 @@ void MainWindow::openCommandPalette()
 
     m_commandPalette->setEntries(entries);
     m_commandPalette->open();
+}
+
+// --------------------------------------------------------------------------
+// Ce que le logiciel a a dire
+//
+// Un seul endroit, et c'est la ligne de commande. La barre d'etat garde ses
+// etats permanents — coordonnees, zone, zoom, selection, bascules — et plus
+// une phrase : un compte rendu qui s'efface tout seul au bout de six secondes
+// dans le coin bas de la fenetre n'est pas lu, et quand il l'est, il est deja
+// parti. L'historique de la ligne de commande, lui, garde ce qui a ete dit.
+//
+// Le repli est le seul cas ou l'on double : bandeau ferme, le message
+// retombe dans la barre d'etat plutot que de disparaitre. Cacher un panneau
+// ne doit pas rendre le logiciel muet.
+
+void MainWindow::report(const QString &message)
+{
+    if (message.isEmpty())
+        return;
+    if (m_command)
+        m_command->write(message);
+    // isHidden(), pas isVisible() : le panneau d'une fenetre pas encore
+    // affichee n'est pas « replie » — il n'est pas encore montre. Doubler la
+    // sur ce seul motif remplirait la barre d'etat pendant la construction.
+    if (!m_commandDock || m_commandDock->isHidden())
+        statusBar()->showMessage(message, 6000);
+}
+
+void MainWindow::reportError(const QString &message)
+{
+    if (message.isEmpty())
+        return;
+    if (m_command)
+        m_command->writeError(message);
+    // isHidden(), pas isVisible() : le panneau d'une fenetre pas encore
+    // affichee n'est pas « replie » — il n'est pas encore montre. Doubler la
+    // sur ce seul motif remplirait la barre d'etat pendant la construction.
+    if (!m_commandDock || m_commandDock->isHidden())
+        statusBar()->showMessage(message, 6000);
+}
+
+// Le ruban, les menus et les barres d'outils ecrivent eux aussi dans la ligne
+// de commande. C'est le comportement d'AutoCAD, et sa raison est simple : la
+// ligne devient le journal de la seance, quel que soit le chemin pris pour
+// lancer la commande. On y relit ce qu'on vient de faire, et on y apprend le
+// nom a taper la prochaine fois — un bouton clique enseigne son alias.
+void MainWindow::echoMenuCommands()
+{
+    for (auto it = m_actionGlyphs.constBegin(); it != m_actionGlyphs.constEnd(); ++it) {
+        QAction *action = it.key();
+        connect(action, &QAction::triggered, this, [this, action](bool checked) {
+            // « &Enregistrer sous… » se lit « Enregistrer sous » : l'accelerateur
+            // et les points de suite appartiennent au menu, pas au journal.
+            QString name = action->text();
+            name.remove(QLatin1Char('&'));
+            name.remove(QStringLiteral("…"));
+            name.remove(QStringLiteral("..."));
+            name = name.trimmed();
+            if (name.isEmpty())
+                return;
+            if (action->isCheckable()) {
+                // Les bascules d'aide au dessin portent leur nom court dans
+                // data() — « ORTHO » plutot que « Ortho — contraindre les
+                // traces a l'horizontale et a la verticale ». C'est celui
+                // qu'AutoCAD ecrit, et celui qu'on lit d'un coup d'oeil.
+                const QString shortName = action->data().toString();
+                if (!shortName.isEmpty())
+                    name = shortName;
+                report(checked ? tr("%1 : activé").arg(name)
+                               : tr("%1 : désactivé").arg(name));
+                return;
+            }
+            report(name);
+        });
+    }
 }
 
 void MainWindow::registerCommands()
@@ -1745,9 +1810,6 @@ void MainWindow::registerCommands()
                m_document->setCurrentFolioIndex(m_document->currentFolioIndex() - 1);
            });
 
-    connect(m_command, &CommandLine::commandExecuted, this, [this](const QString &name) {
-        statusBar()->showMessage(name, 2500);
-    });
 }
 
 void MainWindow::insertLadder()
@@ -1776,7 +1838,7 @@ void MainWindow::insertLadder()
     });
 
     m_view->update();
-    statusBar()->showMessage(tr("Échelle insérée : %n élément(s).", "", count), 5000);
+    report(tr("Échelle insérée : %n élément(s).", "", count));
 }
 
 void MainWindow::editWireTypes()
@@ -1789,7 +1851,7 @@ void MainWindow::editWireTypes()
                                                               dialog.result()));
     rebuildWireTypeSelector();
     m_view->update();
-    statusBar()->showMessage(tr("Types de fils mis à jour."), 5000);
+    report(tr("Types de fils mis à jour."));
 }
 
 void MainWindow::showProperties(const QSet<QString> &selection)
@@ -1808,7 +1870,7 @@ void MainWindow::applyWireTypeToSelection()
     // une boite ferait repondre deux fois a la meme question.
     const QString id = m_view->currentWireType();
     if (id.isEmpty()) {
-        statusBar()->showMessage(tr("Choisissez d'abord un type de fil dans le ruban."), 5000);
+        report(tr("Choisissez d'abord un type de fil dans le ruban."));
         return;
     }
     m_view->applyWireTypeToSelection(id);
@@ -2489,7 +2551,7 @@ bool MainWindow::openFile(const QString &path)
                              warnings.join(QStringLiteral("\n")));
     }
     addRecentFile(path);
-    statusBar()->showMessage(tr("Projet ouvert : %1").arg(QFileInfo(path).fileName()), 5000);
+    report(tr("Projet ouvert : %1").arg(QFileInfo(path).fileName()));
     return true;
 }
 
@@ -2503,7 +2565,7 @@ bool MainWindow::saveProject()
         return false;
     }
     addRecentFile(m_document->filePath());
-    statusBar()->showMessage(tr("Projet enregistré"), 4000);
+    report(tr("Projet enregistré"));
     return true;
 }
 
@@ -2521,7 +2583,7 @@ bool MainWindow::saveProjectAs()
     }
     updateTitle();
     addRecentFile(path);
-    statusBar()->showMessage(tr("Projet enregistré : %1").arg(QFileInfo(path).fileName()), 4000);
+    report(tr("Projet enregistré : %1").arg(QFileInfo(path).fileName()));
     return true;
 }
 
@@ -2540,9 +2602,8 @@ void MainWindow::exportPdf()
         QMessageBox::critical(this, tr("Export PDF impossible"), error);
         return;
     }
-    statusBar()->showMessage(tr("PDF écrit : %1 (%n folio(s))", "", m_document->folioCount())
-                                     .arg(QFileInfo(path).fileName()),
-                             6000);
+    report(tr("PDF écrit : %1 (%n folio(s))", "", m_document->folioCount())
+           .arg(QFileInfo(path).fileName()));
 }
 
 void MainWindow::exportDxf()
@@ -2578,7 +2639,7 @@ void MainWindow::exportCurrentReport()
 {
     const ReportTable table = m_reports->currentTable();
     if (table.headers.isEmpty()) {
-        statusBar()->showMessage(tr("Aucun rapport à exporter"), 4000);
+        report(tr("Aucun rapport à exporter"));
         return;
     }
     const QString path = QFileDialog::getSaveFileName(
@@ -2592,7 +2653,7 @@ void MainWindow::exportCurrentReport()
         QMessageBox::critical(this, tr("Export impossible"), error);
         return;
     }
-    statusBar()->showMessage(tr("Rapport exporté : %1").arg(QFileInfo(path).fileName()), 5000);
+    report(tr("Rapport exporté : %1").arg(QFileInfo(path).fileName()));
 }
 
 void MainWindow::placeCurrentReport()
@@ -2600,7 +2661,7 @@ void MainWindow::placeCurrentReport()
     const ReportTable table = m_reports->currentTable();
     Folio *folio = m_document->currentFolio();
     if (!folio || table.rows.isEmpty()) {
-        statusBar()->showMessage(tr("Aucun rapport à poser"), 4000);
+        report(tr("Aucun rapport à poser"));
         return;
     }
 
@@ -2711,9 +2772,8 @@ void MainWindow::placeCurrentReport()
         }
     });
     m_view->update();
-    statusBar()->showMessage(tr("Rapport posé : %1 (%n élément(s)).", "", count)
-                                     .arg(table.title),
-                             6000);
+    report(tr("Rapport posé : %1 (%n élément(s)).", "", count)
+           .arg(table.title));
 }
 
 void MainWindow::printProject()
@@ -2750,7 +2810,7 @@ void MainWindow::printProject()
         painter.restore();
     }
     painter.end();
-    statusBar()->showMessage(tr("Dossier envoyé à l'impression"), 5000);
+    report(tr("Dossier envoyé à l'impression"));
 }
 
 // --------------------------------------------------------------------------
@@ -2835,8 +2895,8 @@ void MainWindow::editTagFormat()
     m_document->project().designationMode = mode->currentData().toString();
     m_document->project().designationFormat = format->text().trimmed();
     m_document->invalidateNetlist();
-    statusBar()->showMessage(tr("Format de repère modifié. Relancer le repérage "
-                                "automatique pour l'appliquer."), 8000);
+    report(tr("Format de repère modifié. Relancer le repérage "
+           "automatique pour l'appliquer."));
 }
 
 void MainWindow::renumberAll()
@@ -2848,14 +2908,12 @@ void MainWindow::renumberAll()
     const NumberingResult result = Numbering::renumberAll(m_document->project(), profile);
     m_document->invalidateNetlist();
 
-    statusBar()->showMessage(
-            tr("Repérage : %1 appareils désignés, %2 potentiels, %3 fils repérés, "
-               "%4 saisie(s) manuelle(s) préservée(s)")
-                    .arg(result.devicesDesignated)
-                    .arg(result.netsNumbered)
-                    .arg(result.wiresNumbered)
-                    .arg(result.keptManual),
-            10000);
+    report(tr("Repérage : %1 appareils désignés, %2 potentiels, %3 fils repérés, "
+           "%4 saisie(s) manuelle(s) préservée(s)")
+           .arg(result.devicesDesignated)
+           .arg(result.netsNumbered)
+           .arg(result.wiresNumbered)
+           .arg(result.keptManual));
     m_document->commands().resetClean();
     m_reports->refresh();
     m_view->update();
@@ -2867,11 +2925,10 @@ void MainWindow::setProfile(const QString &profileId)
     const Profile profile = m_document->profile();
     m_palette->setNorm(profile.norm);
     m_view->setGridStep(profile.gridStep);
-    statusBar()->showMessage(tr("Profil métier : %1 — grille %2 mm, symboles %3")
-                                     .arg(profile.name)
-                                     .arg(profile.gridStep)
-                                     .arg(profile.norm),
-                             6000);
+    report(tr("Profil métier : %1 — grille %2 mm, symboles %3")
+           .arg(profile.name)
+           .arg(profile.gridStep)
+           .arg(profile.norm));
 }
 
 void MainWindow::checkSchematic()
@@ -2884,10 +2941,9 @@ void MainWindow::checkSchematic()
     AuditDialog dialog(m_document, m_plc, this);
     connect(&dialog, &AuditDialog::locateRequested, this, &MainWindow::locate);
     dialog.exec();
-    statusBar()->showMessage(dialog.findingCount() == 0
-                                     ? tr("Audit : aucune anomalie")
-                                     : tr("Audit : %n constat(s)", "", dialog.findingCount()),
-                             6000);
+    report(dialog.findingCount() == 0
+           ? tr("Audit : aucune anomalie")
+           : tr("Audit : %n constat(s)", "", dialog.findingCount()));
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)

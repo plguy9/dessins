@@ -320,6 +320,17 @@ QPlainTextEdit[commandHistory="true"] {
     color: %MUTED%;
 }
 
+/* L'INVITE — la seule ligne qui dise ce que le logiciel attend maintenant.
+   Elle porte l'accent : c'est exactement la reserve d'usage de la regle 3,
+   puisque rien d'autre dans le bandeau ne designe ce qui est actif pendant
+   un geste. Comme l'historique, c'est du texte pose : ni fond ni cadre. */
+QLabel[commandPrompt="true"] {
+    background: transparent;
+    border: none;
+    padding: 3px 9px 1px 9px;
+    color: %ACCENT%;
+}
+
 QLineEdit:disabled, QComboBox:disabled { color: %FAINT%; background: %WINDOW%; }
 QLineEdit[readOnly="true"] { color: %MUTED%; background: %WINDOW%; }
 

@@ -13,6 +13,7 @@
 #include <functional>
 
 class QCompleter;
+class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
 class QStringListModel;
@@ -42,6 +43,13 @@ public:
     void writeError(const QString &line);
     void writePrompt(const QString &line);
 
+    // L'INVITE — ce que la commande en cours attend. Elle reste affichee tant
+    // que le geste dure, contrairement a un message d'historique qui defile.
+    // C'est ce qui fait d'une ligne de commande un fil conducteur plutot qu'un
+    // lanceur : chez AutoCAD, elle dit en permanence ou l'on en est.
+    void setPrompt(const QString &prompt);
+    QString prompt() const;
+
     void focusInput();
     QString lastCommand() const { return m_lastCommand; }
 
@@ -63,6 +71,7 @@ private:
     // porte, jusqu'a trois lignes.
     void fitHistory();
 
+    QLabel *m_prompt = nullptr;
     QPlainTextEdit *m_history = nullptr;
     QLineEdit *m_input = nullptr;
     QCompleter *m_completer = nullptr;

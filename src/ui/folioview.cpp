@@ -589,6 +589,62 @@ void FolioView::setPendingSymbol(const QString &definitionId, const SymbolInstan
     update();
 }
 
+bool FolioView::abandonGesture(bool includeSelection)
+{
+    // L'ordre est celui de l'imbrication : la cote appartient au geste, le
+    // geste appartient a l'outil. On ne defait qu'une couche a la fois, pour
+    // qu'une frappe de trop ne rende pas l'outil par-dessus le marche.
+    if (m_typing) {
+        cancelTyping();
+        Q_EMIT statusMessage(tr("Saisie abandonnée."));
+        return true;
+    }
+    if (m_zoomWindowArmed) {
+        m_zoomWindowArmed = false;
+        m_rubber = QRectF();
+        setCursor(Qt::BlankCursor);
+        Q_EMIT statusMessage(tr("Zoom fenêtre abandonné."));
+        update();
+        return true;
+    }
+    if (m_pending != Pending::None || m_stretchArmed) {
+        // Abandonner une designation rend la main sans rien faire : la suite
+        // prevue est jetee, sinon elle se declencherait au geste suivant.
+        const bool wasPicking = m_pending == Pending::PickObjects;
+        m_pickThen = nullptr;
+        m_pickPrompt.clear();
+        m_pending = Pending::None;
+        m_stretchArmed = false;
+        m_stretchWindow = QRectF();
+        m_rubber = QRectF();
+        setCursor(Qt::BlankCursor);
+        Q_EMIT statusMessage(wasPicking ? tr("Désignation abandonnée.")
+                                        : tr("Geste annulé."));
+        update();
+        return true;
+    }
+    if (!m_wirePoints.isEmpty() || !m_shapePoints.isEmpty() || !m_measurePoints.isEmpty()) {
+        cancelPending();
+        Q_EMIT statusMessage(tr("Tracé abandonné."));
+        return true;
+    }
+    if (m_panArmed) {
+        cancelPending();
+        Q_EMIT statusMessage(tr("Panoramique terminé."));
+        return true;
+    }
+    if (m_tool != Tool::Select) {
+        setTool(Tool::Select);
+        Q_EMIT statusMessage(tr("Outil relâché."));
+        return true;
+    }
+    if (includeSelection && !m_selection.isEmpty()) {
+        clearSelection();
+        return true;
+    }
+    return false;
+}
+
 void FolioView::cancelPending()
 {
     m_measurePoints.clear();
@@ -662,7 +718,6 @@ void FolioView::beginZoomWindow()
 {
     m_zoomWindowArmed = true;
     setCursor(Qt::CrossCursor);
-    Q_EMIT statusMessage(tr("Zoom fenêtre : encadrez la zone à agrandir, Échap pour annuler."));
     update();
 }
 
@@ -848,7 +903,6 @@ void FolioView::requestSelection(const QString &prompt, PickFilter filter, int m
     m_pickMinimum = std::max(1, minimum);
     m_pickThen = std::move(then);
     setCursor(Qt::CrossCursor);
-    Q_EMIT statusMessage(tr("%1 — Entrée pour valider, Échap pour abandonner.").arg(prompt));
     update();
 }
 
@@ -876,6 +930,140 @@ void FolioView::finishPick()
         then();
 }
 
+// --------------------------------------------------------------------------
+// L'invite : ce que la commande en cours attend
+//
+// Elle sort de l'etat, elle n'y est pas poussee. Voir folioview.h pour le
+// pourquoi. L'ordre de lecture compte : ce qui est le plus imperatif passe
+// devant. La saisie de cote couvre tout — tant qu'un chiffre est en train
+// d'etre frappe, c'est lui que le logiciel attend, quel que soit l'outil.
+
+QString FolioView::currentPrompt() const
+{
+    if (m_typing) {
+        return tr("Cote : %1▏ — Entrée valide, Échap abandonne. "
+                  "Formes : 50, 50<45, @10,5, #120,80")
+                .arg(m_typed);
+    }
+
+    switch (m_pending) {
+    case Pending::PickObjects: {
+        const int chosen = int(m_selection.size());
+        if (chosen == 0)
+            return tr("%1 — Échap pour abandonner.").arg(m_pickPrompt);
+        if (chosen < m_pickMinimum)
+            return tr("%1 — %n désigné(s), il en faut %2.", "", chosen)
+                    .arg(m_pickPrompt)
+                    .arg(m_pickMinimum);
+        return tr("%1 — %n désigné(s), Entrée pour valider.", "", chosen).arg(m_pickPrompt);
+    }
+    case Pending::MoveBase:
+        return tr("Déplacer : cliquer le point de base.");
+    case Pending::MoveTarget:
+        return tr("Déplacer : cliquer le point d'arrivée, ou taper la cote.");
+    case Pending::OffsetSide:
+        return tr("Décaler de %1 mm : cliquer du côté voulu.")
+                .arg(m_offsetDistance, 0, 'f', 1);
+    case Pending::StretchBase:
+        return tr("Étirer : cliquer le point de base.");
+    case Pending::StretchTarget:
+        return tr("Étirer : cliquer le point d'arrivée, ou taper la cote.");
+    case Pending::ScootTarget:
+        return tr("Glisser le long du fil : cliquer la nouvelle position.");
+    case Pending::ComponentTarget:
+        return tr("Déplacer l'appareil : cliquer la nouvelle position, "
+                  "les fils raccordés suivent.");
+    case Pending::ScaleBase:
+        return tr("Échelle : cliquer le point fixe, celui qui ne bougera pas.");
+    case Pending::ScaleTarget:
+        return tr("Échelle : éloigner pour grossir, ou taper le facteur (×%1).")
+                .arg(m_scaleFactor, 0, 'g', 3);
+    case Pending::CutTarget:
+        return tr("Coupure : cliquer l'endroit où couper le fil.");
+    case Pending::MeasureDistance:
+        return m_measurePoints.isEmpty() ? tr("Mesurer : cliquer le premier point.")
+                                         : tr("Mesurer : cliquer le second point.");
+    case Pending::None:
+        break;
+    }
+
+    // Les modes armes par une commande de vue. Ils ne sont pas des Pending
+    // parce qu'ils se resolvent par un glisser, pas par un clic.
+    if (m_zoomWindowArmed)
+        return tr("Zoom fenêtre : encadrer la zone à agrandir.");
+    if (m_stretchArmed)
+        return tr("Étirer : encadrer les sommets à déplacer (fenêtre de capture).");
+    if (m_panArmed)
+        return tr("Panoramique : tirer pour déplacer la vue.");
+
+    // L'outil modal. Un trace commence n'attend pas la meme chose qu'un trace
+    // a poser : c'est la difference entre « ou ? » et « et ensuite ? ».
+    switch (m_tool) {
+    case Tool::Select:
+        return QString();
+    case Tool::Wire:
+        if (m_wirePoints.isEmpty()) {
+            return m_bus ? tr("Fil multiple (%n conducteurs) : cliquer le départ.", "",
+                              m_bus->count)
+                         : tr("Fil : cliquer le départ.");
+        }
+        return tr("Fil : cliquer un coude, ou taper la cote — "
+                  "Entrée termine, Échap annule.");
+    case Tool::Symbol: {
+        const SymbolDefinition *definition =
+                m_document->project().library.definition(m_pendingSymbol);
+        if (definition) {
+            // Les deux touches du geste sont dans l'invite, pas dans une
+            // info-bulle : on ne survole pas un bouton pendant qu'on pose.
+            return tr("Insérer « %1 » : cliquer l'emplacement — R pivote, M retourne, "
+                      "Échap annule.")
+                    .arg(definition->name);
+        }
+        return tr("Insérer : choisir un symbole dans la palette.");
+    }
+    case Tool::Junction:
+        return tr("Nœud : cliquer le point de raccordement.");
+    case Tool::Label:
+        return tr("Étiquette : cliquer l'emplacement du texte.");
+    case Tool::Text:
+        return tr("Texte : cliquer l'emplacement.");
+    case Tool::Trim:
+        return tr("Ajuster : viser la portion de fil à retirer.");
+    case Tool::Extend:
+        return tr("Prolonger : viser le fil, près de l'extrémité à allonger.");
+    case Tool::Line:
+        return m_shapePoints.isEmpty() ? tr("Ligne : cliquer le premier point.")
+                                       : tr("Ligne : cliquer le second point.");
+    case Tool::Rectangle:
+        return m_shapePoints.isEmpty() ? tr("Rectangle : cliquer un coin.")
+                                       : tr("Rectangle : cliquer le coin opposé.");
+    case Tool::Circle:
+        return m_shapePoints.isEmpty()
+                       ? tr("Cercle : cliquer le centre.")
+                       : tr("Cercle : cliquer un point du contour, ou taper le rayon.");
+    case Tool::Arc:
+        if (m_shapePoints.isEmpty())
+            return tr("Arc : cliquer le point de départ.");
+        return m_shapePoints.size() == 1 ? tr("Arc : cliquer un point par lequel il passe.")
+                                         : tr("Arc : cliquer le point d'arrivée.");
+    case Tool::Polyline:
+        if (m_shapePoints.isEmpty())
+            return tr("Polyligne : cliquer le premier sommet.");
+        return tr("Polyligne : %n sommet(s) — Entrée termine, Retour arrière défait, "
+                  "Échap annule.", "", int(m_shapePoints.size()));
+    }
+    return QString();
+}
+
+void FolioView::refreshPrompt()
+{
+    const QString prompt = currentPrompt();
+    if (prompt == m_lastPrompt)
+        return;
+    m_lastPrompt = prompt;
+    Q_EMIT promptChanged(prompt);
+}
+
 void FolioView::beginMoveSelection()
 {
     if (!selectionSatisfies(PickFilter::Any, 1)) {
@@ -885,7 +1073,6 @@ void FolioView::beginMoveSelection()
     }
     setTool(Tool::Select);
     m_pending = Pending::MoveBase;
-    Q_EMIT statusMessage(tr("Déplacer : cliquer le point de base."));
     update();
 }
 
@@ -901,8 +1088,6 @@ void FolioView::beginOffset(double distanceMm)
     setTool(Tool::Select);
     m_offsetDistance = distanceMm;
     m_pending = Pending::OffsetSide;
-    Q_EMIT statusMessage(tr("Décaler de %1 mm : cliquer du côté voulu.")
-                                 .arg(distanceMm, 0, 'f', 2));
     update();
 }
 
@@ -916,7 +1101,6 @@ void FolioView::beginScale()
     setTool(Tool::Select);
     m_pending = Pending::ScaleBase;
     m_scaleFactor = 1.0;
-    Q_EMIT statusMessage(tr("Échelle : cliquer le point fixe, celui qui ne bougera pas."));
     update();
 }
 
@@ -931,7 +1115,6 @@ void FolioView::beginCut()
     }
     setTool(Tool::Select);
     m_pending = Pending::CutTarget;
-    Q_EMIT statusMessage(tr("Coupure : cliquer l'endroit où couper le fil."));
     update();
 }
 
@@ -1119,28 +1302,6 @@ void FolioView::placeShapePoint(const QPointF &point)
         return;
     }
 
-    switch (m_tool) {
-    case Tool::Line:
-        Q_EMIT statusMessage(tr("Ligne : cliquer le second point."));
-        break;
-    case Tool::Rectangle:
-        Q_EMIT statusMessage(tr("Rectangle : cliquer le coin opposé."));
-        break;
-    case Tool::Circle:
-        Q_EMIT statusMessage(tr("Cercle : cliquer un point du contour, ou taper le rayon."));
-        break;
-    case Tool::Arc:
-        Q_EMIT statusMessage(m_shapePoints.size() == 1
-                                     ? tr("Arc : cliquer un point par lequel il passe.")
-                                     : tr("Arc : cliquer le point d'arrivée."));
-        break;
-    case Tool::Polyline:
-        Q_EMIT statusMessage(tr("Polyligne : %n sommet(s) — Entrée pour terminer, "
-                                "Retour arrière pour défaire.", "", int(m_shapePoints.size())));
-        break;
-    default:
-        break;
-    }
     update();
 }
 
@@ -1224,7 +1385,6 @@ void FolioView::beginPan()
     setTool(Tool::Select);
     m_panArmed = true;
     setCursor(Qt::OpenHandCursor);
-    Q_EMIT statusMessage(tr("Panoramique : tirer pour déplacer la vue, Échap pour sortir."));
     update();
 }
 
@@ -1233,7 +1393,6 @@ void FolioView::beginMeasureDistance()
     setTool(Tool::Select);
     m_measurePoints.clear();
     m_pending = Pending::MeasureDistance;
-    Q_EMIT statusMessage(tr("Mesurer : cliquer le premier point."));
     update();
 }
 
@@ -1364,7 +1523,6 @@ void FolioView::beginScoot()
     m_componentId = symbol->id();
     m_componentStart = symbol->placement.position;
     m_pending = Pending::ScootTarget;
-    Q_EMIT statusMessage(tr("Glisser le long du fil : cliquer la nouvelle position."));
     update();
 }
 
@@ -1381,8 +1539,6 @@ void FolioView::beginMoveComponent()
     m_componentId = symbol->id();
     m_componentStart = symbol->placement.position;
     m_pending = Pending::ComponentTarget;
-    Q_EMIT statusMessage(tr("Déplacer l'appareil : cliquer la nouvelle position. "
-                            "Les fils raccordés suivent."));
     update();
 }
 
@@ -1392,7 +1548,6 @@ void FolioView::beginStretch()
     m_pending = Pending::None;
     m_stretchArmed = true;
     m_stretchWindow = QRectF();
-    Q_EMIT statusMessage(tr("Étirer : encadrer les sommets à déplacer (fenêtre de capture)."));
     update();
 }
 
@@ -1574,8 +1729,6 @@ bool FolioView::handleTypedKey(QKeyEvent *event)
 
     m_typing = true;
     m_typed = event->text();
-    Q_EMIT statusMessage(tr("Cote : Entrée pour valider, Échap pour abandonner. "
-                            "50 · 50<45 · @10,5 · #120,80"));
     update();
     return true;
 }
@@ -1608,14 +1761,11 @@ bool FolioView::handlePendingClick(const QPointF &scenePoint)
         else
             chosen.insert(hit->id());
         setSelection(chosen);
-        Q_EMIT statusMessage(tr("%n élément(s) désigné(s) — Entrée pour valider.", "",
-                                int(chosen.size())));
         return true;
     }
     case Pending::MoveBase:
         m_moveBase = scenePoint;
         m_pending = Pending::MoveTarget;
-        Q_EMIT statusMessage(tr("Déplacer : cliquer le point d'arrivée."));
         update();
         return true;
     case Pending::MoveTarget: {
@@ -1688,8 +1838,6 @@ bool FolioView::handlePendingClick(const QPointF &scenePoint)
         if (m_scaleRadius <= kConnectTolerance)
             m_scaleRadius = 10.0;
         m_scaleFactor = 1.0;
-        Q_EMIT statusMessage(tr("Échelle : éloigner pour grossir, ou taper le facteur "
-                                "(2 · 0,5)."));
         update();
         return true;
     }
@@ -1704,7 +1852,6 @@ bool FolioView::handlePendingClick(const QPointF &scenePoint)
     case Pending::MeasureDistance: {
         m_measurePoints.append(scenePoint);
         if (m_measurePoints.size() < 2) {
-            Q_EMIT statusMessage(tr("Mesurer : cliquer le second point."));
             update();
             return true;
         }
@@ -1757,7 +1904,6 @@ bool FolioView::handlePendingClick(const QPointF &scenePoint)
     case Pending::StretchBase:
         m_moveBase = scenePoint;
         m_pending = Pending::StretchTarget;
-        Q_EMIT statusMessage(tr("Étirer : cliquer le point d'arrivée."));
         update();
         return true;
     case Pending::StretchTarget: {
@@ -2061,8 +2207,6 @@ void FolioView::beginWireAt(const QPointF &point)
 {
     m_wirePoints.clear();
     m_wirePoints.append(point);
-    Q_EMIT statusMessage(tr("Tracé de fil : cliquez pour poser un coude, "
-                            "double-cliquez ou Entrée pour terminer, Échap pour annuler."));
 }
 
 void FolioView::commitWire()
@@ -2445,27 +2589,8 @@ void FolioView::mousePressEvent(QMouseEvent *event)
             commitWire();
             return;
         }
-        if (m_pending != Pending::None || m_stretchArmed) {
-            // Abandonner une designation rend la main sans rien faire : la
-            // suite prevue est jetee, sinon elle se declencherait au geste
-            // suivant.
-            const bool wasPicking = m_pending == Pending::PickObjects;
-            m_pickThen = nullptr;
-            m_pickPrompt.clear();
-            m_pending = Pending::None;
-            m_stretchArmed = false;
-            m_stretchWindow = QRectF();
-            m_rubber = QRectF();
-            setCursor(Qt::BlankCursor);
-            Q_EMIT statusMessage(wasPicking ? tr("Désignation abandonnée.")
-                                            : tr("Geste annulé."));
-            update();
+        if (abandonGesture(false))
             return;
-        }
-        if (m_tool != Tool::Select) {
-            setTool(Tool::Select);
-            return;
-        }
         // Rien en cours : c'est le menu contextuel. Comme dans AutoCAD, un
         // clic droit sur une entite non selectionnee la designe d'abord —
         // sinon la moitie du menu s'appliquerait a une autre selection.
@@ -2686,7 +2811,6 @@ void FolioView::mouseReleaseEvent(QMouseEvent *event)
         // prendre avant de designer les deux points.
         setSelection(entitiesIn(window, true));
         m_pending = Pending::StretchBase;
-        Q_EMIT statusMessage(tr("Étirer : cliquer le point de base."));
         break;
     }
 
@@ -2703,8 +2827,6 @@ void FolioView::mouseReleaseEvent(QMouseEvent *event)
                     kept.insert(id);
             }
             setSelection(kept);
-            Q_EMIT statusMessage(tr("%n élément(s) désigné(s) — Entrée pour valider.", "",
-                                    int(kept.size())));
             m_rubber = QRectF();
             m_drag = Drag::None;
             update();
@@ -2755,28 +2877,7 @@ void FolioView::keyPressEvent(QKeyEvent *event)
                                                                : m_style.gridStep;
     switch (event->key()) {
     case Qt::Key_Escape:
-        if (m_zoomWindowArmed) {
-            m_zoomWindowArmed = false;
-            m_rubber = QRectF();
-            setCursor(Qt::BlankCursor);
-            update();
-            return;
-        }
-        if (m_pending != Pending::None || m_stretchArmed) {
-            m_pending = Pending::None;
-            m_stretchArmed = false;
-            m_stretchWindow = QRectF();
-            m_rubber = QRectF();
-            Q_EMIT statusMessage(tr("Geste annulé."));
-            update();
-            return;
-        }
-        if (!m_wirePoints.isEmpty())
-            cancelPending();
-        else if (m_tool != Tool::Select)
-            setTool(Tool::Select);
-        else
-            clearSelection();
+        abandonGesture();
         return;
     case Qt::Key_Return:
     case Qt::Key_Enter:
@@ -2952,15 +3053,23 @@ void FolioView::paintPendingGesture(QPainter &painter) const
         const QString line = m_selection.isEmpty()
                 ? m_pickPrompt
                 : tr("%n désigné(s) · Entrée valide", "", int(m_selection.size()));
-        const QPointF anchor = toWidget(m_cursorMm) + QPointF(18, -26);
-        const QRectF box(anchor, QSizeF(metrics.horizontalAdvance(line) + 16,
-                                        metrics.height() + 10));
+        const QSizeF size(metrics.horizontalAdvance(line) + 16, metrics.height() + 10);
+        QRectF box(toWidget(m_cursorMm) + QPointF(18, -26), size);
+        // Rabattue dans la vue : pres d'un bord, l'invite sortait du widget et
+        // se coupait — c'est justement au bord qu'on designe le dernier fil.
+        const QRectF inside = QRectF(rect()).adjusted(4, 4, -4, -4);
+        box.moveLeft(std::clamp(box.left(), inside.left(), inside.right() - box.width()));
+        box.moveTop(std::clamp(box.top(), inside.top(), inside.bottom() - box.height()));
         // Le fond est celui de la FEUILLE, pas du pourtour : c'est au-dessus
         // du dessin que l'invite se pose, et la couleur du texte est celle qui
         // s'y lit deja — les deux contrastent par construction.
         QColor fill = m_style.sheet;
         fill.setAlpha(235);
-        painter.setPen(QPen(m_style.snapGuide, 1.0));
+        // Le filet est celui de la selection, c'est-a-dire l'accent : l'invite
+        // sous le curseur et celle de la ligne de commande disent la meme
+        // chose et se reconnaissent a la meme couleur. Le vert du reperage
+        // d'accrochage voulait dire autre chose.
+        painter.setPen(QPen(m_style.selection, 1.0));
         painter.setBrush(fill);
         painter.drawRoundedRect(box, 4.0, 4.0);
         painter.setPen(m_style.text);
@@ -3442,6 +3551,14 @@ void FolioView::paintDynamicInput(QPainter &painter) const
 void FolioView::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
+    // Le rendu est le seul point par lequel TOUT changement d'etat passe :
+    // armer un outil, poser un point, abandonner un geste appellent tous
+    // update(). C'est donc ici qu'on recalcule l'invite, plutot que dans les
+    // soixante-quinze endroits qui changent l'etat. La garde de refreshPrompt
+    // empeche la boucle : une invite inchangee ne signale rien, et un signal
+    // qui redimensionne la ligne de commande ne provoque au pire qu'un second
+    // rendu, muet celui-la.
+    refreshPrompt();
     QPainter painter(this);
     painter.fillRect(rect(), m_style.pageBackground);
 

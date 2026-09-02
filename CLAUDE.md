@@ -277,6 +277,45 @@ Et ce qui distingue toujours notre interface de celle d'AutoCAD :
   (`[commandHistory="true"]` : ni fond, ni bordure, ni coins arrondis), il
   part vide — le champ porte déjà l'invite — et il **se replie tant qu'il n'a
   rien à dire**, puis grandit jusqu'à trois lignes.
+- **La ligne de commande conduit le geste** (bloc A4). Trois règles, et
+  aucune exception :
+  1. **L'invite est déduite de l'état, jamais poussée.**
+     `FolioView::currentPrompt()` la calcule depuis `m_typing`, `m_pending`,
+     les modes armés et l'outil ; `refreshPrompt()` la signale depuis
+     `paintEvent`, seul point par lequel tout changement passe — chacun
+     appelle `update()`. Il y avait **soixante-quinze** endroits qui
+     poussaient une invite dans la barre d'état : pousser depuis chacun
+     revient toujours à en oublier un, et **une invite qui survit au geste
+     qu'elle décrit est pire que pas d'invite**. Vingt de ces envois ont
+     disparu, remplacés par une fonction qu'on lit d'un bout à l'autre pour
+     savoir ce que le logiciel dit.
+  2. **La barre d'état ne porte plus de dialogue.** Elle garde ses états
+     permanents — coordonnées, zone, zoom, sélection, bascules. Tout compte
+     rendu passe par `MainWindow::report`, donc par l'historique de la ligne
+     de commande, qui le **garde** : un message qui s'efface au bout de six
+     secondes dans le coin bas de la fenêtre n'est pas lu, et quand il l'est,
+     il est déjà parti. Seul le repli du bandeau fait retomber le message
+     dans la barre d'état — le critère est `isHidden()`, pas `isVisible()` :
+     un panneau d'une fenêtre pas encore affichée n'est pas replié.
+  3. **Le ruban et les menus écrivent aussi dans la ligne de commande**
+     (`echoMenuCommands`). Elle devient le journal de la séance quel que soit
+     le chemin pris, et **un bouton cliqué enseigne le nom à taper**. Les
+     bascules s'y écrivent par leur nom court (`ORTHO : activé`), celui
+     qu'AutoCAD écrit.
+  L'invite porte l'**accent** (`QLabel[commandPrompt="true"]`) : c'est la
+  réserve d'usage de la règle 3 du thème, puisque rien d'autre ne désigne ce
+  qui est actif pendant un geste. Le cartouche sous le curseur, pendant une
+  désignation, porte le même accent et est **rabattu dans la vue** — près
+  d'un bord il se coupait, or c'est au bord qu'on désigne le dernier fil.
+- **Un seul abandon** (`FolioView::abandonGesture`). Échap et le clic droit
+  avaient chacun leur code, et ils ne couvraient pas les mêmes états : Échap
+  laissait le panoramique armé, quittait le zoom fenêtre sans un mot et
+  gardait la continuation d'une désignation abandonnée. L'abandon défait
+  **une couche à la fois** — la cote, puis le geste, puis le tracé, puis
+  l'outil, puis la sélection — pour qu'une frappe de trop ne rende pas
+  l'outil par-dessus le marché, et **il dit ce qu'il vient de défaire**.
+  Le clic droit s'arrête à l'outil (`includeSelection = false`) : aller
+  jusqu'à la sélection viderait ce sur quoi le menu contextuel allait porter.
 - **`ui/symbolpalette.*` — une grille de vignettes, pas une liste** (décision
   utilisateur, 2026-09-02 : *« plus discret, cela prend trop de place »*). En
   liste à une colonne, cinq symboles sur cent trois étaient visibles :
@@ -453,7 +492,16 @@ page peut rendre une commande possible sans qu'on ait rien touché).
 
 **3. L'invite se lit sous le curseur**, en pixels et non en millimètres —
 `paintPendingGesture` peint dans le repère du dessin, et une invite dont la
-taille suivrait le zoom serait illisible une fois sur deux.
+taille suivrait le zoom serait illisible une fois sur deux. Elle est rabattue
+dans la vue : près d'un bord elle se coupait, or c'est au bord qu'on désigne
+le dernier fil.
+
+**4. La ligne de commande conduit le geste.** Le second chiffre du diagnostic
+— 75 invites vers la barre d'état contre 5 vers la ligne de commande — est
+traité à sa racine : l'invite n'est plus poussée du tout, elle se **déduit**
+de l'état (`FolioView::currentPrompt`), et la barre d'état ne porte plus une
+seule phrase. Le détail est dans « Interface », plus haut ; la règle tient en
+une ligne : **un seul endroit où le logiciel parle, et il y parle toujours**.
 
 ## Ce qui a été retiré, et pourquoi (bloc A, 2026-09-02)
 

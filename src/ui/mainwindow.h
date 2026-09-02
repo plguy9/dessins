@@ -124,6 +124,16 @@ private:
     void refreshIcons();
 
     // Ligne de commande
+    //
+    // TOUT ce que le logiciel a a dire passe par la : le compte rendu d'une
+    // commande, l'erreur, l'invite. La barre d'etat ne garde que les etats
+    // permanents — coordonnees, zone, zoom, selection, bascules — parce qu'un
+    // message qui s'efface au bout de six secondes dans un coin de la fenetre
+    // n'est pas lu. C'est la premiere lecon de la ligne de commande d'AutoCAD :
+    // on y regarde parce qu'il s'y passe toujours quelque chose.
+    void report(const QString &message);
+    void echoMenuCommands();
+    void reportError(const QString &message);
     void registerCommands();
     void zoomCommand(const QStringList &arguments);
 

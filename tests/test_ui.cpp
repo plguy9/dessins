@@ -17,6 +17,7 @@
 #include <QHash>
 #include <QSet>
 #include <QDockWidget>
+#include <QStatusBar>
 #include <QToolBar>
 #include <QTemporaryDir>
 
@@ -3056,3 +3057,218 @@ TEST_CASE("Le ruban se replie et rend la place au dessin", "[ui][ruban]")
     ribbon->setCollapsed(false);
     CHECK(ribbon->sizeHint().height() == expanded);
 }
+
+// --------------------------------------------------------------------------
+// Bloc A4 — la ligne de commande conduit le geste
+
+TEST_CASE("L'invite dit ce que le geste attend, et tombe avec lui", "[ui][invite]")
+{
+    // C'est la correction de fond du bloc A4 : avant, une invite etait poussee
+    // dans la barre d'etat depuis soixante-quinze endroits et s'y effacait au
+    // bout de six secondes — au milieu du geste qu'elle decrivait. Deduite de
+    // l'etat, elle ne peut ni manquer a l'appel ni survivre a son geste.
+    Document document;
+    document.newProject(builtinLibrary());
+    FolioView view(&document);
+    view.resize(900, 700);
+
+    // Au repos, le logiciel n'attend rien : il ne dit rien.
+    view.setTool(FolioView::Tool::Select);
+    CHECK(view.currentPrompt().isEmpty());
+
+    view.setTool(FolioView::Tool::Wire);
+    const QString armed = view.currentPrompt();
+    CHECK_FALSE(armed.isEmpty());
+
+    // Un trace commence n'attend pas la meme chose qu'un trace a poser.
+    clickScene(view, QPointF(40, 40));
+    const QString drawing = view.currentPrompt();
+    CHECK_FALSE(drawing.isEmpty());
+    CHECK(drawing != armed);
+
+    // Echap rend la main : plus de geste, plus d'invite.
+    QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QApplication::sendEvent(&view, &escape);
+    view.setTool(FolioView::Tool::Select);
+    CHECK(view.currentPrompt().isEmpty());
+}
+
+TEST_CASE("L'invite nomme le symbole armé", "[ui][invite]")
+{
+    // « Cliquez pour poser le symbole » ne dit pas lequel. Quand on vient
+    // d'en choisir un dans une grille de cent trois vignettes, c'est
+    // exactement ce qu'on veut relire.
+    Document document;
+    document.newProject(builtinLibrary());
+    FolioView view(&document);
+    view.resize(900, 700);
+
+    view.setPendingSymbol(QStringLiteral("iec:coil"));
+    const SymbolDefinition *definition =
+            document.project().library.definition(QStringLiteral("iec:coil"));
+    REQUIRE(definition);
+    CHECK(view.currentPrompt().contains(definition->name));
+}
+
+TEST_CASE("Une désignation en cours dit combien d'objets sont pris", "[ui][invite]")
+{
+    // Le compte fait partie de l'invite : sans lui, on ne sait pas si le clic
+    // a porte, et on reclique sur le meme objet — ce qui le retire.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    REQUIRE(folio);
+    auto *wire = drawWire(folio, { QPointF(20, 20), QPointF(80, 20) });
+
+    FolioView view(&document);
+    view.resize(900, 700);
+    bool ran = false;
+    view.requestSelection(QStringLiteral("Décaler : désignez le fil"),
+                          FolioView::PickFilter::Wires, 1, [&ran] { ran = true; });
+    CHECK(view.currentPrompt().contains(QStringLiteral("Décaler")));
+
+    view.setSelection(QSet<QString>{ wire->id() });
+    CHECK(view.currentPrompt().contains(QStringLiteral("1")));
+    CHECK_FALSE(ran);
+}
+
+TEST_CASE("La barre d'état ne porte plus de dialogue", "[ui][invite]")
+{
+    // Un compte rendu qui s'efface tout seul dans le coin bas de la fenetre
+    // n'est pas lu, et quand il l'est, il est deja parti. Tout ce que le
+    // logiciel a a dire va dans l'historique de la ligne de commande, qui le
+    // garde. La barre d'etat ne tient plus que ses etats permanents.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+
+    CommandLine *command = window.findChild<CommandLine *>();
+    FolioView *view = window.findChild<FolioView *>();
+    REQUIRE(command);
+    REQUIRE(view);
+
+    QPlainTextEdit *history = nullptr;
+    for (QPlainTextEdit *edit : command->findChildren<QPlainTextEdit *>()) {
+        if (edit->property("commandHistory").toBool())
+            history = edit;
+    }
+    REQUIRE(history);
+
+    const QString message = QStringLiteral("Trois fils décalés de 2,5 mm.");
+    Q_EMIT view->statusMessage(message);
+    CHECK(history->toPlainText().contains(message));
+    CHECK(window.statusBar()->currentMessage().isEmpty());
+}
+
+TEST_CASE("L'invite déduite arrive dans la ligne de commande", "[ui][invite]")
+{
+    // Le rendu est le point de synchronisation : tout changement d'etat
+    // appelle update(). Le test rend donc la vue, comme l'ecran le ferait.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+
+    CommandLine *command = window.findChild<CommandLine *>();
+    FolioView *view = window.findChild<FolioView *>();
+    REQUIRE(command);
+    REQUIRE(view);
+
+    view->setTool(FolioView::Tool::Wire);
+    QPixmap canvas(view->size());
+    view->render(&canvas);
+    CHECK(command->prompt() == view->currentPrompt());
+    CHECK_FALSE(command->prompt().isEmpty());
+
+    view->setTool(FolioView::Tool::Select);
+    view->render(&canvas);
+    CHECK(command->prompt().isEmpty());
+}
+
+TEST_CASE("Une commande lancée à la souris s'écrit dans la ligne de commande",
+          "[ui][invite]")
+{
+    // La ligne de commande devient le journal de la seance, quel que soit le
+    // chemin pris. On y relit ce qu'on vient de faire, et on y apprend le nom
+    // de la commande — un bouton clique enseigne ce qu'il faudra taper.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+
+    CommandLine *command = window.findChild<CommandLine *>();
+    REQUIRE(command);
+    QPlainTextEdit *history = nullptr;
+    for (QPlainTextEdit *edit : command->findChildren<QPlainTextEdit *>()) {
+        if (edit->property("commandHistory").toBool())
+            history = edit;
+    }
+    REQUIRE(history);
+
+    QAction *zoomExtents = nullptr;
+    for (QAction *action : window.findChildren<QAction *>()) {
+        if (action->text().remove(QLatin1Char('&')) == QStringLiteral("Ajuster au folio"))
+            zoomExtents = action;
+    }
+    REQUIRE(zoomExtents);
+    zoomExtents->trigger();
+    CHECK(history->toPlainText().contains(QStringLiteral("Ajuster au folio")));
+}
+
+TEST_CASE("Échap et le clic droit abandonnent tout, et le disent", "[ui][invite]")
+{
+    // Les deux sorties avaient chacune leur code, et il ne couvrait pas les
+    // memes etats : Echap laissait le panoramique arme et quittait le zoom
+    // fenetre sans un mot. Une commande abandonnee doit l'etre entierement.
+    Document document;
+    document.newProject(builtinLibrary());
+    FolioView view(&document);
+    view.resize(900, 700);
+
+    QStringList said;
+    QObject::connect(&view, &FolioView::statusMessage, &view,
+                     [&said](const QString &m) { said.append(m); });
+
+    view.beginPan();
+    QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QApplication::sendEvent(&view, &escape);
+    CHECK_FALSE(said.isEmpty());
+    CHECK(view.currentPrompt().isEmpty());
+
+    said.clear();
+    view.beginZoomWindow();
+    CHECK_FALSE(view.currentPrompt().isEmpty());
+    QApplication::sendEvent(&view, &escape);
+    CHECK_FALSE(said.isEmpty());
+    CHECK(view.currentPrompt().isEmpty());
+}
+
+TEST_CASE("Le clic droit sur une sélection ouvre le menu, il ne la vide pas",
+          "[ui][invite][menu]")
+{
+    // L'abandon unique defait couche par couche ; le clic droit doit s'arreter
+    // a l'outil. Aller jusqu'a la selection viderait ce sur quoi le menu
+    // contextuel allait porter — le menu ne servirait plus a rien.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    REQUIRE(folio);
+    auto *symbol = placeSymbol(document.project(), folio, QStringLiteral("iec:coil"),
+                               QPointF(100, 100));
+
+    FolioView view(&document);
+    view.resize(900, 700);
+    view.zoomToFit();
+    view.setSelection(QSet<QString>{ symbol->id() });
+
+    int menus = 0;
+    QObject::connect(&view, &FolioView::contextMenuRequested, &view,
+                     [&menus](const QPoint &) { ++menus; });
+
+    const QPointF widget = view.mapFromScene(QPointF(100, 100));
+    QMouseEvent press(QEvent::MouseButtonPress, widget, view.mapToGlobal(widget.toPoint()),
+                      Qt::RightButton, Qt::RightButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+
+    CHECK(menus == 1);
+    CHECK(view.selection().contains(symbol->id()));
+}
+

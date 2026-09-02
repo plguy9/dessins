@@ -186,6 +186,17 @@ public:
 
     bool hasPendingGesture() const { return m_pending != Pending::None; }
 
+    // ---- L'INVITE ------------------------------------------------------
+    //
+    // Ce que la commande en cours attend, en une phrase. Elle est DEDUITE de
+    // l'etat, jamais poussee : la vue a soixante-quinze endroits qui arment
+    // ou terminent un geste, et pousser une invite depuis chacun d'eux
+    // reviendrait toujours a en oublier un — une invite qui survit au geste
+    // qu'elle decrit est pire que pas d'invite du tout. Ici il n'y a qu'une
+    // fonction a lire pour savoir ce que le logiciel dit, et elle ne peut
+    // pas mentir sur l'etat puisqu'elle en sort.
+    QString currentPrompt() const;
+
     // ---- LA DESIGNATION A LA DEMANDE -----------------------------------
     //
     // C'est le « Select objects: » d'AutoCAD, et c'est la correction centrale
@@ -269,6 +280,10 @@ Q_SIGNALS:
     void cursorMoved(const QPointF &positionMm, const QString &zone);
     void toolChanged(FolioView::Tool tool);
     void statusMessage(const QString &message);
+    // L'invite a change. Emise depuis le rendu, seul point par lequel tout
+    // changement d'etat passe (chacun appelle update()), et sous garde : une
+    // invite identique ne redit rien.
+    void promptChanged(const QString &prompt);
     // Le resultat d'une mesure, pour l'historique de la ligne de commande :
     // une valeur qu'on relit vaut mieux qu'une valeur qui s'efface au bout de
     // quelques secondes.
@@ -361,6 +376,18 @@ private:
     std::optional<Primitive> pendingShape(const QPointF &cursor) const;
     void commitWire();
     void cancelPending();
+
+    // UN SEUL ABANDON, pour Echap comme pour le clic droit. Les deux avaient
+    // leur propre sortie, et elles ne couvraient pas les memes etats : Echap
+    // laissait le panoramique arme et sortait du zoom fenetre sans rien dire,
+    // le clic droit seul jetait la suite d'une designation. Une commande
+    // abandonnee doit l'etre entierement, et le dire — sinon on ne sait pas si
+    // la touche a porte. Retourne false quand il n'y avait rien a abandonner.
+    // `includeSelection` : Echap defait jusqu'a la selection, le clic droit
+    // s'arrete a l'outil. Sans cette nuance, un clic droit sur une selection
+    // la viderait au lieu d'ouvrir le menu contextuel — et le menu ne
+    // s'appliquerait plus jamais a ce qu'on venait de designer.
+    bool abandonGesture(bool includeSelection = true);
     void placeSymbolAt(const QPointF &point);
     void placeJunctionAt(const QPointF &point);
     void placeLabelAt(const QPointF &point);
@@ -551,6 +578,10 @@ private:
     std::optional<BusSpec> m_bus;
     std::vector<EntityPtr> m_clipboard;
     const PlcDatabase *m_plc = nullptr;
+
+    // La derniere invite emise, pour ne signaler que les changements.
+    QString m_lastPrompt;
+    void refreshPrompt();
 };
 
 } // namespace dsn

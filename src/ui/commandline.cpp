@@ -4,6 +4,7 @@
 
 #include <QCompleter>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QScrollBar>
@@ -41,6 +42,15 @@ CommandLine::CommandLine(QWidget *parent) : QWidget(parent)
     // jamais — ce qui est exactement ce qu'on reprochait au bandeau.
     m_history->hide();
     layout->addWidget(m_history, 1);
+
+    // L'invite se pose juste au-dessus du champ, la ou l'oeil descend deja
+    // pour taper. Masquee tant qu'aucune commande n'attend rien : une ligne
+    // vide en permanence prendrait la place sans rien dire.
+    m_prompt = new QLabel(this);
+    m_prompt->setProperty("commandPrompt", true);
+    m_prompt->setFont(mono);
+    m_prompt->hide();
+    layout->addWidget(m_prompt);
 
     m_input = new QLineEdit(this);
     m_input->setPlaceholderText(tr("Entrez une commande — tapez ? pour la liste"));
@@ -99,6 +109,16 @@ void CommandLine::fitHistory()
     const int lines = std::clamp(blocks, 1, 3);
     m_history->setFixedHeight(lines * metrics.lineSpacing() + 6);
 }
+
+void CommandLine::setPrompt(const QString &prompt)
+{
+    if (m_prompt->text() == prompt)
+        return;
+    m_prompt->setText(prompt);
+    m_prompt->setVisible(!prompt.isEmpty());
+}
+
+QString CommandLine::prompt() const { return m_prompt->text(); }
 
 void CommandLine::registerCommand(CommandDefinition command)
 {

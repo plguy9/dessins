@@ -26,6 +26,25 @@ Primitive::Kind Primitive::kindFromTag(const QString &tag)
     return Kind::Line;
 }
 
+QString Primitive::strokeTag(Stroke s)
+{
+    switch (s) {
+    case Stroke::Dashed: return QStringLiteral("dashed");
+    case Stroke::Dotted: return QStringLiteral("dotted");
+    case Stroke::DashDot: return QStringLiteral("dashdot");
+    case Stroke::Solid: break;
+    }
+    return QStringLiteral("solid");
+}
+
+Primitive::Stroke Primitive::strokeFromTag(const QString &tag)
+{
+    if (tag == QLatin1String("dashed")) return Stroke::Dashed;
+    if (tag == QLatin1String("dotted")) return Stroke::Dotted;
+    if (tag == QLatin1String("dashdot")) return Stroke::DashDot;
+    return Stroke::Solid;
+}
+
 QString Primitive::alignTag(Align a)
 {
     switch (a) {
@@ -119,6 +138,8 @@ QJsonObject Primitive::toJson() const
     }
     if (!fuzzyEqual(lineWidth, 0.25))
         o[QStringLiteral("lineWidth")] = roundStorage(lineWidth);
+    if (stroke != Stroke::Solid)
+        o[QStringLiteral("stroke")] = strokeTag(stroke);
     if (filled)
         o[QStringLiteral("filled")] = true;
     return o;
@@ -134,6 +155,7 @@ Primitive Primitive::fromJson(const QJsonValue &v)
     p.startAngle = o.value(QStringLiteral("startAngle")).toDouble(0.0);
     p.spanAngle = o.value(QStringLiteral("spanAngle")).toDouble(360.0);
     p.lineWidth = o.value(QStringLiteral("lineWidth")).toDouble(0.25);
+    p.stroke = strokeFromTag(o.value(QStringLiteral("stroke")).toString());
     p.filled = o.value(QStringLiteral("filled")).toBool(false);
     p.text = o.value(QStringLiteral("text")).toString();
     p.textHeight = o.value(QStringLiteral("textHeight")).toDouble(2.0);
@@ -166,6 +188,13 @@ Primitive Primitive::rect(const QRectF &r, double width, bool filled)
     p.points = { r.topLeft(), r.bottomRight() };
     p.lineWidth = width;
     p.filled = filled;
+    return p;
+}
+
+Primitive Primitive::dashedRect(const QRectF &r, double width)
+{
+    Primitive p = rect(r, width);
+    p.stroke = Stroke::Dashed;
     return p;
 }
 

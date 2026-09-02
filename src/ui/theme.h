@@ -89,6 +89,9 @@ public:
         Renumber, Check, Info, Palette, Folios, Properties, Reports,
         Scale, Stretch, Array, Align, Trim, Extend,
         Line, Rectangle, Circle, Arc, Polyline,
+        // Les styles de trait des formes : le contour d'une armoire se dessine
+        // en pointille, et il faut pouvoir le choisir d'un coup d'oeil.
+        StrokeSolid, StrokeDashed, StrokeDotted, StrokeDashDot,
         MeasureLength, Join, Break,
         LabelFolio, SignalOut, SignalIn,
         WireTypes, SaveAs, TagFormat, ZoomWindow, MoveComponent,

@@ -232,6 +232,17 @@ QPointF FolioView::snap(const QPointF &scenePoint) const
     return scenePoint;
 }
 
+QPointF FolioView::snapAnnotation(const QPointF &scenePoint) const
+{
+    // Meme ordre que snap(), ampute de la grille : un point du dessin, puis
+    // un repere d'alignement, puis le curseur tel quel.
+    if (const auto hit = resolveSnap(scenePoint))
+        return hit->point;
+    if (const auto track = resolveTrack(scenePoint))
+        return track->point;
+    return scenePoint;
+}
+
 void FolioView::snapSettingsTouched()
 {
     m_snapHit.reset();
@@ -1329,6 +1340,7 @@ void FolioView::commitShape()
 
     auto item = std::make_unique<GraphicItem>();
     item->shape = *shape;
+    item->shape.stroke = m_shapeStroke;
     m_document->push(std::make_unique<AddEntityCommand>(m_document->project(), folio->id(),
                                                         std::move(item), tr("Dessiner")));
     m_shapePoints.clear();
@@ -1979,6 +1991,48 @@ void FolioView::applyOffset(const QPointF &sidePoint)
                                  .arg(m_offsetDistance, 0, 'f', 2));
 }
 
+void FolioView::setShapeStroke(Primitive::Stroke stroke)
+{
+    m_shapeStroke = stroke;
+    // Le geste d'AutoCAD : le style choisi vaut pour la suite, et s'applique
+    // tout de suite a ce qui est designe. Choisir « pointille » avec un cadre
+    // selectionne doit changer CE cadre, sinon il faut le retracer.
+    if (!m_selection.isEmpty())
+        applyStrokeToSelection(stroke);
+    update();
+}
+
+int FolioView::applyStrokeToSelection(Primitive::Stroke stroke)
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return 0;
+
+    std::vector<std::pair<EntityPtr, EntityPtr>> changes;
+    for (const QString &id : std::as_const(m_selection)) {
+        const auto *item = dynamic_cast<const GraphicItem *>(folio->entity(id));
+        if (!item || item->shape.stroke == stroke)
+            continue;
+        auto after = std::make_unique<GraphicItem>(*item);
+        after->shape.stroke = stroke;
+        changes.emplace_back(item->clone(), std::move(after));
+    }
+
+    if (changes.empty())
+        return 0;
+
+    const int count = int(changes.size());
+    m_document->pushMacro(tr("Changer le style de trait"), [&] {
+        for (auto &change : changes) {
+            m_document->push(std::make_unique<ModifyEntityCommand>(
+                    m_document->project(), folio->id(), std::move(change.first),
+                    std::move(change.second), tr("Changer le style de trait")));
+        }
+    });
+    Q_EMIT statusMessage(tr("%n forme(s) passée(s) au nouveau trait.", "", count));
+    return count;
+}
+
 int FolioView::applyWireTypeToSelection(const QString &wireTypeId)
 {
     Folio *folio = m_document->currentFolio();
@@ -2623,11 +2677,15 @@ void FolioView::mousePressEvent(QMouseEvent *event)
     }
 
     switch (m_tool) {
+    // Le texte se pose a l'oeil : la resolution ne s'applique pas a lui.
+    case Tool::Text:
+        placeAt(snapAnnotation(scenePoint));
+        return;
+
     case Tool::Wire:
     case Tool::Symbol:
     case Tool::Junction:
     case Tool::Label:
-    case Tool::Text:
     case Tool::Line:
     case Tool::Rectangle:
     case Tool::Circle:

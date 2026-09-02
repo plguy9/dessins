@@ -42,6 +42,7 @@ if(TARGET arcus_ui)
     add_executable(arcus_ui_tests
         uimain.cpp
         test_ui.cpp
+        test_essai.cpp
     )
     set_target_properties(arcus_ui_tests PROPERTIES AUTOMOC ON)
     target_link_libraries(arcus_ui_tests PRIVATE arcus_ui Catch2::Catch2)

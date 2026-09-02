@@ -86,6 +86,17 @@ public:
     // changer le type d'un depart deja dessine demande de le retracer.
     int applyWireTypeToSelection(const QString &wireTypeId);
 
+    // ---- LE STYLE DE TRAIT DES FORMES ----------------------------------
+    //
+    // Meme mecanique que le type de fil : arme pour ce qu'on va tracer, et
+    // applicable a ce qui est deja trace. Le contour d'une armoire, d'un
+    // coffret ou d'un groupe fonctionnel se dessine en pointille — c'est une
+    // convention de lecture, et sans elle l'enveloppe se confond avec le
+    // circuit. Le reglage survit au changement d'outil, comme le type de fil.
+    void setShapeStroke(Primitive::Stroke stroke);
+    Primitive::Stroke shapeStroke() const { return m_shapeStroke; }
+    int applyStrokeToSelection(Primitive::Stroke stroke);
+
     // Fixe ou libere les reperes de la selection — le geste qu'on fait juste
     // avant de relancer la renumerotation, pour dire ce qu'elle n'a pas le
     // droit de bousculer.
@@ -267,6 +278,17 @@ public:
     QPointF mapToScene(const QPointF &widgetPoint) const { return toScene(widgetPoint); }
     QPointF mapFromScene(const QPointF &scenePoint) const { return toWidget(scenePoint); }
 
+    // LA RESOLUTION TIENT LE COURANT, PAS L'ANNOTATION.
+    //
+    // Un sommet de fil, un appareil, une jonction tombent sur le pas de la
+    // grille : c'est ce qui fait qu'un schema s'aligne tout seul. Un TEXTE
+    // n'a pas cette contrainte — il se pose a l'oeil, et le forcer sur un pas
+    // de 2,5 mm interdit d'ecrire deux lignes de 1,7 mm l'une sous l'autre,
+    // ce qu'un renvoi d'automate demande a chaque voie. L'accrochage aux
+    // OBJETS reste, lui : une etiquette de potentiel doit toujours pouvoir se
+    // poser exactement au bout d'un fil, sinon elle ne s'y raccorde pas.
+    QPointF snapAnnotation(const QPointF &scenePoint) const;
+
 Q_SIGNALS:
     // Clic droit sans geste en cours : la fenetre principale compose le menu,
     // pour qu'il reprenne ses propres actions avec leurs raccourcis.
@@ -375,6 +397,7 @@ private:
     // construction, donc l'apercu ne peut pas mentir sur le resultat.
     std::optional<Primitive> pendingShape(const QPointF &cursor) const;
     void commitWire();
+
     void cancelPending();
 
     // UN SEUL ABANDON, pour Echap comme pour le clic droit. Les deux avaient
@@ -559,6 +582,7 @@ private:
     Label::Scope m_labelScope = Label::Scope::Folio;
     Label::Role m_labelRole = Label::Role::Plain;
     QString m_currentWireType = WireTypeSet::defaultId();
+    Primitive::Stroke m_shapeStroke = Primitive::Stroke::Solid;
 
     // Saisie de cote en cours. Le texte est retenu tel qu'il est frappe : on
     // ne l'interprete qu'a la validation, pour que « 1 » puis « 0 » ne pose

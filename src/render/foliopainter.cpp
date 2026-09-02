@@ -5,6 +5,8 @@
 #include <QFontMetricsF>
 #include <QPainterPath>
 
+#include <algorithm>
+
 namespace dsn {
 
 namespace {
@@ -38,6 +40,37 @@ QPen FolioPainter::pen(const QColor &color, double width) const
     // rester une grandeur du dessin, en millimetres.
     p.setCosmetic(false);
     return p;
+}
+
+void FolioPainter::applyStroke(QPen &pen, Primitive::Stroke stroke)
+{
+    if (stroke == Primitive::Stroke::Solid) {
+        pen.setStyle(Qt::SolidLine);
+        return;
+    }
+    // Le motif de Qt est exprime en multiples de l'epaisseur. On le divise
+    // donc par l'epaisseur pour obtenir des tirets d'une longueur donnee EN
+    // MILLIMETRES : un cadre d'armoire au trait fin et un autre au trait
+    // epais doivent porter le meme pointille, sinon les deux ne se lisent
+    // plus comme la meme convention.
+    const double w = std::max(0.05, pen.widthF());
+    const auto mm = [w](double millimetres) { return millimetres / w; };
+    switch (stroke) {
+    case Primitive::Stroke::Dashed:
+        pen.setDashPattern({ mm(3.0), mm(2.0) });
+        break;
+    case Primitive::Stroke::Dotted:
+        pen.setDashPattern({ mm(0.5), mm(1.5) });
+        break;
+    case Primitive::Stroke::DashDot:
+        pen.setDashPattern({ mm(6.0), mm(2.0), mm(0.5), mm(2.0) });
+        break;
+    case Primitive::Stroke::Solid:
+        break;
+    }
+    // Un bout arrondi ferme les tirets d'un demi-diametre de chaque cote et
+    // les fait se rejoindre : le pointille disparait sur un trait epais.
+    pen.setCapStyle(Qt::FlatCap);
 }
 
 void FolioPainter::drawTextMm(QPainter &painter, const QPointF &at, const QString &text,
@@ -254,6 +287,7 @@ void FolioPainter::paintDefinition(QPainter &painter, const SymbolDefinition &de
         p.setWidthF(primitive.lineWidth > 0.0 ? primitive.lineWidth : style.symbolWidth);
         p.setCapStyle(Qt::RoundCap);
         p.setJoinStyle(Qt::RoundJoin);
+        applyStroke(p, primitive.stroke);
         painter.setPen(p);
         painter.setBrush(Qt::NoBrush);
         paintPrimitive(painter, primitive);
@@ -599,7 +633,9 @@ void FolioPainter::paintSymbol(QPainter &painter, const SymbolInstance &symbol) 
     for (const Primitive &primitive : definition->graphics) {
         const double width = primitive.lineWidth > 0.0 ? primitive.lineWidth
                                                        : m_style.symbolWidth;
-        painter.setPen(pen(color, width * inkScale));
+        QPen trait = pen(color, width * inkScale);
+        applyStroke(trait, primitive.stroke);
+        painter.setPen(trait);
         paintPrimitive(painter, primitive);
     }
 
@@ -631,9 +667,29 @@ void FolioPainter::paintSymbol(QPainter &painter, const SymbolInstance &symbol) 
                        m_style.designationHeight, Primitive::Align::Center);
         }
     }
+    // LE NUMERO DE BORNE. Il etait gere par l'editeur de borniers, imprime
+    // par le rapport de cablage... et invisible sur le dessin. Le plan et le
+    // rapport se contredisaient donc : un cableur lisait « X1:4 » sur sa
+    // feuille et ne trouvait sur le schema qu'une borne anonyme. Il se lit du
+    // cote de la valeur, parce qu'une borne n'a pas de calibre a montrer, et
+    // il suit le meme interrupteur que le repere : c'est l'identite de la
+    // borne, pas une annotation.
+    if (m_style.showDesignations && definition->deviceKind == QLatin1String("terminal")) {
+        const QString numero = symbol.fields.value(QStringLiteral("terminal"));
+        if (!numero.isEmpty()) {
+            painter.setPen(m_selection.contains(symbol.id()) ? m_style.selection : m_style.tag);
+            drawTextMm(painter, symbol.placement.map(definition->valueAnchor), numero,
+                       m_style.designationHeight, Primitive::Align::Center);
+        }
+    }
     if (m_style.showValues) {
         const QString value = symbol.fields.value(QStringLiteral("value"));
-        if (!value.isEmpty()) {
+        // Une borne numerotee occupe deja l'ancre de valeur : on n'y ecrit pas
+        // deux textes l'un sur l'autre.
+        const bool priseParLaBorne =
+                definition->deviceKind == QLatin1String("terminal")
+                && !symbol.fields.value(QStringLiteral("terminal")).isEmpty();
+        if (!value.isEmpty() && !priseParLaBorne) {
             painter.setPen(m_style.text);
             drawTextMm(painter, symbol.placement.map(definition->valueAnchor), value,
                        m_style.valueHeight, Primitive::Align::Center);
@@ -730,9 +786,10 @@ void FolioPainter::paintEntity(QPainter &painter, const Entity &entity) const
     case EntityType::Graphic: {
         const auto &item = static_cast<const GraphicItem &>(entity);
         painter.save();
-        painter.setPen(pen(colorFor(entity, m_style.symbol),
-                           item.shape.lineWidth > 0.0 ? item.shape.lineWidth
-                                                      : m_style.symbolWidth));
+        QPen trait = pen(colorFor(entity, m_style.symbol),
+                         item.shape.lineWidth > 0.0 ? item.shape.lineWidth : m_style.symbolWidth);
+        applyStroke(trait, item.shape.stroke);
+        painter.setPen(trait);
         painter.setBrush(Qt::NoBrush);
         paintPrimitive(painter, item.shape);
         painter.restore();

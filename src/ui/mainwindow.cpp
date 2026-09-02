@@ -612,6 +612,49 @@ void MainWindow::createActions()
     }
     m_toolActions.first()->setChecked(true);
 
+    // ---- LE STYLE DE TRAIT DES FORMES ---------------------------------
+    //
+    // Le contour d'une armoire, d'un coffret, d'un groupe fonctionnel se
+    // trace en POINTILLE : c'est une convention de lecture, pas une
+    // decoration — sans elle, l'enveloppe se confond avec le circuit. Meme
+    // mecanique que le type de fil : le style choisi vaut pour ce qu'on va
+    // tracer ET s'applique tout de suite a ce qui est designe, faute de quoi
+    // il faudrait retracer un cadre qu'on vient de poser.
+    drawMenu->addSeparator();
+    QMenu *strokeMenu = drawMenu->addMenu(tr("&Style de trait"));
+    strokeMenu->setIcon(Icons::icon(G::StrokeDashed));
+    auto *strokeGroup = new QActionGroup(this);
+    strokeGroup->setExclusive(true);
+
+    struct StrokeSpec {
+        Primitive::Stroke stroke;
+        G glyph;
+        const char *label;
+        const char *hint;
+    };
+    const StrokeSpec strokes[] = {
+        { Primitive::Stroke::Solid, G::StrokeSolid, QT_TR_NOOP("Trait &continu"),
+          QT_TR_NOOP("Le trait ordinaire des formes") },
+        { Primitive::Stroke::Dashed, G::StrokeDashed, QT_TR_NOOP("Trait &pointillé"),
+          QT_TR_NOOP("Contour d'armoire, de coffret, de groupe fonctionnel") },
+        { Primitive::Stroke::Dotted, G::StrokeDotted, QT_TR_NOOP("Trait &fin pointillé"),
+          QT_TR_NOOP("Un repérage discret, une zone de renvoi") },
+        { Primitive::Stroke::DashDot, G::StrokeDashDot, QT_TR_NOOP("Trait &mixte"),
+          QT_TR_NOOP("Axe, limite de propriété, liaison mécanique") },
+    };
+    for (const StrokeSpec &spec : strokes) {
+        auto *action = new QAction(Icons::icon(spec.glyph), tr(spec.label), this);
+        action->setCheckable(true);
+        action->setChecked(spec.stroke == Primitive::Stroke::Solid);
+        action->setToolTip(tr(spec.hint));
+        action->setStatusTip(tr(spec.hint));
+        strokeGroup->addAction(action);
+        strokeMenu->addAction(action);
+        m_actionGlyphs.insert(action, int(spec.glyph));
+        connect(action, &QAction::triggered, this,
+                [this, spec] { m_view->setShapeStroke(spec.stroke); });
+    }
+
     // Les mesures : le reste du panneau « Utilitaires ».
     drawMenu->addSeparator();
 
@@ -1733,6 +1776,23 @@ void MainWindow::registerCommands()
            [this] { placeCurrentReport(); });
     simple(QStringLiteral("TYPEFIL"), { QStringLiteral("TF") },
            tr("Gérer les types de fils"), [this] { editWireTypes(); });
+    add(QStringLiteral("TRAIT"), { QStringLiteral("TR2") },
+        tr("Style de trait des formes : continu, pointillé, fin, mixte"),
+        [this](const QStringList &args) {
+            // Sans argument on bascule entre continu et pointille : c'est
+            // l'aller-retour qu'on fait vingt fois en tracant une armoire.
+            const QString mot = args.value(0).toUpper();
+            Primitive::Stroke stroke = Primitive::Stroke::Dashed;
+            if (mot.startsWith(QStringLiteral("C")))
+                stroke = Primitive::Stroke::Solid;
+            else if (mot.startsWith(QStringLiteral("F")))
+                stroke = Primitive::Stroke::Dotted;
+            else if (mot.startsWith(QStringLiteral("M")))
+                stroke = Primitive::Stroke::DashDot;
+            else if (mot.isEmpty() && m_view->shapeStroke() != Primitive::Stroke::Solid)
+                stroke = Primitive::Stroke::Solid;
+            m_view->setShapeStroke(stroke);
+        });
     simple(QStringLiteral("POTENTIEL"), { QStringLiteral("PT") },
            tr("Mettre en évidence le potentiel de la sélection"),
            [this] { m_view->highlightNetOfSelection(); });
@@ -2087,6 +2147,8 @@ void MainWindow::createRibbon()
         { "Accueil", "Dessin", false, "Rectangle", "" },
         { "Accueil", "Dessin", false, "Cercle", "" },
         { "Accueil", "Dessin", false, "Arc", "" },
+        { "Accueil", "Dessin", false, "Trait continu", "" },
+        { "Accueil", "Dessin", false, "Trait pointillé", "" },
 
         { "Accueil", "Annotation", false, "Étiquette", "" },
         { "Accueil", "Annotation", false, "Renvoi de folio", "" },

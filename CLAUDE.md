@@ -11,6 +11,7 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure        # exige QT_QPA_PLATFORM=offscreen hors CI
 ./build/bin/arcus_sample examples               # vérification de bout en bout + projet d'exemple
+QT_QPA_PLATFORM=offscreen ./build/bin/arcus_ui_tests "[essai]"   # le logiciel conduit à la main
 QT_QPA_PLATFORM=offscreen ./build/bin/arcus --screenshot=/tmp/fenetre.png examples/demarrage-direct.arcus
 ```
 
@@ -388,9 +389,10 @@ Et ce qui distingue toujours notre interface de celle d'AutoCAD :
   second test parcourt donc chaque panneau du ruban et refuse deux commandes
   qui y portent la même image ; il a trouvé cinq collisions que l'œil n'avait
   pas relevées.
-- **Sept menus** : Fichier, Édition, **Modification**, Outils, Affichage,
-  Projet, Symboles, Aide. Modification est le groupe « Modifier » du ruban
-  d'AutoCAD ; il était dilué dans Édition, où il voisinait le presse-papiers.
+- **Neuf menus** : Fichier, Édition, **Modification**, **Dessin**, Outils,
+  Affichage, Projet, Symboles, Aide. Modification est le groupe « Modifier »
+  du ruban d'AutoCAD ; il était dilué dans Édition, où il voisinait le
+  presse-papiers. Dessin porte les outils de tracé et le style de trait.
 - **Quatre barres d'outils sur deux rangées**, la seconde collée au canevas
   parce que c'est celle qui touche le dessin. Une rangée unique tenait à
   vingt commandes ; à quarante elle déborde et **Qt masque la fin sans rien
@@ -503,6 +505,104 @@ de l'état (`FolioView::currentPrompt`), et la barre d'état ne porte plus une
 seule phrase. Le détail est dans « Interface », plus haut ; la règle tient en
 une ligne : **un seul endroit où le logiciel parle, et il y parle toujours**.
 
+## L'essai de reproduction (2026-09-02)
+
+L'utilisateur a demandé : *« teste le logiciel toi-même pour te rendre compte
+de la fluidité »* et a fourni la photo d'un vrai schéma — le raccordement de
+deux appareils Valmet à un automate PLC152, armoire 047BJ0152B. Il a été
+refait **entièrement par événements de souris et de clavier**, via
+`tests/test_essai.cpp` : la palette au clavier, les clics sur le canevas, la
+ligne de commande, les boîtes modales. Rien n'y court-circuite l'interface.
+
+**Ce que cela mesure.** 132 entités, **584 gestes**, **48 boîtes modales**,
+0 fil en biais, 40 constats d'audit dont aucune erreur. Ces chiffres sont le
+résultat de l'essai, pas le succès du test.
+
+**Réserve, et elle compte.** Cet essai conduit les mêmes widgets par les mêmes
+événements qu'une main, ce qui trouve de vrais défauts — quatre ci-dessous.
+Il ne dit rien de ce qu'on ressent : la latence, la fatigue, le geste qu'on
+refait dix fois. Seul un dessinateur devant l'écran le dira.
+
+### Les quatre défauts trouvés, et corrigés
+
+1. **On ne pouvait pas tracer un cadre en pointillé.** `Primitive` portait une
+   épaisseur mais pas de style de trait — or le contour d'une armoire, d'un
+   coffret, d'une boîte de jonction se trace en pointillé sur tous les schémas
+   industriels : c'est une convention de lecture, et sans elle **l'enveloppe
+   se confond avec le circuit**. Le schéma photographié en porte trois.
+   `Primitive::Stroke` (continu, pointillé, fin, mixte) traverse maintenant le
+   peintre, le fichier et l'export DXF (table LTYPE déclarée, sans quoi
+   AutoCAD rendrait le trait plein sans rien dire). Le motif est imposé **en
+   millimètres** et non en multiples de l'épaisseur comme Qt le fait par
+   défaut : un cadre au trait fin et un autre au trait épais doivent porter le
+   même pointillé. Le réglage suit la mécanique du type de fil — armé pour ce
+   qu'on va tracer, appliqué tout de suite à ce qui est désigné. Le test
+   compte **l'encre déposée** : c'est la seule mesure qui distingue un vrai
+   pointillé d'un trait plein ou d'un trait invisible.
+2. **Le numéro d'une borne ne s'affichait pas.** `fields["terminal"]` était
+   écrit par l'éditeur de borniers et imprimé par le rapport de câblage —
+   et **jamais dessiné**. Le plan et le rapport se contredisaient : un câbleur
+   lisait « X1:4 » sur sa feuille et ne trouvait sur le schéma qu'une borne
+   anonyme. Pire, l'audit réclamait un numéro que le dessin était incapable de
+   montrer : les quinze constats « Borne sans numéro » de l'essai portaient
+   sur des bornes que rien ne permettait de numéroter visiblement. Il se lit
+   maintenant du côté de la valeur — une borne n'a pas de calibre à montrer —
+   et suit le même interrupteur que le repère, parce que c'est son identité.
+3. **La résolution s'appliquait à l'annotation.** Un sommet de fil tombe sur
+   le pas de 2,5 mm : c'est ce qui aligne un schéma tout seul. Un texte, non —
+   le forcer sur ce pas **interdit d'écrire deux lignes de 1,7 mm l'une sous
+   l'autre**, ce que le renvoi d'une voie d'automate demande à chaque ligne.
+   Dans le premier jet, `%R07S04C005` et `IDM PLC152 12 (CH5)` se
+   superposaient. `FolioView::snapAnnotation` garde l'accrochage aux **objets**
+   — une étiquette doit toujours pouvoir se poser au bout d'un fil — et laisse
+   tomber la grille. La règle : **la résolution tient le courant, pas
+   l'annotation**.
+4. **Il manquait le relais d'interface.** `iec:interface-relay` : bobine
+   A1/A2 **et** contact 11/14 dans un seul bloc, avec la liaison mécanique en
+   pointillé fin. C'est le composant d'une armoire de marshalling — le relais
+   embrochable qu'on tient dans la main, avec les quatre bornes de son
+   étiquette. Le dessiner en bobine + contact séparés est juste en CEI mais
+   oblige à les relier par un groupe d'appareil pour qu'ils partagent un
+   repère : deux symboles, deux poses, une boîte modale.
+
+### Ce que l'essai a appris sans qu'on le corrige
+
+- **Un symbole doit poser ses broches sur le module de 2,5 mm.** Le relais
+  d'interface a d'abord été dessiné avec ses broches à ±4 mm : elles ne
+  rencontraient jamais un sommet de fil accroché à la résolution, et chaque
+  fil partait en biais sans qu'on comprenne pourquoi. La convention de tracé
+  n'était énoncée que pour le module ; elle vaut d'abord pour les broches.
+- **L'accrochage aux objets prime sur la grille, y compris quand on ne le veut
+  pas.** Un clic à 2,5 mm d'une extrémité s'y pose ; un clic sur une longue
+  colonne attrape son **milieu**. D'où une règle de tracé : **les dérivations
+  d'abord, la colonne commune ensuite** — tracée en dernier, elle s'accroche
+  aux extrémités déjà posées, ce qu'on voulait.
+- **Changer d'outil désarme le symbole.** Poser un texte au milieu d'une série
+  de bornes oblige à retourner dans la palette. AutoCAD garde le dernier bloc
+  inséré sous la main (INSERT rappelle le précédent) ; nous non.
+- **Poser un texte ou une étiquette ouvre une boîte modale, une par élément.**
+  48 sur ce seul folio. Et la boîte ne demande que le contenu : la hauteur du
+  texte se règle après coup, par la fiche de propriétés.
+- **Rien ne dit « cet appareil ne porte pas de repère ».** Les contacts secs
+  dessinés à l'intérieur du boîtier Valmet appartiennent à cet appareil et ne
+  doivent pas recevoir un repère `-K` propre ; le repérage automatique leur en
+  donne un. Un repère verrouillé vide ne verrouille rien (test dédié).
+- **Lier un contact à sa bobine demande la boîte du composant**, une par
+  contact. AutoCAD Electrical propose le parent au moment de l'insertion.
+
+**Le dessin se régénère, il n'est pas versionné** — comme le projet d'exemple,
+et pour la même raison : c'est une sortie, et le test en est la source.
+
+```sh
+QT_QPA_PLATFORM=offscreen ARCUS_ESSAI_CAPTURES=/tmp \
+    ./build/bin/arcus_ui_tests "[valmet]"
+```
+
+Le `.arcus` et le PDF partent dans un répertoire temporaire ; les deux captures
+vont où `ARCUS_ESSAI_CAPTURES` le dit, et nulle part si la variable est vide.
+Le fichier se rouvre dans l'application avec ses cadres pointillés et son
+relais d'interface : la définition engendrée voyage dedans.
+
 ## Ce qui a été retiré, et pourquoi (bloc A, 2026-09-02)
 
 Le logiciel avait 66 commandes de menu et une centaine d'entrées cliquables.
@@ -553,6 +653,14 @@ leur suppression. C'est en soi le signe qu'on avait construit large et plat.
 10. Une opération qui pose ou retire plusieurs entités (ajuster, échelle,
     coller, mise en page globale) passe par **une macro** : elle doit se
     défaire d'une seule annulation.
+11. **La résolution tient le courant, pas l'annotation.** Un sommet de fil, un
+    appareil, une jonction tombent sur le pas de la grille ; un texte se pose
+    à l'œil (`FolioView::snapAnnotation`). L'accrochage aux **objets**, lui,
+    vaut pour tout : une étiquette doit pouvoir se poser au bout d'un fil.
+12. **Ce que le rapport imprime, le dessin le montre.** Un champ qu'une boîte
+    de dialogue renseigne et qu'un rapport publie doit être lisible sur la
+    planche — sinon le plan et le rapport se contredisent, et c'est le plan
+    que le câbleur a en main (payé sur le numéro de borne).
 
 ## Bibliothèque de symboles
 
@@ -563,6 +671,13 @@ leur suppression. C'est en soi le signe qu'on avait construit large et plat.
   rabat sur l'autre norme si une variante manque.
 - Convention de tracé : origine au centre, y vers le bas, module 2,5 mm,
   la broche dessine son propre trait (le graphisme ne dessine que le corps).
+  **Les broches d'abord** : une broche hors du module ne rencontre jamais un
+  sommet de fil accroché à la résolution, et chaque fil part en biais sans
+  qu'on comprenne pourquoi (payé en dessinant `iec:interface-relay`).
+- Une primitive porte un **style de trait** (`Primitive::Stroke`) : continu,
+  pointillé, fin, mixte. Il sert au graphisme d'un symbole comme aux formes
+  d'annotation — la liaison mécanique entre une bobine et son contact se
+  dessine en pointillé fin, et le contour d'une armoire en pointillé.
 - Angles d'arc : convention Qt — sens trigonométrique **visuel**, origine à
   3 h. Sous le renversement d'axe du DXF, les angles passent inchangés.
 

@@ -122,10 +122,31 @@ double normalizeAngle(double degrees)
     return a;
 }
 
-void writeLine(DxfWriter &w, const QString &layer, const QPointF &a, const QPointF &b)
+// Le nom AutoCAD du type de trait d'une primitive. Un trait plein n'ecrit
+// rien : l'entite herite alors du calque, ce qui est la convention.
+const char *linetypeName(Primitive::Stroke stroke)
+{
+    switch (stroke) {
+    case Primitive::Stroke::Dashed: return "DASHED";
+    case Primitive::Stroke::Dotted: return "DOT";
+    case Primitive::Stroke::DashDot: return "DASHDOT";
+    case Primitive::Stroke::Solid: break;
+    }
+    return nullptr;
+}
+
+void writeStroke(DxfWriter &w, Primitive::Stroke stroke)
+{
+    if (const char *name = linetypeName(stroke))
+        w.code(6, name);
+}
+
+void writeLine(DxfWriter &w, const QString &layer, const QPointF &a, const QPointF &b,
+               Primitive::Stroke stroke = Primitive::Stroke::Solid)
 {
     w.code(0, "LINE");
     w.code(8, layer);
+    writeStroke(w, stroke);
     w.code(10, a.x());
     w.code(20, a.y());
     w.code(30, 0.0);
@@ -134,10 +155,12 @@ void writeLine(DxfWriter &w, const QString &layer, const QPointF &a, const QPoin
     w.code(31, 0.0);
 }
 
-void writeCircle(DxfWriter &w, const QString &layer, const QPointF &centre, double radius)
+void writeCircle(DxfWriter &w, const QString &layer, const QPointF &centre, double radius,
+                 Primitive::Stroke stroke = Primitive::Stroke::Solid)
 {
     w.code(0, "CIRCLE");
     w.code(8, layer);
+    writeStroke(w, stroke);
     w.code(10, centre.x());
     w.code(20, centre.y());
     w.code(30, 0.0);
@@ -145,12 +168,14 @@ void writeCircle(DxfWriter &w, const QString &layer, const QPointF &centre, doub
 }
 
 void writeArc(DxfWriter &w, const QString &layer, const QPointF &centre, double radius,
-              double startAngle, double spanAngle)
+              double startAngle, double spanAngle,
+              Primitive::Stroke stroke = Primitive::Stroke::Solid)
 {
     // Le renversement de l'axe des ordonnees conjugue la rotation : les angles
     // passent inchanges, seul le repere change de main.
     w.code(0, "ARC");
     w.code(8, layer);
+    writeStroke(w, stroke);
     w.code(10, centre.x());
     w.code(20, centre.y());
     w.code(30, 0.0);
@@ -166,12 +191,14 @@ void writeArc(DxfWriter &w, const QString &layer, const QPointF &centre, double 
 
 // Le R12 ne connait pas LWPOLYLINE : une polyligne s'ecrit en POLYLINE, une
 // suite de VERTEX et un SEQEND.
-void writePolyline(DxfWriter &w, const QString &layer, const QVector<QPointF> &points, bool closed)
+void writePolyline(DxfWriter &w, const QString &layer, const QVector<QPointF> &points, bool closed,
+                   Primitive::Stroke stroke = Primitive::Stroke::Solid)
 {
     if (points.size() < 2)
         return;
     w.code(0, "POLYLINE");
     w.code(8, layer);
+    writeStroke(w, stroke);
     w.code(66, 1); // des sommets suivent
     w.code(10, 0.0);
     w.code(20, 0.0);
@@ -219,17 +246,18 @@ void writeText(DxfWriter &w, const QString &layer, const QPointF &at, const QStr
 void writePrimitive(DxfWriter &w, const QString &layer, const Primitive &primitive,
                     const std::function<QPointF(const QPointF &)> &map)
 {
+    const Primitive::Stroke trait = primitive.stroke;
     switch (primitive.kind) {
     case Primitive::Kind::Line:
         if (primitive.points.size() >= 2)
-            writeLine(w, layer, map(primitive.points.at(0)), map(primitive.points.at(1)));
+            writeLine(w, layer, map(primitive.points.at(0)), map(primitive.points.at(1)), trait);
         break;
     case Primitive::Kind::Polyline: {
         QVector<QPointF> mapped;
         mapped.reserve(primitive.points.size());
         for (const QPointF &p : primitive.points)
             mapped.append(map(p));
-        writePolyline(w, layer, mapped, false);
+        writePolyline(w, layer, mapped, false, trait);
         break;
     }
     case Primitive::Kind::Rect: {
@@ -238,17 +266,17 @@ void writePrimitive(DxfWriter &w, const QString &layer, const Primitive &primiti
         const QRectF r = normalized(primitive.points.at(0), primitive.points.at(1));
         const QVector<QPointF> corners{ map(r.topLeft()), map(r.topRight()), map(r.bottomRight()),
                                         map(r.bottomLeft()) };
-        writePolyline(w, layer, corners, true);
+        writePolyline(w, layer, corners, true, trait);
         break;
     }
     case Primitive::Kind::Circle:
         if (!primitive.points.isEmpty())
-            writeCircle(w, layer, map(primitive.points.first()), primitive.radius);
+            writeCircle(w, layer, map(primitive.points.first()), primitive.radius, trait);
         break;
     case Primitive::Kind::Arc:
         if (!primitive.points.isEmpty())
             writeArc(w, layer, map(primitive.points.first()), primitive.radius,
-                     primitive.startAngle, primitive.spanAngle);
+                     primitive.startAngle, primitive.spanAngle, trait);
         break;
     case Primitive::Kind::Text:
         if (!primitive.points.isEmpty())
@@ -327,9 +355,13 @@ QByteArray DxfExport::encodeFolio(const Project &project, const Folio &folio,
     w.code(0, "SECTION");
     w.code(2, "TABLES");
 
+    // Les types de trait. Un cadre d'armoire se trace en pointille : sans la
+    // declaration ici, l'entite le demanderait et AutoCAD la rendrait pleine.
+    // Les longueurs sont en unites de dessin, donc en millimetres, et
+    // reprennent celles du peintre — l'export doit ressembler a l'ecran.
     w.code(0, "TABLE");
     w.code(2, "LTYPE");
-    w.code(70, 1);
+    w.code(70, 4);
     w.code(0, "LTYPE");
     w.code(2, "CONTINUOUS");
     w.code(70, 0);
@@ -337,6 +369,46 @@ QByteArray DxfExport::encodeFolio(const Project &project, const Folio &folio,
     w.code(72, 65);
     w.code(73, 0);
     w.code(40, 0.0);
+
+    w.code(0, "LTYPE");
+    w.code(2, "DASHED");
+    w.code(70, 0);
+    w.code(3, "Tirets ___ ___ ___");
+    w.code(72, 65);
+    w.code(73, 2);
+    w.code(40, 5.0);
+    w.code(49, 3.0);
+    w.code(74, 0);
+    w.code(49, -2.0);
+    w.code(74, 0);
+
+    w.code(0, "LTYPE");
+    w.code(2, "DOT");
+    w.code(70, 0);
+    w.code(3, "Points . . . . .");
+    w.code(72, 65);
+    w.code(73, 2);
+    w.code(40, 2.0);
+    w.code(49, 0.5);
+    w.code(74, 0);
+    w.code(49, -1.5);
+    w.code(74, 0);
+
+    w.code(0, "LTYPE");
+    w.code(2, "DASHDOT");
+    w.code(70, 0);
+    w.code(3, "Mixte ___ . ___ .");
+    w.code(72, 65);
+    w.code(73, 4);
+    w.code(40, 10.5);
+    w.code(49, 6.0);
+    w.code(74, 0);
+    w.code(49, -2.0);
+    w.code(74, 0);
+    w.code(49, 0.5);
+    w.code(74, 0);
+    w.code(49, -2.0);
+    w.code(74, 0);
     w.code(0, "ENDTAB");
 
     // Chaque type de fil du projet devient un calque, comme le fait AutoCAD

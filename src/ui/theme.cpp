@@ -1269,6 +1269,33 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawEllipse(QPointF(21, 15), 1.6, 1.6);
         strokeOnly();
         break;
+    // Les quatre styles de trait. Ils se distinguent uniquement par leur
+    // motif — c'est le sujet — et occupent la meme place : cote a cote dans
+    // un menu, l'oeil compare les motifs et rien d'autre.
+    case Glyph::StrokeSolid:
+        p.drawLine(QPointF(3, 12), QPointF(21, 12));
+        strokeOnly();
+        break;
+    case Glyph::StrokeDashed:
+        p.drawLine(QPointF(3, 12), QPointF(8, 12));
+        p.drawLine(QPointF(11, 12), QPointF(16, 12));
+        p.drawLine(QPointF(19, 12), QPointF(21, 12));
+        strokeOnly();
+        break;
+    case Glyph::StrokeDotted:
+        fill(stroke);
+        for (double x = 3.5; x <= 21.0; x += 3.5)
+            p.drawEllipse(QPointF(x, 12), 1.0, 1.0);
+        strokeOnly();
+        break;
+    case Glyph::StrokeDashDot:
+        p.drawLine(QPointF(3, 12), QPointF(11, 12));
+        fill(stroke);
+        p.drawEllipse(QPointF(14, 12), 1.0, 1.0);
+        strokeOnly();
+        p.drawLine(QPointF(17, 12), QPointF(21, 12));
+        strokeOnly();
+        break;
     case Glyph::Polyline:
         // Une ligne brisee et ses sommets : ce sont les sommets qui la
         // distinguent de la ligne simple.

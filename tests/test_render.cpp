@@ -6,6 +6,7 @@
 #include <QTemporaryDir>
 
 #include "render/foliopainter.h"
+#include "symbols/librarystore.h"
 #include "render/pdfexport.h"
 #include "testhelpers.h"
 
@@ -349,3 +350,114 @@ TEST_CASE("Un symbole grossi garde son épaisseur de trait", "[render][echelle]"
     CHECK_THAT(doubled / single, WithinAbs(2.0, 0.25));
 }
 
+
+TEST_CASE("Un cadre en pointillé dépose moins d'encre qu'un cadre plein",
+          "[render][trait]")
+{
+    // Le contour d'une armoire, d'un coffret, d'un groupe fonctionnel se trace
+    // en POINTILLÉ : c'est une convention de lecture, et sans elle l'enveloppe
+    // se confond avec le circuit. Le style vivait dans le type de fil mais pas
+    // dans les formes, si bien qu'un cadre d'armoire était impossible à
+    // dessiner — c'est l'essai de reproduction d'un vrai schéma qui l'a montré.
+    //
+    // La mesure est la seule qui ne mente pas : compter les pixels encrés. Un
+    // rectangle pointillé au motif 3/2 mm doit en couvrir nettement moins que
+    // le même rectangle plein, et pas zéro — un motif mal calibré donnerait
+    // soit un trait plein, soit un trait invisible.
+    Project project;
+    Folio *folio = project.addFolio(QStringLiteral("Trait"));
+    folio->sheet = sheetFormatById(QStringLiteral("A3"));
+
+    auto inkFor = [&](Primitive::Stroke stroke) {
+        Folio page(*folio);
+        auto item = std::make_unique<GraphicItem>();
+        item->shape = Primitive::rect(QRectF(10, 10, 80, 60), 0.35);
+        item->shape.stroke = stroke;
+        page.addEntity(std::move(item));
+
+        RenderStyle style = RenderStyle::screen();
+        style.showGrid = false;
+        style.showFrame = false;
+        style.showTitleBlock = false;
+
+        QImage image(500, 400, QImage::Format_ARGB32);
+        image.fill(Qt::white);
+        QPainter painter(&image);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.scale(5.0, 5.0);
+        FolioPainter(project, style).paint(painter, page);
+        painter.end();
+
+        int encre = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                if (image.pixel(x, y) != qRgb(255, 255, 255))
+                    ++encre;
+        return encre;
+    };
+
+    const int plein = inkFor(Primitive::Stroke::Solid);
+    const int pointille = inkFor(Primitive::Stroke::Dashed);
+    const int fin = inkFor(Primitive::Stroke::Dotted);
+
+    REQUIRE(plein > 0);
+    // Le motif 3 mm de trait pour 2 mm de vide : trois cinquièmes de l'encre.
+    CHECK(pointille > plein / 4);
+    CHECK(pointille < plein * 4 / 5);
+    // Le pointillé fin en dépose encore moins, sans disparaître.
+    CHECK(fin > 0);
+    CHECK(fin < pointille);
+}
+
+TEST_CASE("Le numéro d'une borne se lit sur le schéma", "[render][borne]")
+{
+    // Le numéro de borne était géré par l'éditeur de borniers et imprimé par
+    // le rapport de câblage — et invisible sur le dessin. Le plan et le
+    // rapport se contredisaient donc : un câbleur lisait « X1:4 » sur sa
+    // feuille et ne trouvait sur le schéma qu'une borne anonyme.
+    Project project;
+    // La borne vient de la bibliotheque integree : c'est celle que
+    // l'utilisateur pose, pas un gabarit de test.
+    dsn::LibraryStore::loadBuiltin(project.library);
+    Folio *folio = project.addFolio(QStringLiteral("Bornier"));
+    folio->sheet = sheetFormatById(QStringLiteral("A3"));
+
+    auto inkFor = [&](const QString &numero) {
+        Folio page(*folio);
+        auto borne = std::make_unique<SymbolInstance>();
+        borne->definitionId = QStringLiteral("iec:terminal");
+        borne->placement.position = QPointF(50, 40);
+        borne->setDesignation(QStringLiteral("X1"));
+        if (!numero.isEmpty())
+            borne->fields.insert(QStringLiteral("terminal"), numero);
+        page.addEntity(std::move(borne));
+
+        RenderStyle style = RenderStyle::screen();
+        style.showGrid = false;
+        style.showFrame = false;
+        style.showTitleBlock = false;
+        style.showUnconnectedPins = false;
+
+        QImage image(500, 400, QImage::Format_ARGB32);
+        image.fill(Qt::white);
+        QPainter painter(&image);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.scale(5.0, 5.0);
+        FolioPainter(project, style).paint(painter, page);
+        painter.end();
+
+        int encre = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                if (image.pixel(x, y) != qRgb(255, 255, 255))
+                    ++encre;
+        return encre;
+    };
+
+    const int sansNumero = inkFor(QString());
+    const int avecNumero = inkFor(QStringLiteral("14"));
+    REQUIRE(sansNumero > 0);
+    // Deux chiffres de plus, c'est de l'encre en plus. Vérifier la seule
+    // présence du champ n'aurait rien prouvé : c'est l'affichage qui manquait.
+    CHECK(avecNumero > sansNumero);
+}

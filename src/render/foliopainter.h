@@ -100,6 +100,16 @@ public:
 
 private:
     QPen pen(const QColor &color, double width) const;
+
+public:
+    // Le style de trait d'une primitive, traduit en style de plume Qt. Le
+    // motif est donne en MULTIPLES DE L'EPAISSEUR par Qt : un trait fin
+    // aurait sinon des tirets minuscules et un trait epais des tirets
+    // enormes. On impose donc un motif en millimetres, pour qu'un cadre
+    // d'armoire ait le meme pointille quelle que soit sa plume.
+    static void applyStroke(QPen &pen, Primitive::Stroke stroke);
+
+private:
     void paintSymbol(QPainter &painter, const SymbolInstance &symbol) const;
     void paintWire(QPainter &painter, const Wire &wire) const;
     void paintLabel(QPainter &painter, const Label &label) const;

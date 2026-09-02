@@ -3272,3 +3272,65 @@ TEST_CASE("Le clic droit sur une sélection ouvre le menu, il ne la vide pas",
     CHECK(view.selection().contains(symbol->id()));
 }
 
+
+// --------------------------------------------------------------------------
+// Ce que l'essai de reproduction d'un vrai schéma a fait remonter.
+
+TEST_CASE("Le style de trait s'arme et s'applique à la sélection", "[ui][trait]")
+{
+    // Même mécanique que le type de fil : le style choisi vaut pour ce qu'on
+    // va tracer ET s'applique tout de suite à ce qui est désigné. Sans le
+    // second point il faudrait retracer un cadre qu'on vient de poser.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    REQUIRE(folio);
+    FolioView view(&document);
+    view.resize(900, 700);
+
+    auto forme = std::make_unique<GraphicItem>();
+    forme->shape = Primitive::rect(QRectF(20, 20, 60, 40));
+    auto *pose = static_cast<GraphicItem *>(folio->addEntity(std::move(forme)));
+    REQUIRE(pose);
+    CHECK(pose->shape.stroke == Primitive::Stroke::Solid);
+
+    view.setSelection(QSet<QString>{ pose->id() });
+    view.setShapeStroke(Primitive::Stroke::Dashed);
+    CHECK(pose->shape.stroke == Primitive::Stroke::Dashed);
+    CHECK(view.shapeStroke() == Primitive::Stroke::Dashed);
+
+    // Une seule annulation défait le changement : c'est une macro.
+    document.undo();
+    CHECK(pose->shape.stroke == Primitive::Stroke::Solid);
+
+    // Et le style reste armé pour la forme suivante.
+    view.clearSelection();
+    view.setTool(FolioView::Tool::Rectangle);
+    clickScene(view, QPointF(100, 100));
+    clickScene(view, QPointF(160, 140));
+    const auto formes = folio->entitiesOfType<GraphicItem>();
+    REQUIRE(formes.size() == 2);
+    CHECK(formes.back()->shape.stroke == Primitive::Stroke::Dashed);
+}
+
+TEST_CASE("Un texte se pose là où on clique, hors résolution", "[ui][texte]")
+{
+    // LA RÉSOLUTION TIENT LE COURANT, PAS L'ANNOTATION. Un sommet de fil
+    // tombe sur le pas de 2,5 mm — c'est ce qui aligne un schéma tout seul.
+    // Un texte, non : le forcer sur ce pas interdit d'écrire deux lignes de
+    // 1,7 mm l'une sous l'autre, ce que le renvoi d'une voie d'automate
+    // demande à chaque ligne. C'est l'essai de reproduction qui l'a montré :
+    // les deux lignes du repère d'entrée se superposaient.
+    Document document;
+    document.newProject(builtinLibrary());
+    FolioView view(&document);
+    view.resize(900, 700);
+    view.zoomToFit();
+    REQUIRE(view.snapEngine().gridSnapEnabled());
+
+    // Un point volontairement entre deux pas de grille.
+    const QPointF vise(63.2, 41.7);
+    CHECK(view.snapAnnotation(vise) == vise);
+    // Le même point, pour un fil, tombe sur la grille.
+    CHECK(view.snapEngine().snapToGridPoint(vise) != vise);
+}

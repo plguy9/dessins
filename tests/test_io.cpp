@@ -1,4 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
+#include <QFile>
+#include <QTemporaryDir>
 
 #include <QJsonDocument>
 #include <QSet>
@@ -260,4 +262,53 @@ TEST_CASE("Tous les symboles integres sont coherents", "[symbols]")
     }
     INFO(problems.join(QStringLiteral("\n")).toStdString());
     CHECK(problems.isEmpty());
+}
+
+TEST_CASE("Le style de trait d'une forme traverse le fichier", "[io][trait]")
+{
+    // Un cadre d'armoire en pointillé qui redevient plein à la réouverture
+    // ferait perdre la seule chose qui distingue l'enveloppe du circuit. Le
+    // champ ne s'écrit que s'il n'est pas plein : un ancien fichier reste
+    // lisible et un fichier neuf ne grossit pas d'un champ inutile.
+    Primitive cadre = Primitive::dashedRect(QRectF(10, 10, 100, 60), 0.35);
+    const QJsonObject json = cadre.toJson();
+    CHECK(json.value(QStringLiteral("stroke")).toString() == QStringLiteral("dashed"));
+
+    const Primitive relu = Primitive::fromJson(json);
+    CHECK(relu.stroke == Primitive::Stroke::Dashed);
+
+    // Un trait plein n'écrit rien, et un fichier sans le champ se relit plein.
+    const Primitive plein = Primitive::rect(QRectF(0, 0, 10, 10));
+    CHECK_FALSE(plein.toJson().contains(QStringLiteral("stroke")));
+    CHECK(Primitive::fromJson(plein.toJson()).stroke == Primitive::Stroke::Solid);
+
+    // Un style inconnu retombe sur le trait plein plutôt que de disparaître :
+    // une forme invisible serait pire qu'une forme au mauvais trait.
+    QJsonObject inconnu = json;
+    inconnu[QStringLiteral("stroke")] = QStringLiteral("ondule");
+    CHECK(Primitive::fromJson(inconnu).stroke == Primitive::Stroke::Solid);
+}
+
+TEST_CASE("Le style de trait sort en DXF comme un type de ligne", "[io][dxf][trait]")
+{
+    // Sans la déclaration dans la table LTYPE, l'entité demanderait « DASHED »
+    // et AutoCAD la rendrait pleine, sans rien dire.
+    Project project;
+    Folio *folio = project.addFolio(QStringLiteral("Trait"));
+    auto item = std::make_unique<GraphicItem>();
+    item->shape = Primitive::dashedRect(QRectF(10, 10, 80, 50));
+    folio->addEntity(std::move(item));
+
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("trait.dxf"));
+    REQUIRE(DxfExport::writeFolio(path, project, *folio));
+
+    QFile file(path);
+    REQUIRE(file.open(QIODevice::ReadOnly));
+    const QString dxf = QString::fromUtf8(file.readAll());
+    CHECK(dxf.contains(QStringLiteral("DASHED")));
+    // La table doit déclarer le motif, pas seulement le nom : deux longueurs
+    // de tiret suivent le code 49.
+    CHECK(dxf.contains(QStringLiteral("Tirets")));
 }

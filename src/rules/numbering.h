@@ -21,6 +21,7 @@ struct NumberingResult {
     int netsNumbered = 0;
     int devicesDesignated = 0;
     int keptManual = 0; // reperes et designations preserves parce que verrouilles
+    int terminalsNumbered = 0; // bornes qui ont recu leur numero dans leur bornier
     QStringList notes;
 };
 

@@ -34,10 +34,16 @@
 #include <QTextStream>
 #include <QTimer>
 
+#include <functional>
+
 #include "core/documentcommands.h"
 #include "io/dsnfile.h"
 #include "render/pdfexport.h"
 #include "rules/audit.h"
+#include "ui/terminalstripdialog.h"
+#include "rules/reports.h"
+#include "rules/crossref.h"
+#include <QFile>
 #include "symbols/librarystore.h"
 #include "ui/commandline.h"
 #include "ui/document.h"
@@ -358,6 +364,38 @@ public:
             return nullptr;
         }
         return pose;
+    }
+
+    // Agir DANS une boite modale : l'ouvrir bloque la boucle d'evenements,
+    // il faut donc armer le geste avant le clic qui l'ouvre.
+    void dansLaBoite(const std::function<void(QWidget *)> &geste)
+    {
+        ++m_dialogues;
+        QTimer::singleShot(0, &m_window, [this, geste] {
+            QWidget *modal = QApplication::activeModalWidget();
+            if (!modal) {
+                accroc(QStringLiteral("Une boite modale etait attendue et n'est pas venue"));
+                return;
+            }
+            geste(modal);
+            if (modal->isVisible())
+                modal->close();
+        });
+    }
+
+    // Ajouter un folio, s'y placer, le nommer.
+    Folio *nouveauFolio(const QString &numero, const QString &titre)
+    {
+        commande(QStringLiteral("NF"));
+        Folio *ajoute = folio();
+        if (!ajoute) {
+            accroc(QStringLiteral("La commande NOUVFOLIO n'a rien ajoute"));
+            return nullptr;
+        }
+        ajoute->number = numero;
+        ajoute->title = titre;
+        m_view->zoomToFit();
+        return ajoute;
     }
 
     void capture(const QString &fichier)
@@ -725,4 +763,195 @@ TEST_CASE("Essai : redessiner le schema Valmet B7 RM5", "[essai][valmet]")
 
     CHECK(folio->entityCount() > 80);
     CHECK(biais == 0);
+}
+
+// --------------------------------------------------------------------------
+// BLOC B — UN DOSSIER, PAS UN FOLIO
+//
+// Un folio prouve qu'on sait dessiner une planche. Un DOSSIER prouve qu'on
+// sait faire un projet, et c'est la que vit tout ce qu'une planche seule ne
+// touche jamais : les renvois d'un folio a l'autre, le reperage a l'echelle
+// du projet, le bornier, la nomenclature, le PDF multi-pages.
+//
+// Deux folios relies, comme un bureau d'etudes en livre :
+//   1. Alimentation 24 V — l'arrivee, la protection, l'alimentation, et les
+//      fleches de signal SOURCE qui exportent + 24 V et 0 V.
+//   2. Commande — les fleches DESTINATION qui les reprennent, un depart, un
+//      relais, le bornier X1 et le moteur.
+//
+// C'est ce qui se passe ENTRE les deux folios qui est eprouve ici : le renvoi
+// qui trouve sa cible, le reperage qui porte sur tout le projet, le bornier
+// qui reste un bornier, et le PDF qui sort en plusieurs pages.
+
+TEST_CASE("Essai : un dossier de deux folios reliés, de bout en bout", "[essai][dossier]")
+{
+    Pupitre p;
+    REQUIRE(p.vue());
+    REQUIRE(p.folio());
+
+    Project &projet = p.document()->project();
+    projet.info.title = QStringLiteral("Armoire de commande — essai de dossier");
+    projet.info.reference = QStringLiteral("ESS-001");
+    projet.info.client = QStringLiteral("Bureau d'études");
+
+    auto b = [&p](const SymbolInstance *s, const char *n) {
+        return p.broche(s, QLatin1String(n));
+    };
+
+    // ================= FOLIO 1 — ALIMENTATION =========================
+    Folio *f1 = p.folio();
+    f1->number = QStringLiteral("1");
+    f1->title = QStringLiteral("Alimentation 24 V");
+    p.vue()->zoomToFit();
+
+    p.texte(QPointF(30.0, 30.0), QStringLiteral("ARRIVÉE 230 V — 50 Hz"), 3.0);
+
+    auto *disjoncteur = p.poser(QStringLiteral("disjoncteur unipolaire"), QPointF(80.0, 70.0));
+    REQUIRE(disjoncteur);
+    auto *alim = p.poser(QStringLiteral("source de tension"), QPointF(80.0, 130.0));
+    REQUIRE(alim);
+    p.texte(QPointF(92.5, 128.0), QStringLiteral("ALIM 24 V — 5 A"), 2.5);
+
+    p.fil({ QPointF(80.0, 45.0), b(disjoncteur, "1") });
+    p.fil({ b(disjoncteur, "2"), b(alim, "+") });
+
+    // Les fleches de signal SOURCE : c'est par elles que les potentiels
+    // sortent du folio. Deux etiquettes du meme code sont un seul potentiel,
+    // meme a deux folios de distance.
+    p.commande(QStringLiteral("SO"));
+    p.clic(QPointF(150.0, 130.0));
+    REQUIRE(p.vue()->isTypingText());
+    p.frappe(p.vue(), QStringLiteral("+24V"));
+    p.touche(p.vue(), Qt::Key_Return);
+    p.fil({ b(alim, "+"), QPointF(150.0, 130.0) });
+
+    p.commande(QStringLiteral("SO"));
+    p.clic(QPointF(150.0, 160.0));
+    p.frappe(p.vue(), QStringLiteral("0V"));
+    p.touche(p.vue(), Qt::Key_Return);
+    p.fil({ b(alim, "-"), QPointF(80.0, 160.0), QPointF(150.0, 160.0) });
+
+    // ================= FOLIO 2 — COMMANDE =============================
+    Folio *f2 = p.nouveauFolio(QStringLiteral("2"), QStringLiteral("Commande — départ pompe"));
+    REQUIRE(f2);
+    p.texte(QPointF(30.0, 30.0), QStringLiteral("DÉPART POMPE P1"), 3.0);
+
+    // Les fleches DESTINATION reprennent les deux potentiels du folio 1.
+    p.commande(QStringLiteral("DE"));
+    p.clic(QPointF(40.0, 70.0));
+    REQUIRE(p.vue()->isTypingText());
+    p.frappe(p.vue(), QStringLiteral("+24V"));
+    p.touche(p.vue(), Qt::Key_Return);
+
+    p.commande(QStringLiteral("DE"));
+    p.clic(QPointF(40.0, 170.0));
+    p.frappe(p.vue(), QStringLiteral("0V"));
+    p.touche(p.vue(), Qt::Key_Return);
+
+    auto *bouton = p.poser(QStringLiteral("bouton-poussoir à fermeture"), QPointF(100.0, 90.0), 3);
+    auto *bobine = p.poser(QStringLiteral("bobine de relais"), QPointF(180.0, 90.0), 3);
+    REQUIRE(bouton);
+    REQUIRE(bobine);
+
+    p.fil({ QPointF(40.0, 70.0), QPointF(40.0, 90.0), b(bouton, "13") });
+    p.fil({ b(bouton, "14"), b(bobine, "A1") });
+    p.fil({ b(bobine, "A2"), QPointF(240.0, 90.0), QPointF(240.0, 170.0),
+            QPointF(40.0, 170.0) });
+
+    // Le bornier vers le terrain : trois bornes, cablees des deux cotes.
+    auto *x1 = p.poser(QStringLiteral("borne"), QPointF(300.0, 90.0), 3);
+    auto *x2 = p.poser(QStringLiteral("borne"), QPointF(300.0, 120.0), 3);
+    auto *x3 = p.poser(QStringLiteral("borne"), QPointF(300.0, 150.0), 3);
+    REQUIRE(x1);
+    REQUIRE(x3);
+    auto *moteur = p.poser(QStringLiteral("moteur triphasé"), QPointF(360.0, 120.0));
+    REQUIRE(moteur);
+
+    p.fil({ b(bobine, "A1"), QPointF(270.0, 90.0), b(x1, "1") });
+    p.fil({ b(x1, "2"), b(moteur, "U") });
+    p.fil({ QPointF(270.0, 120.0), b(x2, "1") });
+    p.fil({ b(x2, "2"), b(moteur, "V") });
+    p.fil({ QPointF(270.0, 150.0), b(x3, "1") });
+    p.fil({ b(x3, "2"), b(moteur, "W") });
+
+    // ================= LE DOSSIER, PAS LA PLANCHE =====================
+    QTextStream out(stdout);
+    out << "\n=========== ESSAI : LE DOSSIER, PAS LA PLANCHE ===========\n";
+
+    // 1. Le reperage porte sur TOUT le projet.
+    p.commande(QStringLiteral("RN"));
+    QApplication::processEvents();
+    out << "folios              : " << projet.folioCount() << "\n";
+
+    // 2. Les renvois entre folios se calculent depuis le dessin.
+    const Netlist &netlist = p.document()->netlist();
+    const QHash<QString, QString> renvois = CrossReference::resolve(projet, netlist);
+    out << "renvois de signal   : " << renvois.size() << "\n";
+    for (auto it = renvois.cbegin(); it != renvois.cend(); ++it)
+        out << "   " << it.value() << "\n";
+
+    // 3. Le bornier : numeroter les bornes par l'editeur, puis verifier que
+    //    le dessin les montre — le correctif de l'essai precedent.
+    const QStringList borniers = TerminalStripDialog::blocksOf(projet);
+    out << "borniers            : " << borniers.join(QStringLiteral(", ")) << "\n";
+
+    // 4. Les rapports du dossier.
+    const ReportScope portee;
+    const auto nomenclature = Reports::billOfMaterials(projet, portee);
+    const auto fils = Reports::wireList(projet, netlist, portee);
+    const auto bornes = Reports::terminalList(projet, netlist, portee);
+    out << "nomenclature        : " << nomenclature.size() << " ligne(s)\n";
+    out << "liste de fils       : " << fils.size() << " ligne(s)\n";
+    out << "liste de bornes     : " << bornes.size() << " ligne(s)\n";
+
+    // 5. L'audit du dossier entier.
+    const PlcDatabase automates;
+    const auto constats = Audit::run(projet, netlist, automates);
+    int erreurs = 0;
+    for (const AuditFinding &c : constats)
+        if (c.severity == AuditFinding::Severity::Error)
+            ++erreurs;
+    out << "audit               : " << int(constats.size()) << " constat(s), " << erreurs
+        << " erreur(s)\n";
+    for (const AuditFinding &c : constats) {
+        if (c.severity != AuditFinding::Severity::Info)
+            out << QStringLiteral("   [%1] %2  (%3 %4)\n")
+                           .arg(c.severityLabel(), c.message, c.folioTag, c.zone);
+    }
+
+    // 6. Le dossier traverse le fichier et sort en PDF multi-pages.
+    QTemporaryDir dossier;
+    REQUIRE(dossier.isValid());
+    const QString chemin = dossier.filePath(QStringLiteral("dossier.arcus"));
+    CHECK(DsnFile::save(chemin, projet));
+    Project relu;
+    CHECK(DsnFile::load(chemin, relu).ok);
+    CHECK(relu.folioCount() == projet.folioCount());
+
+    const QString pdf = dossier.filePath(QStringLiteral("dossier.pdf"));
+    CHECK(PdfExport::write(pdf, projet));
+    out << "PDF                 : " << (QFile(pdf).size() / 1024) << " Kio pour "
+        << projet.folioCount() << " folio(s)\n";
+
+    out << "gestes              : " << p.gestes() << "\n";
+    out << "boites modales      : " << p.dialogues() << "\n";
+    out << "accrocs             :\n";
+    if (p.accrocs().isEmpty())
+        out << "   (aucun)\n";
+    for (const QString &a : p.accrocs())
+        out << "   - " << a << "\n";
+    out << "=======================================================\n";
+
+    const QByteArray ou = qgetenv("ARCUS_ESSAI_CAPTURES");
+    if (!ou.isEmpty()) {
+        for (int i = 0; i < projet.folioCount(); ++i) {
+            p.document()->setCurrentFolioIndex(i);
+            p.vue()->zoomToFit();
+            p.survole(QPointF(410.0, 285.0));
+            p.captureVue(QString::fromLocal8Bit(ou)
+                         + QStringLiteral("/dossier-folio%1.png").arg(i + 1));
+        }
+    }
+
+    CHECK(projet.folioCount() == 2);
 }

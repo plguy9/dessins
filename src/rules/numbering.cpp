@@ -286,6 +286,15 @@ NumberingResult designateTargets(const QVector<DesignationTarget> &targets,
     QHash<QString, Group> groups;
     QVector<QString> order;
 
+    // Les bornes, mises de cote pendant la passe des appareils.
+    struct Borne {
+        SymbolInstance *symbol = nullptr;
+        const Folio *folio = nullptr;
+        int folioIndex = 0;
+        QString prefix;
+    };
+    QVector<Borne> bornes;
+
     for (const DesignationTarget &target : targets) {
         SymbolInstance *symbol = target.symbol;
         if (!symbol)
@@ -299,6 +308,19 @@ NumberingResult designateTargets(const QVector<DesignationTarget> &targets,
             prefix = definition->designationPrefix;
         if (prefix.isEmpty())
             prefix = QStringLiteral("A");
+
+        // UNE BORNE N'EST PAS UN APPAREIL : c'est une PLACE DANS UN BORNIER.
+        // Traitee comme un appareil, chaque borne recevait sa propre
+        // designation — trois bornes cote a cote donnaient -X1, -X2, -X3,
+        // soit trois borniers d'une borne chacun. Sur un dossier de soixante
+        // bornes, cela fait soixante borniers, et l'editeur de borniers
+        // devient inutilisable. Les bornes sont donc mises de cote ici et
+        // reprises plus bas, ou elles recoivent un bornier PARTAGE et un
+        // NUMERO dans ce bornier.
+        if (definition->deviceKind == QLatin1String("terminal")) {
+            bornes.append({ symbol, target.folio, target.folioIndex, prefix });
+            continue;
+        }
 
         const QString key = symbol->deviceGroup.isEmpty()
                 ? QStringLiteral("#") + symbol->id()
@@ -399,6 +421,89 @@ NumberingResult designateTargets(const QVector<DesignationTarget> &targets,
         for (SymbolInstance *symbol : group.members)
             symbol->setDesignation(designation);
         ++result.devicesDesignated;
+    }
+
+    // ---- LES BORNIERS --------------------------------------------------
+    //
+    // Deux regles, et elles ne se ressemblent pas.
+    //
+    // 1. LE BORNIER EST PARTAGE. Une borne qui porte deja un bornier le
+    //    garde — c'est la meme regle que le collage de circuit (« une borne
+    //    garde son bornier et change de numero »). Celles qui n'en ont pas
+    //    rejoignent le bornier du FOLIO : un folio correspond a une fonction,
+    //    et ses bornes partent dans le meme cable. Un seul compteur pour tout
+    //    le dossier, de sorte que le folio 1 donne -X1 et le folio 2 -X2.
+    //
+    // 2. LE BORNIER SE REMPLIT, IL NE SE RENUMEROTE PAS. Une borne qui porte
+    //    deja un numero le garde, et une borne neuve prend le premier numero
+    //    libre du bornier. Renumeroter d'office un bornier deja cable est une
+    //    faute, pas un service : le cableur a le plan de l'an dernier dans les
+    //    mains. Renumeroter reste possible, mais c'est un geste explicite —
+    //    le bouton « Renumeroter 1, 2, 3… » de l'editeur de borniers.
+    if (!bornes.isEmpty()) {
+        std::sort(bornes.begin(), bornes.end(), [](const Borne &a, const Borne &b) {
+            if (a.folioIndex != b.folioIndex)
+                return a.folioIndex < b.folioIndex;
+            return readingOrder(a.symbol->placement.position, b.symbol->placement.position);
+        });
+
+        // Le bornier par defaut de chaque folio, attribue a la demande.
+        QHash<int, QString> bornierDuFolio;
+        int compteurBornier = 0;
+
+        // Les numeros deja pris dans chaque bornier, pour que le remplissage
+        // ne double jamais un numero existant.
+        QHash<QString, QSet<QString>> numerosPris;
+        for (const Borne &borne : std::as_const(bornes)) {
+            const QString bloc = borne.symbol->designation();
+            const QString numero = borne.symbol->fields.value(QStringLiteral("terminal"));
+            if (!bloc.isEmpty() && !numero.isEmpty())
+                numerosPris[bloc].insert(numero);
+        }
+
+        QHash<QString, int> prochain;
+        for (const Borne &borne : std::as_const(bornes)) {
+            QString bloc = borne.symbol->designation();
+            if (bloc.isEmpty()) {
+                auto it = bornierDuFolio.find(borne.folioIndex);
+                if (it == bornierDuFolio.end()) {
+                    DesignationContext context;
+                    context.family = borne.prefix;
+                    if (borne.folio) {
+                        context.sheet = borne.folio->number.isEmpty()
+                                ? QString::number(borne.folioIndex + 1)
+                                : borne.folio->number;
+                        context.lineReference = lineReferenceOf(*borne.folio, context.sheet,
+                                                                borne.symbol->placement.position);
+                    }
+                    QString designation;
+                    do {
+                        ++compteurBornier;
+                        context.number = compteurBornier;
+                        designation = rule.format(context);
+                    } while (taken.contains(designation));
+                    taken.insert(designation);
+                    it = bornierDuFolio.insert(borne.folioIndex, designation);
+                }
+                bloc = *it;
+                borne.symbol->setDesignation(bloc);
+                ++result.devicesDesignated;
+            }
+
+            if (!borne.symbol->fields.value(QStringLiteral("terminal")).isEmpty())
+                continue; // deja numerotee : on ne la bouscule pas
+
+            QSet<QString> &pris = numerosPris[bloc];
+            int &suivant = prochain[bloc];
+            QString numero;
+            do {
+                ++suivant;
+                numero = QString::number(suivant);
+            } while (pris.contains(numero));
+            pris.insert(numero);
+            borne.symbol->fields.insert(QStringLiteral("terminal"), numero);
+            ++result.terminalsNumbered;
+        }
     }
 
     return result;

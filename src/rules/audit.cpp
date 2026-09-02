@@ -140,14 +140,31 @@ QVector<AuditFinding> Audit::run(const Project &project, const Netlist &netlist,
                     symbol->placement.position);
                 continue;
             }
+            // UNE BORNE S'IDENTIFIE PAR SON BORNIER **ET** SON NUMERO.
+            // Dix bornes de -X1, c'est un bornier de dix bornes, pas dix
+            // appareils qui se disputent un repere. Le doublon, pour une
+            // borne, c'est deux fois -X1:4 — et celui-la est une vraie faute :
+            // le cableur ne sait pas ou visser son fil.
+            const bool estBorne = definition
+                    && definition->deviceKind == QLatin1String("terminal");
+            QString cle = tag;
+            if (estBorne) {
+                const QString numero = symbol->fields.value(QStringLiteral("terminal"));
+                if (numero.isEmpty())
+                    continue; // deja signale par la regle « borne sans numero »
+                cle = tag + QLatin1Char(':') + numero;
+            }
+
             const QString device = symbol->deviceGroup.isEmpty() ? symbol->id()
                                                                  : symbol->deviceGroup;
-            const auto known = deviceOfTag.constFind(tag);
+            const auto known = deviceOfTag.constFind(cle);
             if (known == deviceOfTag.constEnd())
-                deviceOfTag.insert(tag, device);
+                deviceOfTag.insert(cle, device);
             else if (known.value() != device) {
                 add(kTags, QStringLiteral("tag.duplicate"),
-                    QStringLiteral("Repère %1 porté par deux appareils différents").arg(tag),
+                    estBorne ? QStringLiteral("Borne %1 en double dans le bornier").arg(cle)
+                             : QStringLiteral("Repère %1 porté par deux appareils différents")
+                                       .arg(tag),
                     AuditFinding::Severity::Error, folio, symbol->id(),
                     symbol->placement.position);
             }

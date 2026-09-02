@@ -3,6 +3,7 @@
 #include "core/entities.h"
 #include "core/netlist.h"
 #include "rules/audit.h"
+#include "symbols/librarystore.h"
 #include "testhelpers.h"
 
 using namespace dsn;
@@ -259,4 +260,43 @@ TEST_CASE("La reference fabricant manquante est une information, pas une erreur"
             ++count;
     }
     CHECK(count == 1);
+}
+
+TEST_CASE("Dix bornes d'un bornier ne sont pas dix repères en double", "[audit][bornier]")
+{
+    // Corollaire immédiat du bornier partagé : pour l'audit, trois bornes qui
+    // portent -X1 étaient trois appareils se disputant un repère. Pour une
+    // borne, l'identité c'est le bornier ET le numéro — le doublon, c'est
+    // deux fois -X1:4, et celui-là est une vraie faute : le câbleur ne sait
+    // pas où visser son fil.
+    Project project;
+    LibraryStore::loadBuiltin(project.library);
+    Folio *folio = project.addFolio(QStringLiteral("Bornier"));
+    folio->number = QStringLiteral("1");
+
+    auto poser = [&](double y, const QString &numero) {
+        auto borne = std::make_unique<SymbolInstance>();
+        borne->definitionId = QStringLiteral("iec:terminal");
+        borne->placement.position = QPointF(80.0, y);
+        borne->setDesignation(QStringLiteral("-X1"));
+        borne->fields.insert(QStringLiteral("terminal"), numero);
+        folio->addEntity(std::move(borne));
+    };
+    poser(40.0, QStringLiteral("1"));
+    poser(60.0, QStringLiteral("2"));
+    poser(80.0, QStringLiteral("3"));
+
+    const auto compter = [&] {
+        int doublons = 0;
+        for (const AuditFinding &f : Audit::run(project, Netlist::build(project),
+                                                PlcDatabase::builtin()))
+            if (f.code == QLatin1String("tag.duplicate"))
+                ++doublons;
+        return doublons;
+    };
+    CHECK(compter() == 0);
+
+    // Deux fois la borne 2 : là, c'est une faute.
+    poser(100.0, QStringLiteral("2"));
+    CHECK(compter() == 1);
 }

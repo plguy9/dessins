@@ -645,6 +645,52 @@ vont où `ARCUS_ESSAI_CAPTURES` le dit, et nulle part si la variable est vide.
 Le fichier se rouvre dans l'application avec ses cadres pointillés et son
 relais d'interface : la définition engendrée voyage dedans.
 
+## Le bloc B — un dossier, pas un folio (2026-09-02)
+
+Un folio prouve qu'on sait dessiner une planche. Un **dossier** prouve qu'on
+sait faire un projet, et c'est là que vit tout ce qu'une planche seule ne
+touche jamais : les renvois d'un folio à l'autre, le repérage à l'échelle du
+projet, le bornier, la nomenclature, le PDF multi-pages. Le bloc B est donc un
+second essai conduit à la main, sur **deux folios reliés** — alimentation puis
+commande — avec flèches de signal, bornier et moteur.
+
+**Ce qui a marché sans rien toucher** : les renvois se calculent depuis le
+dessin (`→ 2/B1`, `← 1/C4`) et pointent la bonne zone du bon folio ; le
+repérage porte sur tout le projet ; nomenclature, liste de fils et liste de
+bornes sortent ; le dossier traverse le fichier et sort en PDF multi-pages.
+141 gestes, zéro boîte modale, zéro accroc.
+
+**Le défaut qu'il a trouvé, et il est gros.** Trois bornes côte à côte
+recevaient **-X1, -X2, -X3** : trois borniers d'une borne chacun. Sur un
+dossier de soixante bornes, cela fait soixante borniers, et l'éditeur de
+borniers devient inutilisable. La cause : le repérage traitait une borne comme
+un appareil. **Une borne n'est pas un appareil — c'est une place dans un
+bornier.** Deux règles, et elles ne se ressemblent pas :
+
+1. **Le bornier est partagé.** Une borne qui en porte un le garde — même règle
+   que le collage de circuit, qui la formulait déjà (« une borne garde son
+   bornier et change de numéro »). Celles qui n'en ont pas rejoignent le
+   bornier **du folio** : un folio correspond à une fonction, et ses bornes
+   partent dans le même câble.
+2. **Le bornier se remplit, il ne se renumérote pas.** Une borne qui porte
+   déjà un numéro le garde ; une borne neuve prend le premier numéro **libre**.
+   Renuméroter d'office un bornier déjà câblé est une faute, pas un service :
+   le câbleur a le plan de l'an dernier dans les mains. Renuméroter reste
+   possible, mais c'est le geste explicite du bouton « Renuméroter 1, 2, 3… »
+   de l'éditeur de borniers.
+
+**Et l'audit a immédiatement attrapé le corollaire** : pour lui, trois bornes
+portant `-X1` étaient trois appareils se disputant un repère. Pour une borne,
+l'identité c'est le bornier **et** le numéro ; le doublon, c'est deux fois
+`-X1:4` — et celui-là est une vraie faute, le câbleur ne sait pas où visser.
+C'est exactement le travail qu'on attend d'un audit : refuser un changement
+qui se contredit lui-même.
+
+**L'effet sur l'essai précédent** est la meilleure preuve que les trois
+correctifs forment une chaîne : le folio Valmet passe de **40 constats
+d'audit à 25**, les quinze « Borne sans numéro » ont disparu — les bornes sont
+numérotées toutes seules, et le dessin les montre enfin.
+
 ## Ce qui a été retiré, et pourquoi (bloc A, 2026-09-02)
 
 Le logiciel avait 66 commandes de menu et une centaine d'entrées cliquables.

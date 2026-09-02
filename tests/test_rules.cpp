@@ -3,6 +3,7 @@
 #include "rules/catalog.h"
 #include "rules/numbering.h"
 #include "rules/reports.h"
+#include "symbols/librarystore.h"
 #include "testhelpers.h"
 
 using namespace dsn;
@@ -799,4 +800,94 @@ TEST_CASE("Le catalogue survit a l'aller-retour JSON", "[rules][catalog]")
     CHECK_FALSE(broken.readJson(QByteArray("ceci n'est pas du JSON"), &error));
     CHECK_FALSE(error.isEmpty());
     CHECK(broken.isEmpty());
+}
+
+TEST_CASE("Un bornier est partagé, ses bornes sont numérotées", "[rules][bornier]")
+{
+    // UNE BORNE N'EST PAS UN APPAREIL : c'est une place dans un bornier.
+    // Traitée comme un appareil, chaque borne recevait sa propre désignation —
+    // trois bornes côte à côte donnaient -X1, -X2, -X3, soit trois borniers
+    // d'une borne chacun. Sur un dossier de soixante bornes, cela faisait
+    // soixante borniers, et l'éditeur de borniers devenait inutilisable.
+    // C'est l'essai de dossier qui l'a montré.
+    Project project;
+    LibraryStore::loadBuiltin(project.library);
+    Folio *folio = project.addFolio(QStringLiteral("Bornier"));
+    folio->number = QStringLiteral("1");
+
+    auto poser = [&](double y) {
+        auto borne = std::make_unique<SymbolInstance>();
+        borne->definitionId = QStringLiteral("iec:terminal");
+        borne->placement.position = QPointF(80.0, y);
+        return static_cast<SymbolInstance *>(folio->addEntity(std::move(borne)));
+    };
+    auto *b1 = poser(40.0);
+    auto *b2 = poser(60.0);
+    auto *b3 = poser(80.0);
+
+    Profile profile = Profile::iec();
+    const NumberingResult resultat = Numbering::designateDevices(project, profile);
+
+    // Un seul bornier pour les trois.
+    CHECK(b1->designation() == b2->designation());
+    CHECK(b2->designation() == b3->designation());
+    CHECK_FALSE(b1->designation().isEmpty());
+
+    // Et trois numéros distincts, dans l'ordre de lecture.
+    const auto numero = [](const SymbolInstance *s) {
+        return s->fields.value(QStringLiteral("terminal"));
+    };
+    CHECK(numero(b1) == QStringLiteral("1"));
+    CHECK(numero(b2) == QStringLiteral("2"));
+    CHECK(numero(b3) == QStringLiteral("3"));
+    CHECK(resultat.terminalsNumbered == 3);
+}
+
+TEST_CASE("Le bornier se remplit, il ne se renumérote pas", "[rules][bornier]")
+{
+    // Renuméroter d'office un bornier déjà câblé est une faute, pas un
+    // service : le câbleur a le plan de l'an dernier dans les mains. Une borne
+    // neuve prend donc le premier numéro LIBRE, et celles qui portent déjà un
+    // numéro ne bougent pas. Renuméroter reste possible, mais c'est le bouton
+    // explicite de l'éditeur de borniers.
+    Project project;
+    LibraryStore::loadBuiltin(project.library);
+    Folio *folio = project.addFolio(QStringLiteral("Bornier"));
+    folio->number = QStringLiteral("1");
+
+    auto poser = [&](double y, const QString &bloc, const QString &num) {
+        auto borne = std::make_unique<SymbolInstance>();
+        borne->definitionId = QStringLiteral("iec:terminal");
+        borne->placement.position = QPointF(80.0, y);
+        if (!bloc.isEmpty())
+            borne->setDesignation(bloc);
+        if (!num.isEmpty())
+            borne->fields.insert(QStringLiteral("terminal"), num);
+        return static_cast<SymbolInstance *>(folio->addEntity(std::move(borne)));
+    };
+    // Un bornier déjà câblé : X1 avec les bornes 1 et 3. La borne 2 a sauté.
+    auto *pose1 = poser(40.0, QStringLiteral("-X1"), QStringLiteral("1"));
+    auto *pose3 = poser(80.0, QStringLiteral("-X1"), QStringLiteral("3"));
+    // Une borne neuve intercalée entre les deux.
+    auto *neuve = poser(60.0, QString(), QString());
+
+    Profile profile = Profile::iec();
+    Numbering::designateDevices(project, profile);
+
+    const auto numero = [](const SymbolInstance *s) {
+        return s->fields.value(QStringLiteral("terminal"));
+    };
+    // Les câblées n'ont pas bougé.
+    CHECK(numero(pose1) == QStringLiteral("1"));
+    CHECK(numero(pose3) == QStringLiteral("3"));
+    // La neuve a rejoint leur bornier et pris le premier numéro libre.
+    CHECK(neuve->designation() == QStringLiteral("-X1"));
+    CHECK(numero(neuve) == QStringLiteral("2"));
+
+    // Relancé sur un dessin inchangé, le repérage redonne exactement la même
+    // chose : c'est l'invariant de reproductibilité.
+    Numbering::designateDevices(project, profile);
+    CHECK(numero(pose1) == QStringLiteral("1"));
+    CHECK(numero(neuve) == QStringLiteral("2"));
+    CHECK(numero(pose3) == QStringLiteral("3"));
 }

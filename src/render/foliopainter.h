@@ -24,6 +24,7 @@ class Netlist;
 class SymbolInstance;
 class Wire;
 class Label;
+class DimensionItem;
 struct WireType;
 
 class FolioPainter
@@ -126,6 +127,7 @@ private:
     void paintSymbol(QPainter &painter, const SymbolInstance &symbol) const;
     void paintWire(QPainter &painter, const Wire &wire) const;
     void paintLabel(QPainter &painter, const Label &label) const;
+    void paintDimension(QPainter &painter, const DimensionItem &dimension) const;
     QColor colorFor(const Entity &entity, const QColor &base) const;
 
     const Project &m_project;

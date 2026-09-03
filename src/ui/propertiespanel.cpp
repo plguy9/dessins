@@ -136,6 +136,9 @@ void PropertiesPanel::rebuild()
         } else if (auto *junction = dynamic_cast<Junction *>(entity)) {
             m_header->setText(tr("Jonction"));
             buildJunctionForm(form, junction);
+        } else if (auto *dimension = dynamic_cast<DimensionItem *>(entity)) {
+            m_header->setText(tr("Cotation"));
+            buildDimensionForm(form, dimension);
         }
     }
 
@@ -484,6 +487,66 @@ void PropertiesPanel::buildLabelForm(QFormLayout *form, Label *label)
     const QString reference = refs.value(label->id());
     if (!reference.isEmpty())
         form->addRow(tr("Renvois"), readOnly(reference, parent));
+}
+
+void PropertiesPanel::buildDimensionForm(QFormLayout *form, DimensionItem *dimension)
+{
+    QWidget *parent = form->parentWidget();
+
+    // La mesure, en lecture seule. C'est le coeur du type : elle se DEDUIT du
+    // dessin. La montrer non modifiable dit mieux qu'une phrase pourquoi une
+    // cote n'est pas un texte pose a cote.
+    auto *mesure = new QLabel(tr("%1 mm").arg(dimension->measure(), 0, 'f', 2), parent);
+    form->addRow(tr("Mesuré"), mesure);
+
+    auto *genre = new QComboBox(parent);
+    genre->addItem(tr("Alignée"), int(DimensionItem::Kind::Aligned));
+    genre->addItem(tr("Horizontale"), int(DimensionItem::Kind::Horizontal));
+    genre->addItem(tr("Verticale"), int(DimensionItem::Kind::Vertical));
+    genre->setCurrentIndex(int(dimension->kind));
+    form->addRow(tr("Genre"), genre);
+    connect(genre, &QComboBox::currentIndexChanged, this, [this, dimension](int index) {
+        modify(dimension, tr("Modifier le genre de cote"),
+               [index](DimensionItem *d) { d->kind = DimensionItem::Kind(index); });
+    });
+
+    auto *decimales = new QSpinBox(parent);
+    decimales->setRange(0, 3);
+    decimales->setValue(dimension->decimals);
+    form->addRow(tr("Décimales"), decimales);
+    connect(decimales, &QSpinBox::valueChanged, this, [this, dimension](int value) {
+        modify(dimension, tr("Modifier les décimales"),
+               [value](DimensionItem *d) { d->decimals = value; });
+    });
+
+    auto *hauteur = lengthBox(dimension->textHeight, parent, 0.5);
+    form->addRow(tr("Hauteur du texte"), hauteur);
+    connect(hauteur, &QDoubleSpinBox::valueChanged, this, [this, dimension](double value) {
+        modify(dimension, tr("Modifier la hauteur"),
+               [value](DimensionItem *d) { d->textHeight = value; });
+    });
+
+    auto *unite = new QLineEdit(dimension->suffix, parent);
+    unite->setPlaceholderText(tr("mm, cm… vide = rien"));
+    form->addRow(tr("Unité"), unite);
+    connect(unite, &QLineEdit::editingFinished, this, [this, dimension, unite] {
+        if (dimension->suffix == unite->text())
+            return;
+        modify(dimension, tr("Modifier l'unité"),
+               [&](DimensionItem *d) { d->suffix = unite->text(); });
+    });
+
+    // La valeur imposee est le seul cas ou une cote ne dit pas ce qu'elle
+    // mesure. Elle existe pour la rupture d'echelle, et elle se declare.
+    auto *impose = new QLineEdit(dimension->override, parent);
+    impose->setPlaceholderText(tr("vide = la mesure"));
+    form->addRow(tr("Texte imposé"), impose);
+    connect(impose, &QLineEdit::editingFinished, this, [this, dimension, impose] {
+        if (dimension->override == impose->text())
+            return;
+        modify(dimension, tr("Imposer le texte de la cote"),
+               [&](DimensionItem *d) { d->override = impose->text(); });
+    });
 }
 
 void PropertiesPanel::buildJunctionForm(QFormLayout *form, Junction *junction)

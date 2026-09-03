@@ -162,6 +162,24 @@ TEST_CASE("Un projet fait l'aller-retour par le document", "[ui][document]")
     CHECK(restored.currentFolio()->entityCount() == 1);
 }
 
+namespace {
+
+// Un clic reel, aux pixels que la vue attend : les tests d'outil doivent
+// passer par le meme chemin que la main, sinon ils prouvent que la fonction
+// interne marche et rien de plus.
+void clickAt(FolioView &view, const QPointF &mm)
+{
+    const QPointF p = view.mapFromScene(mm);
+    QMouseEvent press(QEvent::MouseButtonPress, p, view.mapToGlobal(p.toPoint()),
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, p, view.mapToGlobal(p.toPoint()),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(&view, &release);
+}
+
+} // namespace
+
 TEST_CASE("Le canevas se peint avec son contenu", "[ui][view]")
 {
     Document document;
@@ -329,6 +347,69 @@ TEST_CASE("Remplacer dans tout le dossier tient dans une annulation",
     REQUIRE(revenu);
     CHECK(revenu->designation() == QStringLiteral("-KM1"));
     CHECK(revenu->fields.value(QStringLiteral("value")) == QStringLiteral("bobine KM1"));
+}
+
+TEST_CASE("Coter tient en trois clics, et la mesure suit le dessin",
+          "[ui][view][cote]")
+{
+    // Le geste : deux points à mesurer, puis la place de la ligne de cote.
+    // Et ce qui fait une cote plutôt qu'un texte posé à côté : étirer une
+    // attache change la valeur écrite, parce qu'elle est mesurée.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.zoomToFit();
+    view.setDimensionKind(DimensionItem::Kind::Horizontal);
+    view.setTool(FolioView::Tool::Dimension);
+    // Les vrais clics, aux vrais pixels : c'est le chemin que prend la main.
+    clickAt(view, QPointF(50, 100));
+    clickAt(view, QPointF(200, 100));
+    CHECK(folio->entityCount() == 0); // rien tant que la ligne n'est pas posée
+    clickAt(view, QPointF(120, 130));
+
+    REQUIRE(folio->entityCount() == 1);
+    auto *cote = dynamic_cast<DimensionItem *>(folio->entities().front().get());
+    REQUIRE(cote);
+    CHECK(cote->measure() == 150.0);
+    CHECK(cote->geometry().lineStart.y() == 130.0);
+
+    // L'outil reste armé : on cote rarement une seule distance.
+    CHECK(view.tool() == FolioView::Tool::Dimension);
+
+    // Déplacer une attache change le nombre — c'est tout l'intérêt.
+    cote->first = QPointF(80, 100);
+    CHECK(cote->displayText() == QStringLiteral("120"));
+
+    // Et elle se sélectionne au clic sur son trait, pas partout dans la bande
+    // qu'elle mesure : sinon elle avalerait les clics du dessin qu'elle cote.
+    view.setSelection({});
+    view.selectAll();
+    CHECK(view.selection().size() == 1);
+
+    document.undo();
+    CHECK(folio->entityCount() == 0);
+}
+
+TEST_CASE("Une cote refuse de se poser sur deux points confondus",
+          "[ui][view][cote]")
+{
+    // Elle serait invisible et impossible à rattraper au clic : le dire vaut
+    // mieux que de la poser.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.zoomToFit();
+    view.setTool(FolioView::Tool::Dimension);
+    clickAt(view, QPointF(100, 100));
+    clickAt(view, QPointF(100, 100));
+    clickAt(view, QPointF(120, 130));
+    CHECK(folio->entityCount() == 0);
 }
 
 TEST_CASE("La rotation depuis le canevas est annulable", "[ui][view]")
@@ -3106,6 +3187,56 @@ TEST_CASE("Deux commandes d'un meme panneau ne partagent pas une icone",
                 ownerOfIcon.insert(key, action->text());
             }
         }
+    }
+}
+
+TEST_CASE("Deux commandes différentes ne partagent pas une icône",
+          "[ui][icones][menus]")
+{
+    // Le test frère tient la règle PAR PANNEAU DU RUBAN — c'est là que deux
+    // icônes se lisent côte à côte. Mais l'inventaire complet des menus en
+    // comptait dix-huit groupes en collision : une commande qui emprunte
+    // l'icône d'une autre se reconnaît mal partout, pas seulement au ruban.
+    //
+    // Trois doublons restent, et ils sont VOULUS : ce sont les mêmes
+    // commandes atteintes par deux chemins. Leur donner deux dessins serait
+    // pire que le doublon — l'utilisateur croirait à deux commandes.
+    const QStringList voulus = {
+        QStringLiteral("Cotation|Cote alignée"),
+        QStringLiteral("Étiquette|Étiquette de potentiel"),
+        QStringLiteral("Palette de commandes…|Toutes les commandes…"),
+    };
+
+    MainWindow window;
+    window.resize(1600, 1000);
+
+    QHash<QString, QStringList> parIcone;
+    for (QAction *action : window.findChildren<QAction *>()) {
+        if (action->text().isEmpty() || action->menu() || action->icon().isNull())
+            continue;
+        QImage image = action->icon().pixmap(QSize(20, 20)).toImage()
+                               .convertToFormat(QImage::Format_ARGB32);
+        const QByteArray signature(reinterpret_cast<const char *>(image.constBits()),
+                                   int(image.sizeInBytes()));
+        QString nom = action->text();
+        nom.remove(QLatin1Char('&'));
+        parIcone[QString::fromLatin1(signature.toHex())].append(nom);
+    }
+
+    for (auto it = parIcone.cbegin(); it != parIcone.cend(); ++it) {
+        if (it.value().size() < 2)
+            continue;
+        QStringList noms = it.value();
+        noms.sort();
+        QStringList attendus;
+        for (const QString &couple : voulus) {
+            QStringList parts = couple.split(QLatin1Char('|'));
+            parts.sort();
+            if (parts == noms)
+                attendus = parts;
+        }
+        INFO("icône partagée par : " << noms.join(QStringLiteral(", ")).toStdString());
+        CHECK(attendus == noms);
     }
 }
 

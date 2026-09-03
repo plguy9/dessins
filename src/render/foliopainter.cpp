@@ -818,7 +818,71 @@ void FolioPainter::paintEntity(QPainter &painter, const Entity &entity) const
     case EntityType::Label:
         paintLabel(painter, static_cast<const Label &>(entity));
         break;
+    case EntityType::Dimension:
+        paintDimension(painter, static_cast<const DimensionItem &>(entity));
+        break;
     }
+}
+
+// La cote se dessine en UN endroit, comme tout le reste : c'est ce qui fait
+// que l'ecran, le PDF et l'apercu montrent le meme trait. La geometrie, elle,
+// vient du coeur (DimensionItem::geometry) — le peintre ne la recalcule pas,
+// sinon l'export DXF et lui divergeraient d'un demi-millimetre, et cela se
+// voit sur une fleche.
+void FolioPainter::paintDimension(QPainter &painter, const DimensionItem &item) const
+{
+    const auto g = item.geometry();
+    painter.save();
+    QPen trait = pen(colorFor(item, m_style.dimension), m_style.dimensionWidth);
+    painter.setPen(trait);
+    painter.setBrush(Qt::NoBrush);
+
+    // Lignes d'attache et ligne de cote.
+    painter.drawLine(g.firstFrom, g.firstTo);
+    painter.drawLine(g.secondFrom, g.secondTo);
+    painter.drawLine(g.lineStart, g.lineEnd);
+
+    // Les fleches. Elles sont pleines et tournees vers l'exterieur quand la
+    // cote est trop courte pour les contenir — sinon deux fleches qui se
+    // croisent au milieu d'une cote de 3 mm ne se lisent plus.
+    QPointF direction = g.lineEnd - g.lineStart;
+    const double longueur = std::hypot(direction.x(), direction.y());
+    if (longueur > kEpsilon) {
+        direction /= longueur;
+        const double taille = m_style.dimensionArrow;
+        const bool dehors = longueur < taille * 2.5;
+        const QPointF normale(-direction.y(), direction.x());
+        auto fleche = [&](const QPointF &pointe, const QPointF &vers) {
+            const QPointF base = pointe - vers * taille;
+            QPolygonF tete;
+            tete << pointe << base + normale * (taille * 0.16)
+                 << base - normale * (taille * 0.16);
+            painter.setBrush(trait.color());
+            painter.drawPolygon(tete);
+            painter.setBrush(Qt::NoBrush);
+        };
+        fleche(g.lineStart, dehors ? -direction : direction);
+        fleche(g.lineEnd, dehors ? direction : -direction);
+        if (dehors) {
+            // La ligne de cote se prolonge pour porter les fleches posees a
+            // l'exterieur, sinon elles flottent.
+            painter.drawLine(g.lineStart, g.lineStart - direction * taille * 1.5);
+            painter.drawLine(g.lineEnd, g.lineEnd + direction * taille * 1.5);
+        }
+    }
+
+    // Le texte, POSE AU-DESSUS DE LA LIGNE DE COTE, au sens du texte lui-meme :
+    // la convention de dessin le veut du meme cote quel que soit l'angle. Le
+    // vecteur « haut » du texte incline de a vaut (sin a, -cos a) — l'angle
+    // etant deja ramene dans (-90, 90], la cote ne se lit jamais la tete en
+    // bas. Il est en millimetres comme tout le reste : sa taille ne suit pas
+    // le zoom.
+    const double radians = g.angleDegrees * 3.14159265358979323846 / 180.0;
+    const QPointF haut(std::sin(radians), -std::cos(radians));
+    const QPointF pose = g.textAt + haut * (item.textHeight * 0.5);
+    drawTextMm(painter, pose, item.displayText(), item.textHeight, Primitive::Align::Center,
+               g.angleDegrees);
+    painter.restore();
 }
 
 void FolioPainter::paintEntities(QPainter &painter, const Folio &folio, const QRectF &clipMm) const

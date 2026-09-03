@@ -143,6 +143,7 @@ bool FolioView::directionConstrained() const
     case Tool::Rectangle:
     case Tool::Circle:
     case Tool::Arc:
+    case Tool::Dimension:
         return false;
     default:
         return true;
@@ -338,6 +339,26 @@ Entity *FolioView::entityAt(const QPointF &scenePoint) const
                 return entity;
             continue;
         }
+        if (const auto *dim = dynamic_cast<const DimensionItem *>(entity)) {
+            // Une cote est faite de traits, pas d'une boite. Sa boite
+            // englobante couvre toute la distance mesuree : la prendre pour
+            // cible avalerait tous les clics de la bande qu'elle cote — donc
+            // le dessin qu'elle mesure, qui est exactement ce qu'on vise.
+            const auto g = dim->geometry();
+            const QPointF segments[3][2] = { { g.lineStart, g.lineEnd },
+                                             { g.firstFrom, g.firstTo },
+                                             { g.secondFrom, g.secondTo } };
+            bool touche = false;
+            for (const auto &segment : segments)
+                touche = touche || pointOnSegment(scenePoint, segment[0], segment[1], tolerance);
+            // Et le texte, qui est souvent ce qu'on clique pour la saisir.
+            const QRectF texte(g.textAt.x() - dim->textHeight * 2.0,
+                               g.textAt.y() - dim->textHeight * 1.6,
+                               dim->textHeight * 4.0, dim->textHeight * 3.2);
+            if (touche || texte.contains(scenePoint))
+                return entity;
+            continue;
+        }
         const QRectF bounds = entity->boundingBox();
         if (!bounds.isNull() && bounds.adjusted(-tolerance, -tolerance, tolerance, tolerance)
                                         .contains(scenePoint))
@@ -356,6 +377,13 @@ bool FolioView::entityTouchesRect(const Entity &entity, const QRectF &rect) cons
                 return true;
         }
         return false;
+    }
+    // Meme raison pour une cote : ses traits, pas la bande qu'elle mesure.
+    if (const auto *dim = dynamic_cast<const DimensionItem *>(&entity)) {
+        const auto g = dim->geometry();
+        return segmentIntersectsRect(g.lineStart, g.lineEnd, rect)
+                || segmentIntersectsRect(g.firstFrom, g.firstTo, rect)
+                || segmentIntersectsRect(g.secondFrom, g.secondTo, rect);
     }
     const QRectF bounds = entity.boundingBox();
     return !bounds.isNull() && rect.intersects(bounds);
@@ -1165,6 +1193,17 @@ QString FolioView::currentPrompt() const
             return tr("Arc : cliquer le point de départ.");
         return m_shapePoints.size() == 1 ? tr("Arc : cliquer un point par lequel il passe.")
                                          : tr("Arc : cliquer le point d'arrivée.");
+    case Tool::Dimension: {
+        const QString genre = m_dimensionKind == DimensionItem::Kind::Horizontal
+                ? tr("Cote horizontale")
+                : m_dimensionKind == DimensionItem::Kind::Vertical ? tr("Cote verticale")
+                                                                   : tr("Cote alignée");
+        if (m_shapePoints.isEmpty())
+            return tr("%1 : cliquer le premier point à mesurer.").arg(genre);
+        if (m_shapePoints.size() == 1)
+            return tr("%1 : cliquer le second point.").arg(genre);
+        return tr("%1 : placer la ligne de cote.").arg(genre);
+    }
     case Tool::Polyline:
         if (m_shapePoints.isEmpty())
             return tr("Polyligne : cliquer le premier sommet.");
@@ -1408,9 +1447,9 @@ void FolioView::placeShapePoint(const QPointF &point)
     // Le nombre de points attendus depend de l'outil : deux pour un
     // rectangle ou un cercle, trois pour un arc, autant qu'on veut pour une
     // polyligne.
-    const int wanted = m_tool == Tool::Arc ? 3
-            : m_tool == Tool::Polyline     ? -1
-                                           : 2;
+    const int wanted = m_tool == Tool::Arc || m_tool == Tool::Dimension ? 3
+            : m_tool == Tool::Polyline                                   ? -1
+                                                                         : 2;
 
     if (!m_shapePoints.isEmpty() && samePoint(point, m_shapePoints.last()))
         return;
@@ -1427,6 +1466,13 @@ void FolioView::placeShapePoint(const QPointF &point)
 void FolioView::commitShape()
 {
     Folio *folio = m_document->currentFolio();
+    // Une cote n'est pas une forme : elle porte sa mesure et se recalcule
+    // quand on la deplace. Elle sort donc du chemin des GraphicItem avant
+    // qu'on ne cherche a en faire une primitive.
+    if (m_tool == Tool::Dimension) {
+        commitDimension();
+        return;
+    }
     // La forme se construit sur les points deja poses, jamais sur le curseur
     // re-accroche : au moment de valider, le dernier point est dans la liste,
     // et le re-accrocher le ferait passer une seconde fois par la contrainte
@@ -1457,10 +1503,76 @@ void FolioView::commitShape()
     update();
 }
 
+void FolioView::commitDimension()
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio || m_shapePoints.size() < 3) {
+        m_shapePoints.clear();
+        update();
+        return;
+    }
+
+    auto item = std::make_unique<DimensionItem>();
+    item->first = m_shapePoints.at(0);
+    item->second = m_shapePoints.at(1);
+    item->linePoint = m_shapePoints.at(2);
+    item->kind = m_dimensionKind;
+    item->textHeight = m_textHeight;
+    m_shapePoints.clear();
+
+    // Deux points confondus ne mesurent rien : la cote serait invisible et
+    // impossible a rattraper au clic. Le dire vaut mieux que de la poser.
+    if (item->measure() < kConnectTolerance) {
+        Q_EMIT statusMessage(tr("Cote : les deux points sont confondus, rien à mesurer."));
+        update();
+        return;
+    }
+
+    const QString mesure = item->displayText();
+    m_document->push(std::make_unique<AddEntityCommand>(m_document->project(), folio->id(),
+                                                        std::move(item), tr("Coter")));
+    // L'outil reste arme : on cote rarement une seule distance.
+    Q_EMIT statusMessage(tr("Cote posée : %1 mm.").arg(mesure));
+    update();
+}
+
+void FolioView::setDimensionKind(DimensionItem::Kind kind)
+{
+    m_dimensionKind = kind;
+    // Changer de genre en plein trace repartirait d'une mesure a moitie
+    // designee : on recommence proprement.
+    m_shapePoints.clear();
+    update();
+}
+
 void FolioView::paintShapePreview(QPainter &painter) const
 {
     if (m_shapePoints.isEmpty())
         return;
+
+    // La cote se previsualise avec le peintre du document, pas avec un trace
+    // approche : c'est la seule facon de voir si le nombre tient dans la place
+    // AVANT de poser — et c'est justement ce qu'on regarde en cotant.
+    if (m_tool == Tool::Dimension) {
+        const QPointF cursor = m_cursorInside ? snapAnnotation(m_cursorMm)
+                                              : m_shapePoints.last();
+        DimensionItem apercu;
+        apercu.first = m_shapePoints.at(0);
+        apercu.second = m_shapePoints.size() >= 2 ? m_shapePoints.at(1) : cursor;
+        apercu.linePoint = m_shapePoints.size() >= 2 ? cursor : apercu.second;
+        apercu.kind = m_dimensionKind;
+        apercu.textHeight = m_textHeight;
+        if (apercu.measure() < kEpsilon)
+            return;
+        painter.save();
+        RenderStyle apercuStyle = m_style;
+        apercuStyle.dimension = m_style.selection;
+        FolioPainter peintre(m_document->project(), apercuStyle);
+        peintre.paintEntity(painter, apercu);
+        painter.restore();
+        return;
+    }
+
     const auto shape = pendingShape(m_cursorInside ? snap(m_cursorMm) : m_shapePoints.last());
     if (!shape)
         return;
@@ -1732,6 +1844,7 @@ void FolioView::placeAt(const QPointF &scenePoint)
     case Tool::Circle:
     case Tool::Arc:
     case Tool::Polyline:
+    case Tool::Dimension:
         placeShapePoint(scenePoint);
         return;
     case Tool::Trim:
@@ -1813,7 +1926,8 @@ bool FolioView::handleTypedKey(QKeyEvent *event)
             || m_pending != Pending::None || m_tool == Tool::Symbol
             || m_tool == Tool::Junction || m_tool == Tool::Label || m_tool == Tool::Text
             || m_tool == Tool::Wire || m_tool == Tool::Line || m_tool == Tool::Rectangle
-            || m_tool == Tool::Circle || m_tool == Tool::Arc || m_tool == Tool::Polyline;
+            || m_tool == Tool::Circle || m_tool == Tool::Arc || m_tool == Tool::Polyline
+            || m_tool == Tool::Dimension;
 
     if (m_typing) {
         switch (event->key()) {
@@ -2889,6 +3003,15 @@ void FolioView::mousePressEvent(QMouseEvent *event)
     // Le texte se pose a l'oeil : la resolution ne s'applique pas a lui.
     case Tool::Text:
         placeAt(snapAnnotation(scenePoint));
+        return;
+
+    // La cote MESURE le dessin : ses deux premiers points doivent tomber
+    // exactement sur la geometrie, donc avec l'accrochage complet. Le
+    // troisieme ne fait que placer la ligne de cote — il se pose a l'oeil,
+    // comme une annotation, sinon on ne peut pas la glisser de 1,2 mm pour
+    // qu'elle passe entre deux fils.
+    case Tool::Dimension:
+        placeAt(m_shapePoints.size() >= 2 ? snapAnnotation(scenePoint) : snapped);
         return;
 
     case Tool::Wire:

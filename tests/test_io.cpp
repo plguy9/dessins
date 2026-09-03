@@ -312,3 +312,51 @@ TEST_CASE("Le style de trait sort en DXF comme un type de ligne", "[io][dxf][tra
     // de tiret suivent le code 49.
     CHECK(dxf.contains(QStringLiteral("Tirets")));
 }
+
+TEST_CASE("Une cotation traverse le fichier", "[io][dsn][cote]")
+{
+    // Un type d'entité neuf est le cas où le fichier casse en silence : rien
+    // ne signale à l'ouverture qu'une cote a disparu, sinon son absence sur
+    // la planche — et une planche non cotée passe pour une planche sans cote.
+    Project source;
+    Folio *folio = source.addFolio(QStringLiteral("Implantation"));
+    auto cote = std::make_unique<DimensionItem>();
+    cote->first = QPointF(50, 100);
+    cote->second = QPointF(200, 100);
+    cote->linePoint = QPointF(120, 130);
+    cote->kind = DimensionItem::Kind::Horizontal;
+    cote->suffix = QStringLiteral("mm");
+    cote->decimals = 1;
+    folio->addEntity(std::move(cote));
+
+    Project restored;
+    REQUIRE(DsnFile::fromArchive(DsnFile::toArchive(source), restored).ok);
+    REQUIRE(restored.folioAt(0)->entityCount() == 1);
+    const auto *relue =
+            dynamic_cast<const DimensionItem *>(restored.folioAt(0)->entities().front().get());
+    REQUIRE(relue);
+    CHECK(relue->kind == DimensionItem::Kind::Horizontal);
+    CHECK(relue->measure() == 150.0);
+    CHECK(relue->displayText() == QStringLiteral("150.0 mm"));
+}
+
+TEST_CASE("Le DXF exporte le dessin de la cote, sur son calque", "[io][dxf][cote]")
+{
+    // On exporte des LIGNES et un TEXTE, pas une entité DIMENSION : une
+    // DIMENSION dépend d'un DIMSTYLE, et un style mal repris fait redessiner
+    // la cote avec d'autres flèches — le dessin changerait en s'ouvrant, ce
+    // que « écran = papier » interdit.
+    Project project;
+    Folio *folio = project.addFolio(QStringLiteral("Implantation"));
+    auto cote = std::make_unique<DimensionItem>();
+    cote->first = QPointF(50, 100);
+    cote->second = QPointF(200, 100);
+    cote->linePoint = QPointF(120, 130);
+    cote->kind = DimensionItem::Kind::Horizontal;
+    folio->addEntity(std::move(cote));
+
+    const QString dxf = QString::fromUtf8(DxfExport::encodeFolio(project, *folio));
+    CHECK(dxf.contains(QStringLiteral("COTES")));
+    CHECK(dxf.contains(QStringLiteral("150")));   // la mesure, écrite
+    CHECK_FALSE(dxf.contains(QStringLiteral("DIMENSION")));
+}

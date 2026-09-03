@@ -1,5 +1,5 @@
 // Base commune a tout ce qui vit dans un folio. La hierarchie reste volontairement
-// plate : six types d'entites suffisent a decrire un schema electrique complet.
+// plate : sept types d'entites suffisent a decrire un schema electrique complet.
 #pragma once
 
 #include "geometry.h"
@@ -11,7 +11,7 @@
 
 namespace dsn {
 
-enum class EntityType { Symbol, Wire, Junction, Text, Graphic, Label };
+enum class EntityType { Symbol, Wire, Junction, Text, Graphic, Label, Dimension };
 
 class Entity
 {

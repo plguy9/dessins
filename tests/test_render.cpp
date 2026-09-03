@@ -495,3 +495,100 @@ TEST_CASE("La grille s'espace au lieu de disparaître", "[render][grille]")
     // serait montrer des points où l'accrochage ne se pose pas.
     CHECK(FolioPainter::displayGridStep(pas, 40.0) == pas);
 }
+
+// --------------------------------------------------------------------------
+// Cotations
+
+TEST_CASE("La cote mesure le dessin, elle ne le récite pas", "[render][cote]")
+{
+    // C'est toute la différence avec un texte posé à côté d'un trait : la
+    // valeur se déduit des deux points d'attache. Déplacer une attache change
+    // le nombre — un plan coté ne peut pas mentir sur ce qu'il montre.
+    DimensionItem cote;
+    cote.first = QPointF(50, 100);
+    cote.second = QPointF(200, 100);
+    cote.linePoint = QPointF(0, 120);
+    CHECK(cote.measure() == 150.0);
+    CHECK(cote.displayText() == QStringLiteral("150"));
+
+    cote.second = QPointF(180, 100);
+    CHECK(cote.displayText() == QStringLiteral("130"));
+
+    // Une cote horizontale ne mesure que la projection : coter l'entraxe de
+    // deux rails ne doit pas dépendre du fait qu'on a désigné deux points
+    // exactement à la même hauteur.
+    cote.second = QPointF(180, 140);
+    cote.kind = DimensionItem::Kind::Horizontal;
+    CHECK(cote.measure() == 130.0);
+    cote.kind = DimensionItem::Kind::Vertical;
+    CHECK(cote.measure() == 40.0);
+    cote.kind = DimensionItem::Kind::Aligned;
+    CHECK(cote.measure() > 130.0); // l'hypoténuse
+
+    // La valeur imposée est le seul cas où une cote ne dit pas ce qu'elle
+    // mesure — et elle se déclare.
+    cote.override = QStringLiteral("hors échelle");
+    CHECK(cote.displayText() == QStringLiteral("hors échelle"));
+}
+
+TEST_CASE("La ligne de cote passe par le point posé au troisième clic",
+          "[render][cote]")
+{
+    // Le décalage est donné par un POINT, pas par une distance signée : le
+    // troisième clic pose la ligne où on la veut, des deux côtés de la
+    // mesure, sans avoir à penser au signe.
+    DimensionItem cote;
+    cote.first = QPointF(50, 100);
+    cote.second = QPointF(200, 100);
+    cote.kind = DimensionItem::Kind::Horizontal;
+
+    cote.linePoint = QPointF(120, 130);
+    auto g = cote.geometry();
+    CHECK(g.lineStart == QPointF(50, 130));
+    CHECK(g.lineEnd == QPointF(200, 130));
+
+    cote.linePoint = QPointF(120, 70); // de l'autre côté
+    g = cote.geometry();
+    CHECK(g.lineStart.y() == 70.0);
+}
+
+TEST_CASE("Une cote dépose de l'encre là où elle mesure", "[render][cote]")
+{
+    // Le seul contrôle qui distingue une cote tracée d'une cote calculée mais
+    // jamais peinte : compter l'encre. Un type d'entité qui n'atteint pas le
+    // peintre est invisible sans qu'aucun test de géométrie ne s'en aperçoive.
+    Project project;
+    Folio *folio = project.addFolio();
+    auto cote = std::make_unique<DimensionItem>();
+    cote->first = QPointF(50, 100);
+    cote->second = QPointF(200, 100);
+    cote->linePoint = QPointF(120, 130);
+    cote->kind = DimensionItem::Kind::Horizontal;
+    folio->addEntity(std::move(cote));
+
+    const double ppm = 4.0;
+    const QImage image = PdfExport::renderFolio(project, *folio, RenderStyle::print(), ppm);
+
+    CHECK(hasInkNear(image, QPointF(125, 130), ppm));  // la ligne de cote
+    CHECK(hasInkNear(image, QPointF(50, 115), ppm));   // la ligne d'attache gauche
+    CHECK(hasInkNear(image, QPointF(200, 115), ppm));  // et la droite
+    CHECK(hasInkNear(image, QPointF(125, 127), ppm, 5)); // le nombre, au-dessus
+    // Et rien loin de la cote.
+    CHECK_FALSE(hasInkNear(image, QPointF(125, 180), ppm, 2));
+}
+
+TEST_CASE("Le texte d'une cote se lit toujours dans le bon sens", "[render][cote]")
+{
+    // Une cote verticale dont le texte suivrait la direction se lirait la tête
+    // en bas une fois sur deux : au-delà du quart de tour on retourne.
+    DimensionItem cote;
+    cote.first = QPointF(100, 50);
+    cote.second = QPointF(100, 200);
+    cote.linePoint = QPointF(130, 0);
+    cote.kind = DimensionItem::Kind::Vertical;
+    const auto g = cote.geometry();
+    // L'intervalle est [-90, 90) : une cote verticale se lit du bas vers le
+    // haut (ISO 129), c'est-à-dire en tournant la planche d'un quart de tour
+    // à droite — jamais à gauche.
+    CHECK(g.angleDegrees == -90.0);
+}

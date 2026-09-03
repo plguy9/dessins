@@ -374,6 +374,19 @@ void SnapEngine::collect(QVector<SnapHit> &out, const Folio &folio, const Symbol
             addPrimitiveSnaps(graphic->shape, nullptr, graphic->id());
             continue;
         }
+        if (const auto *dim = dynamic_cast<const DimensionItem *>(entity.get())) {
+            // SEULS LES POINTS D'ATTACHE, jamais la ligne de cote.
+            //
+            // Une cote se pose souvent a la suite d'une autre — trois entraxes
+            // alignes le long d'un rail — et repartir exactement du point ou
+            // la precedente s'arretait est le geste courant. Mais s'accrocher
+            // a la LIGNE de cote enchainerait les cotes les unes sur les
+            // autres au lieu de les rattacher au dessin : on coterait la
+            // cotation.
+            add(SnapMode::Endpoint, dim->first, dim->id());
+            add(SnapMode::Endpoint, dim->second, dim->id());
+            continue;
+        }
     }
 
     // Intersections. Le cout est quadratique sur les segments, mais on ne

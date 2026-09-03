@@ -38,6 +38,7 @@ private:
     void buildTextForm(QFormLayout *form, TextItem *text);
     void buildLabelForm(QFormLayout *form, Label *label);
     void buildJunctionForm(QFormLayout *form, Junction *junction);
+    void buildDimensionForm(QFormLayout *form, DimensionItem *dimension);
     void buildMultiForm(QFormLayout *form);
 
     // Applique une mutation a une entite par instantane avant/apres.

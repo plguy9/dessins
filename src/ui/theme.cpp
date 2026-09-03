@@ -938,6 +938,243 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawLine(QPointF(13, 17.5), QPointF(6.5, 17.5));
         p.drawPolyline(QPolygonF({ { 9, 15.5 }, { 6.5, 17.5 }, { 9, 19.5 } }));
         break;
+    case Glyph::Dimension:
+        // Une cote alignee : la ligne inclinee, ses deux fleches et les deux
+        // lignes d'attache. C'est le dessin d'une cote, pas une regle.
+        p.drawLine(QPointF(4, 19), QPointF(8, 7));
+        p.drawLine(QPointF(16, 21), QPointF(20, 9));
+        p.drawLine(QPointF(6.5, 12), QPointF(18.5, 14));
+        p.drawPolyline(QPolygonF({ { 9, 10.5 }, { 6.5, 12 }, { 9, 13.5 } }));
+        p.drawPolyline(QPolygonF({ { 16, 12.5 }, { 18.5, 14 }, { 16, 15.5 } }));
+        break;
+    case Glyph::DimensionH:
+        // La meme, a plat : deux attaches verticales et la ligne entre elles.
+        p.drawLine(QPointF(4, 6), QPointF(4, 18));
+        p.drawLine(QPointF(20, 6), QPointF(20, 18));
+        p.drawLine(QPointF(4, 12), QPointF(20, 12));
+        p.drawPolyline(QPolygonF({ { 7, 9.5 }, { 4, 12 }, { 7, 14.5 } }));
+        p.drawPolyline(QPolygonF({ { 17, 9.5 }, { 20, 12 }, { 17, 14.5 } }));
+        break;
+    case Glyph::DimensionV:
+        // Et debout. Les trois se distinguent d'un coup d'oeil : c'est la
+        // regle du ruban, deux commandes voisines ne partagent pas un dessin.
+        p.drawLine(QPointF(6, 4), QPointF(18, 4));
+        p.drawLine(QPointF(6, 20), QPointF(18, 20));
+        p.drawLine(QPointF(12, 4), QPointF(12, 20));
+        p.drawPolyline(QPolygonF({ { 9.5, 7 }, { 12, 4 }, { 14.5, 7 } }));
+        p.drawPolyline(QPolygonF({ { 9.5, 17 }, { 12, 20 }, { 14.5, 17 } }));
+        break;
+    case Glyph::Ortho:
+        // L'angle droit : c'est tout ce que dit ORTHO.
+        p.drawPolyline(QPolygonF({ { 5, 4 }, { 5, 19 }, { 20, 19 } }));
+        p.drawRect(QRectF(5, 15, 4, 4));
+        break;
+    case Glyph::Polar:
+        // Un angle et son arc : le repérage polaire contraint la direction.
+        p.drawLine(QPointF(4, 20), QPointF(20, 20));
+        p.drawLine(QPointF(4, 20), QPointF(18, 7));
+        p.drawArc(QRectF(-4, 12, 16, 16), 0, 45 * 16);
+        break;
+    case Glyph::Surfer:
+        // Deux planches et le saut de l'une a l'autre : le Surfer suit un
+        // element a travers le dossier.
+        p.drawRect(QRectF(3, 5, 7, 9));
+        p.drawRect(QRectF(14, 11, 7, 9));
+        p.drawLine(QPointF(10, 8), QPointF(17, 8));
+        p.drawPolyline(QPolygonF({ { 14.5, 5.5 }, { 17.5, 8 }, { 14.5, 10.5 } }));
+        break;
+    case Glyph::SelectAll:
+        // Le cadre en pointille de « tout prendre », et ce qu'il contient.
+        pen.setStyle(Qt::DotLine);
+        p.setPen(pen);
+        p.drawRect(QRectF(3, 3, 18, 18));
+        pen.setStyle(Qt::SolidLine);
+        p.setPen(pen);
+        p.drawRect(QRectF(7, 7, 4, 4));
+        p.drawRect(QRectF(13, 13, 4, 4));
+        break;
+    case Glyph::Move:
+        // Les quatre fleches : deplacer, dans tous les sens.
+        p.drawLine(QPointF(12, 3), QPointF(12, 21));
+        p.drawLine(QPointF(3, 12), QPointF(21, 12));
+        p.drawPolyline(QPolygonF({ { 9.5, 5.5 }, { 12, 3 }, { 14.5, 5.5 } }));
+        p.drawPolyline(QPolygonF({ { 9.5, 18.5 }, { 12, 21 }, { 14.5, 18.5 } }));
+        p.drawPolyline(QPolygonF({ { 5.5, 9.5 }, { 3, 12 }, { 5.5, 14.5 } }));
+        p.drawPolyline(QPolygonF({ { 18.5, 9.5 }, { 21, 12 }, { 18.5, 14.5 } }));
+        break;
+    case Glyph::Pan:
+        // La main qui pousse la feuille : quatre doigts et le pouce. Le
+        // panoramique deplace la VUE, pas le dessin — d'ou la main et non les
+        // fleches de Deplacer.
+        p.drawPolyline(QPolygonF({ { 7, 13 }, { 7, 8 }, { 9, 8 }, { 9, 12 } }));
+        p.drawPolyline(QPolygonF({ { 11, 12 }, { 11, 6 }, { 13, 6 }, { 13, 12 } }));
+        p.drawPolyline(QPolygonF({ { 15, 12 }, { 15, 8 }, { 17, 8 }, { 17, 14 } }));
+        p.drawPolyline(QPolygonF({ { 7, 13 }, { 5, 15 }, { 8, 20 }, { 15, 20 }, { 17, 14 } }));
+        break;
+    case Glyph::Scoot:
+        // Un appareil qui coulisse le long de son fil : le trait porte, la
+        // boite glisse dessus.
+        p.drawLine(QPointF(2, 12), QPointF(22, 12));
+        p.drawRect(QRectF(9, 8, 6, 8));
+        p.drawPolyline(QPolygonF({ { 5.5, 20 }, { 3, 17.5 }, { 5.5, 15 } }));
+        p.drawPolyline(QPolygonF({ { 18.5, 20 }, { 21, 17.5 }, { 18.5, 15 } }));
+        break;
+    case Glyph::DraftingSettings:
+        // Le compas de dessin, ouvert : les parametres du TRACE, pas ceux du
+        // logiciel.
+        p.drawLine(QPointF(12, 4), QPointF(6, 20));
+        p.drawLine(QPointF(12, 4), QPointF(18, 20));
+        p.drawArc(QRectF(4, 12, 16, 12), 200 * 16, 140 * 16);
+        fill(stroke);
+        p.drawEllipse(QPointF(12, 4), 1.6, 1.6);
+        strokeOnly();
+        break;
+    case Glyph::EditComponent:
+        // Un appareil et le crayon qui le regle.
+        p.drawRect(QRectF(3, 7, 10, 10));
+        p.drawLine(QPointF(3, 12), QPointF(1.5, 12));
+        p.drawPolyline(QPolygonF({ { 13, 20 }, { 13, 17 }, { 20, 10 }, { 23, 13 },
+                                   { 16, 20 }, { 13, 20 } }));
+        break;
+    case Glyph::PinNumbers:
+        // Une broche et le chiffre qu'elle porte.
+        p.drawLine(QPointF(3, 16), QPointF(11, 16));
+        fill(stroke);
+        p.drawEllipse(QPointF(11, 16), 1.8, 1.8);
+        strokeOnly();
+        p.drawPolyline(QPolygonF({ { 15, 6 }, { 17, 4 }, { 17, 14 } }));
+        p.drawLine(QPointF(15, 14), QPointF(19.5, 14));
+        break;
+    case Glyph::Plc:
+        // Une carte d'automate : le corps et ses voies, en rangee.
+        p.drawRect(QRectF(6, 3, 12, 18));
+        for (int i = 0; i < 4; ++i) {
+            const double y = 6.0 + i * 4.0;
+            p.drawLine(QPointF(2.5, y), QPointF(6, y));
+            p.drawLine(QPointF(18, y), QPointF(21.5, y));
+        }
+        break;
+    case Glyph::UnconnectedPins:
+        // Une broche libre : le trait, et la croix qui dit qu'il ne va nulle
+        // part.
+        p.drawLine(QPointF(3, 12), QPointF(13, 12));
+        p.drawLine(QPointF(16, 9), QPointF(22, 15));
+        p.drawLine(QPointF(22, 9), QPointF(16, 15));
+        break;
+    case Glyph::Audit:
+        // La planchette de controle et sa coche : l'audit passe le dossier en
+        // revue, il ne verifie pas une case.
+        p.drawRect(QRectF(4, 4, 16, 18));
+        p.drawLine(QPointF(9, 4), QPointF(15, 4));
+        p.drawPolyline(QPolygonF({ { 7.5, 13 }, { 10.5, 16 }, { 16.5, 9 } }));
+        break;
+    case Glyph::Quit:
+        // La porte et la fleche qui en sort.
+        p.drawPolyline(QPolygonF({ { 13, 3 }, { 4, 3 }, { 4, 21 }, { 13, 21 } }));
+        p.drawLine(QPointF(9, 12), QPointF(21, 12));
+        p.drawPolyline(QPolygonF({ { 17.5, 8.5 }, { 21, 12 }, { 17.5, 15.5 } }));
+        break;
+    case Glyph::Ladder:
+        // L'echelle de commande : deux montants et ses barreaux.
+        p.drawLine(QPointF(6, 3), QPointF(6, 21));
+        p.drawLine(QPointF(18, 3), QPointF(18, 21));
+        p.drawLine(QPointF(6, 8), QPointF(18, 8));
+        p.drawLine(QPointF(6, 13), QPointF(18, 13));
+        p.drawLine(QPointF(6, 18), QPointF(18, 18));
+        break;
+    case Glyph::ZoomPrevious:
+        // La loupe et la fleche de retour : la vue precedente.
+        p.drawEllipse(QPointF(11, 11), 6.0, 6.0);
+        p.drawLine(QPointF(15.5, 15.5), QPointF(21, 21));
+        p.drawPolyline(QPolygonF({ { 11, 8 }, { 8, 11 }, { 11, 14 } }));
+        p.drawLine(QPointF(8, 11), QPointF(14.5, 11));
+        break;
+    case Glyph::DuplicateEdit:
+        // Deux exemplaires et le crayon : dupliquer PUIS modifier.
+        p.drawRect(QRectF(3, 3, 10, 10));
+        p.drawRect(QRectF(7, 8, 10, 10));
+        p.drawPolyline(QPolygonF({ { 14, 21 }, { 14, 18.5 }, { 20, 12.5 },
+                                   { 22.5, 15 }, { 16.5, 21 }, { 14, 21 } }));
+        break;
+    case Glyph::Terminals:
+        // Un bornier : le rail et ses bornes vissees, cote a cote.
+        p.drawLine(QPointF(2, 17), QPointF(22, 17));
+        for (int i = 0; i < 3; ++i) {
+            const double x = 4.5 + i * 6.0;
+            p.drawRect(QRectF(x, 6, 5, 11));
+            p.drawLine(QPointF(x + 2.5, 3), QPointF(x + 2.5, 6));
+        }
+        break;
+    case Glyph::CommandLine:
+        // L'invite d'une ligne de commande : le chevron et le curseur.
+        p.drawRect(QRectF(2.5, 5, 19, 14));
+        p.drawPolyline(QPolygonF({ { 6, 9.5 }, { 9, 12 }, { 6, 14.5 } }));
+        p.drawLine(QPointF(11, 15), QPointF(17, 15));
+        break;
+    case Glyph::CommandPalette:
+        // Une liste et la loupe qui la cherche : la palette de commandes.
+        p.drawLine(QPointF(3, 6), QPointF(14, 6));
+        p.drawLine(QPointF(3, 11), QPointF(11, 11));
+        p.drawLine(QPointF(3, 16), QPointF(9, 16));
+        p.drawEllipse(QPointF(16, 15), 4.5, 4.5);
+        p.drawLine(QPointF(19.5, 18.5), QPointF(22.5, 21.5));
+        break;
+    case Glyph::MatchProps:
+        // Le pinceau qui reprend les proprietes d'un element pour les poser
+        // sur un autre.
+        p.drawRect(QRectF(6, 3, 12, 5));
+        p.drawPolyline(QPolygonF({ { 9, 8 }, { 9, 13 }, { 15, 13 }, { 15, 8 } }));
+        p.drawLine(QPointF(12, 13), QPointF(12, 21));
+        break;
+    case Glyph::StartPage:
+        // Le toit et la porte : l'ecran d'accueil, la ou l'on revient.
+        p.drawPolyline(QPolygonF({ { 3, 12 }, { 12, 4 }, { 21, 12 } }));
+        p.drawPolyline(QPolygonF({ { 5.5, 10 }, { 5.5, 21 }, { 18.5, 21 }, { 18.5, 10 } }));
+        p.drawRect(QRectF(10, 15, 4, 6));
+        break;
+    case Glyph::ProjectInfo:
+        // La fiche du dossier : un feuillet et ses lignes de renseignement.
+        p.drawRect(QRectF(4, 3, 16, 18));
+        p.drawLine(QPointF(7, 8), QPointF(17, 8));
+        p.drawLine(QPointF(7, 12), QPointF(17, 12));
+        p.drawLine(QPointF(7, 16), QPointF(13, 16));
+        break;
+    case Glyph::PageSetup:
+        // Une feuille et ses marges : la mise en page decide du format et du
+        // cadre, pas du contenu.
+        p.drawRect(QRectF(3, 4, 18, 16));
+        pen.setStyle(Qt::DotLine);
+        p.setPen(pen);
+        p.drawRect(QRectF(6, 7, 12, 10));
+        pen.setStyle(Qt::SolidLine);
+        p.setPen(pen);
+        break;
+    case Glyph::ObjectSnap:
+        // Le carre d'extremite d'AutoSnap, pose sur le bout d'un trait :
+        // c'est la forme meme de l'accrochage aux objets.
+        p.drawLine(QPointF(3, 19), QPointF(16, 6));
+        p.drawRect(QRectF(13, 3, 6, 6));
+        break;
+    case Glyph::TextH1:
+    case Glyph::TextH2:
+    case Glyph::TextH3:
+    case Glyph::TextH4: {
+        // Quatre tailles de capitale, et la fleche de hauteur a cote. Le
+        // dessin dit LA TAILLE : quatre entrees de menu qui partagent une
+        // icone ne se distinguent qu'a la lecture du chiffre, alors que c'est
+        // precisement la taille qu'on choisit.
+        const double h = 7.0 + 3.5 * double(int(glyph) - int(Glyph::TextH1));
+        const double base = 20.0;
+        const double demi = h * 0.34;
+        p.drawPolyline(QPolygonF({ { 8 - demi, base }, { 8, base - h }, { 8 + demi, base } }));
+        p.drawLine(QPointF(8 - demi * 0.55, base - h * 0.35),
+                   QPointF(8 + demi * 0.55, base - h * 0.35));
+        p.drawLine(QPointF(18, base), QPointF(18, base - h));
+        p.drawPolyline(QPolygonF({ { 16.5, base - h + 1.6 }, { 18, base - h },
+                                   { 19.5, base - h + 1.6 } }));
+        p.drawPolyline(QPolygonF({ { 16.5, base - 1.6 }, { 18, base }, { 19.5, base - 1.6 } }));
+        break;
+    }
     case Glyph::Find:
         // La loupe, et son manche. C'est le seul dessin qu'on reconnaisse
         // sans le lire.

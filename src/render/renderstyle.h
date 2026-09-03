@@ -35,6 +35,7 @@ struct RenderStyle {
     QColor text{ 0x15, 0x1A, 0x18 };
     QColor tag{ 0x1F, 0x6B, 0x2E };      // reperes de fil et designations
     QColor label{ 0x7A, 0x4A, 0x2B };    // etiquettes de potentiel et renvois
+    QColor dimension{ 0x5A, 0x62, 0x60 }; // cotations : gris, en retrait du circuit
     QColor selection{ 0xE8, 0x8B, 0x0B };
     QColor highlight{ 0xE8, 0x40, 0x40 }; // potentiel mis en evidence
     QColor pinMarker{ 0xC0, 0x50, 0x20 };
@@ -58,6 +59,11 @@ struct RenderStyle {
     double symbolWidth = 0.25;
     double frameWidth = 0.5;
     double gridDotWidth = 0.12;
+    // Cotation : trait fin, comme sur une planche. Une cote ne doit jamais
+    // peser autant qu'un conducteur — elle accompagne le dessin, elle n'en
+    // fait pas partie.
+    double dimensionWidth = 0.18;
+    double dimensionArrow = 2.5;  // longueur de la fleche, un module
 
     // Contenu affiche
     bool showGrid = true;

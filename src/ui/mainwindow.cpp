@@ -451,7 +451,7 @@ void MainWindow::createActions()
     make(fileMenu, G::Print, tr("Im&primer…"), QKeySequence::Print,
          tr("Imprimer le dossier"), &MainWindow::printProject);
     fileMenu->addSeparator();
-    make(fileMenu, G::Delete, tr("&Quitter"), QKeySequence::Quit, QString(),
+    make(fileMenu, G::Quit, tr("&Quitter"), QKeySequence::Quit, QString(),
          [this] { close(); });
 
 
@@ -485,7 +485,7 @@ void MainWindow::createActions()
                         QKeySequence::Find,
                         tr("Chercher un texte dans tout le dossier, et le remplacer"),
                         [this] { showFindReplace(); }, Need::Always);
-    m_selectAllAction = make(editMenu, G::Select, tr("&Tout sélectionner"),
+    m_selectAllAction = make(editMenu, G::SelectAll, tr("&Tout sélectionner"),
                              QKeySequence::SelectAll, QString(), [this] { m_view->selectAll(); }, Need::AnyEntity);
 
 
@@ -497,7 +497,7 @@ void MainWindow::createActions()
     // meme endroit obligeait a lire tout le menu a chaque fois.
     QMenu *modifyMenu = menuBar()->addMenu(tr("&Modification"));
 
-    m_moveAction = make(modifyMenu, G::Select, tr("&Déplacer"), QKeySequence(Qt::Key_D),
+    m_moveAction = make(modifyMenu, G::Move, tr("&Déplacer"), QKeySequence(Qt::Key_D),
                         tr("Déplacer la sélection d'un point de base à un autre"),
                         [this] { m_view->beginMoveSelection(); }, Need::AnyEntity);
     m_rotateAction = make(modifyMenu, G::Rotate, tr("&Pivoter"), QKeySequence(Qt::Key_R),
@@ -579,7 +579,7 @@ void MainWindow::createActions()
     m_cutAction = make(modifyMenu, G::Break, tr("&Couper un fil"), QKeySequence(),
                        tr("Couper le fil sélectionné à l'endroit cliqué"),
                        [this] { m_view->beginCut(); }, Need::AnyWire);
-    m_matchAction = make(modifyMenu, G::Palette2, tr("Copier les &propriétés"),
+    m_matchAction = make(modifyMenu, G::MatchProps, tr("Copier les &propriétés"),
                          QKeySequence(), tr("Appliquer le type de fil et la mise en forme "
                                             "du premier élément aux autres"),
                          &MainWindow::matchProperties, Need::TwoEntities);
@@ -632,6 +632,12 @@ void MainWindow::createActions()
           QT_TR_NOOP("Le centre, puis un point du contour"), true, true },
         { FolioView::Tool::Arc, G::Arc, QT_TR_NOOP("&Arc"), Qt::Key_B,
           QT_TR_NOOP("Départ, point de passage, arrivée"), true, true },
+        // La cotation manquait, et ce n'etait pas une case de ruban : un
+        // schema d'armoire porte des cotes — entraxe de deux rails, hauteur
+        // d'un jeu de barres, encombrement d'un coffret.
+        { FolioView::Tool::Dimension, G::Dimension, QT_TR_NOOP("Cotatio&n"), Qt::Key_N,
+          QT_TR_NOOP("Mesurer : deux points, puis la place de la ligne de cote"),
+          true, true },
         { FolioView::Tool::Trim, G::Trim, QT_TR_NOOP("&Ajuster"), Qt::Key_A,
           QT_TR_NOOP("Couper un fil entre deux croisements"), false, true },
         { FolioView::Tool::Extend, G::Extend, QT_TR_NOOP("Pro&longer"), Qt::Key_P,
@@ -654,6 +660,52 @@ void MainWindow::createActions()
                 [this, spec] { m_view->setTool(spec.tool); });
     }
     m_toolActions.first()->setChecked(true);
+
+    // ---- LE GENRE DE COTE ---------------------------------------------
+    //
+    // Meme mecanique que le style de trait : arme une fois, il vaut pour tout
+    // ce qu'on cote ensuite. Les trois existent parce qu'un schema est fait de
+    // traits droits — coter l'entraxe horizontal de deux rails ne doit pas
+    // dependre du fait qu'on a designe deux points exactement a la meme
+    // hauteur.
+    drawMenu->addSeparator();
+    QMenu *dimensionMenu = drawMenu->addMenu(tr("&Genre de cote"));
+    dimensionMenu->setIcon(Icons::icon(G::Dimension));
+    auto *dimensionGroup = new QActionGroup(this);
+    dimensionGroup->setExclusive(true);
+
+    struct DimensionSpec {
+        DimensionItem::Kind kind;
+        G glyph;
+        const char *label;
+        const char *hint;
+    };
+    const DimensionSpec dimensions[] = {
+        { DimensionItem::Kind::Aligned, G::Dimension, QT_TR_NOOP("Cote &alignée"),
+          QT_TR_NOOP("Mesure la distance réelle entre les deux points") },
+        { DimensionItem::Kind::Horizontal, G::DimensionH, QT_TR_NOOP("Cote &horizontale"),
+          QT_TR_NOOP("Ne mesure que l'écart horizontal") },
+        { DimensionItem::Kind::Vertical, G::DimensionV, QT_TR_NOOP("Cote &verticale"),
+          QT_TR_NOOP("Ne mesure que l'écart vertical") },
+    };
+    for (const DimensionSpec &spec : dimensions) {
+        auto *action = new QAction(Icons::icon(spec.glyph), tr(spec.label), this);
+        action->setCheckable(true);
+        action->setStatusTip(tr(spec.hint));
+        action->setToolTip(tr(spec.hint));
+        action->setChecked(spec.kind == DimensionItem::Kind::Aligned);
+        dimensionGroup->addAction(action);
+        dimensionMenu->addAction(action);
+        m_actionGlyphs.insert(action, int(spec.glyph));
+        connect(action, &QAction::triggered, this, [this, spec] {
+            // Choisir un genre veut dire qu'on va coter : l'outil suit, sinon
+            // il faudrait deux clics pour un seul geste.
+            m_view->setDimensionKind(spec.kind);
+            // La case de l'outil se coche toute seule : FolioView::toolChanged
+            // est deja branche sur les actions d'outil.
+            m_view->setTool(FolioView::Tool::Dimension);
+        });
+    }
 
     // ---- LE STYLE DE TRAIT DES FORMES ---------------------------------
     //
@@ -709,8 +761,14 @@ void MainWindow::createActions()
     heightMenu->setIcon(Icons::icon(G::Text));
     auto *heightGroup = new QActionGroup(this);
     heightGroup->setExclusive(true);
-    for (const double mm : { 1.8, 2.5, 3.5, 5.0 }) {
-        auto *action = new QAction(Icons::icon(G::Text),
+    // Chaque taille porte SA taille en icone. Quatre entrees qui partagent un
+    // glyphe ne se distinguent qu'a la lecture du chiffre, alors que c'est
+    // exactement la taille qu'on vient choisir.
+    const G heightGlyphs[] = { G::TextH1, G::TextH2, G::TextH3, G::TextH4 };
+    const double heights[] = { 1.8, 2.5, 3.5, 5.0 };
+    for (int i = 0; i < 4; ++i) {
+        const double mm = heights[i];
+        auto *action = new QAction(Icons::icon(heightGlyphs[i]),
                                    tr("%1 mm").arg(mm, 0, 'g', 2), this);
         action->setCheckable(true);
         action->setChecked(qFuzzyCompare(mm, 2.5));
@@ -718,7 +776,7 @@ void MainWindow::createActions()
         action->setStatusTip(action->toolTip());
         heightGroup->addAction(action);
         heightMenu->addAction(action);
-        m_actionGlyphs.insert(action, int(G::Text));
+        m_actionGlyphs.insert(action, int(heightGlyphs[i]));
         connect(action, &QAction::triggered, this, [this, mm] { m_view->setTextHeight(mm); });
     }
 
@@ -807,18 +865,18 @@ void MainWindow::createActions()
                            [this] { m_view->zoomToFit(); });
     make(viewMenu, G::ZoomWindow, tr("Zoom &fenêtre"), QKeySequence(),
          tr("Encadrer la zone à agrandir"), [this] { m_view->beginZoomWindow(); });
-    make(viewMenu, G::Select, tr("&Panoramique"), QKeySequence(),
+    make(viewMenu, G::Pan, tr("&Panoramique"), QKeySequence(),
          tr("Tirer pour déplacer la vue — le bouton du milieu et la barre d'espace "
             "le font aussi"),
          [this] { m_view->beginPan(); });
-    m_zoomPreviousAction = make(viewMenu, G::Undo, tr("Vue &précédente"), QKeySequence(),
+    m_zoomPreviousAction = make(viewMenu, G::ZoomPrevious, tr("Vue &précédente"), QKeySequence(),
                                 tr("Revenir à la vue précédente"),
                                 [this] { m_view->zoomPrevious(); });
-    make(viewMenu, G::Palette2, tr("Palette de &commandes…"),
+    make(viewMenu, G::CommandPalette, tr("Palette de &commandes…"),
          QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P),
          tr("Chercher n'importe quelle commande par son nom, sans savoir où elle est rangée"),
          &MainWindow::openCommandPalette);
-    make(viewMenu, G::Text, tr("Ligne de &commande"),
+    make(viewMenu, G::CommandLine, tr("Ligne de &commande"),
          QKeySequence(Qt::CTRL | Qt::Key_9), tr("Placer le curseur dans la ligne de commande"),
          [this] {
              m_commandDock->show();
@@ -835,6 +893,7 @@ void MainWindow::createActions()
         const char *dock;
         Qt::Key key;
         const char *hint;
+        G glyph;
     };
     // Les proprietes ne sont plus un panneau : la commande ouvre la fiche,
     // comme le double-clic. Le raccourci est garde — il est dans les doigts.
@@ -844,16 +903,16 @@ void MainWindow::createActions()
 
     const PaletteShortcut palettes[] = {
         { QT_TR_NOOP("Palette de &symboles"), "dock.symbols", Qt::Key_3,
-          QT_TR_NOOP("Ouvrir la bibliothèque de symboles") },
+          QT_TR_NOOP("Ouvrir la bibliothèque de symboles"), G::Palette },
         { QT_TR_NOOP("Navigateur de &folios"), "dock.folios", Qt::Key_4,
-          QT_TR_NOOP("Ouvrir la liste des pages du dossier") },
+          QT_TR_NOOP("Ouvrir la liste des pages du dossier"), G::Folios },
     };
     for (const PaletteShortcut &palette : palettes) {
         const QString name = QString::fromLatin1(palette.dock);
         // La commande bascule au lieu de seulement montrer : c'est elle qui
         // ramene le panneau que le bouton de sa barre de titre vient de
         // tasser, et une case cochee dit d'un coup d'oeil s'il est la.
-        QAction *action = make(viewMenu, G::Palette, tr(palette.label),
+        QAction *action = make(viewMenu, palette.glyph, tr(palette.label),
                                QKeySequence(Qt::CTRL | palette.key), tr(palette.hint),
                                [this, name] {
                                    auto *dock = findChild<QDockWidget *>(name);
@@ -885,13 +944,13 @@ void MainWindow::createActions()
     };
 
     createDraftingToggles(viewMenu);
-    addToggle(viewMenu, G::SymbolPlace, tr("&Numéros de broches"), false, QString(),
+    addToggle(viewMenu, G::PinNumbers, tr("&Numéros de broches"), false, QString(),
               [this](bool on) {
                   RenderStyle style = m_view->style();
                   style.showPinNumbers = on;
                   m_view->setStyle(style);
               });
-    addToggle(viewMenu, G::Check, tr("&Broches non raccordées"), true,
+    addToggle(viewMenu, G::UnconnectedPins, tr("&Broches non raccordées"), true,
               tr("Marquer d'une croix les broches en l'air"), [this](bool on) {
                   RenderStyle style = m_view->style();
                   style.showUnconnectedPins = on;
@@ -907,14 +966,14 @@ void MainWindow::createActions()
 
     // ---- Projet --------------------------------------------------------
     QMenu *projectMenu = menuBar()->addMenu(tr("&Projet"));
-    m_pageSetupAction = make(projectMenu, G::Folios, tr("&Mise en page…"),
+    m_pageSetupAction = make(projectMenu, G::PageSetup, tr("&Mise en page…"),
                              QKeySequence(Qt::CTRL | Qt::Key_P),
                              tr("Format de feuille, cadre, zones de repérage, cartouche"),
                              &MainWindow::editPageSetup);
-    make(projectMenu, G::Info, tr("&Informations du projet…"), QKeySequence(),
+    make(projectMenu, G::ProjectInfo, tr("&Informations du projet…"), QKeySequence(),
          tr("Titre, client, référence — ce que porte le cartouche"),
          &MainWindow::editProjectInfo);
-    make(projectMenu, G::Grid, tr("Insérer une &échelle de commande…"), QKeySequence(),
+    make(projectMenu, G::Ladder, tr("Insérer une &échelle de commande…"), QKeySequence(),
          tr("Deux rails d'alimentation et des lignes numérotées"),
          &MainWindow::insertLadder);
     m_busAction = make(projectMenu, G::WireBus, tr("Fil &multiple…"), QKeySequence(),
@@ -924,10 +983,10 @@ void MainWindow::createActions()
     make(projectMenu, G::WireTypes, tr("&Types de fils…"), QKeySequence(),
          tr("Couleur, section, calque et style de chaque type de fil"),
          &MainWindow::editWireTypes);
-    make(projectMenu, G::Junction, tr("&Éditeur de borniers…"), QKeySequence(),
+    make(projectMenu, G::Terminals, tr("&Éditeur de borniers…"), QKeySequence(),
          tr("Rassembler les bornes par bornier, les renuméroter, aller les voir"),
          &MainWindow::editTerminalStrips);
-    make(projectMenu, G::SymbolPlace, tr("Insérer un &automate…"), QKeySequence(),
+    make(projectMenu, G::Plc, tr("Insérer un &automate…"), QKeySequence(),
          tr("Poser une carte d'entrées-sorties : ses points portent déjà leur adresse"),
          &MainWindow::insertPlcModule);
     make(projectMenu, G::Reports, tr("&Poser le rapport dans le dessin…"), QKeySequence(),
@@ -939,7 +998,7 @@ void MainWindow::createActions()
     make(projectMenu, G::Renumber, tr("&Repérage automatique"),
          QKeySequence(Qt::CTRL | Qt::Key_R),
          tr("Désigner les appareils et repérer les fils"), &MainWindow::renumberAll, Need::AnyEntity);
-    make(projectMenu, G::Check, tr("&Audit électrique…"), QKeySequence(Qt::Key_F8),
+    make(projectMenu, G::Audit, tr("&Audit électrique…"), QKeySequence(Qt::Key_F8),
          tr("Tous les contrôles de cohérence du dossier, et le saut vers ce qui cloche"),
          &MainWindow::checkSchematic);
     projectMenu->addSeparator();
@@ -959,12 +1018,12 @@ void MainWindow::createActions()
 
     // ---- Symboles ------------------------------------------------------
     QMenu *symbolMenu = menuBar()->addMenu(tr("&Symboles"));
-    m_editComponentAction = make(symbolMenu, G::Properties, tr("&Éditer le composant…"),
+    m_editComponentAction = make(symbolMenu, G::EditComponent, tr("&Éditer le composant…"),
                                  QKeySequence(Qt::Key_F2),
                                  tr("Repère, description, catalogue et rattachement de "
                                     "l'appareil sélectionné"),
                                  &MainWindow::editSelectedComponent, Need::AnySymbol);
-    m_scootAction = make(symbolMenu, G::Select, tr("&Glisser le long du fil"),
+    m_scootAction = make(symbolMenu, G::Scoot, tr("&Glisser le long du fil"),
                          QKeySequence(Qt::Key_G),
                          tr("Déplacer l'appareil sur son fil, sans jamais le détacher"),
                          [this] { m_view->beginScoot(); }, Need::AnySymbol);
@@ -972,7 +1031,7 @@ void MainWindow::createActions()
                                  QKeySequence(Qt::SHIFT | Qt::Key_D),
                                  tr("Déplacer librement : les fils raccordés suivent"),
                                  [this] { m_view->beginMoveComponent(); }, Need::AnySymbol);
-    m_surferAction = make(symbolMenu, G::Highlight, tr("&Surfer les renvois…"),
+    m_surferAction = make(symbolMenu, G::Surfer, tr("&Surfer les renvois…"),
                           QKeySequence(Qt::Key_F4),
                           tr("Lister ce qui est lié à la sélection dans tout le dossier, "
                              "et y aller"),
@@ -989,16 +1048,16 @@ void MainWindow::createActions()
     make(symbolMenu, G::Edit, tr("&Modifier le symbole de la palette…"), QKeySequence(),
          tr("Ouvrir l'éditeur sur le symbole sélectionné dans la palette"),
          [this] { editCurrentSymbol(false); });
-    make(symbolMenu, G::Duplicate, tr("&Dupliquer puis modifier…"), QKeySequence(),
+    make(symbolMenu, G::DuplicateEdit, tr("&Dupliquer puis modifier…"), QKeySequence(),
          tr("Partir d'un symbole existant sans toucher à l'original"),
          [this] { editCurrentSymbol(true); });
 
     // ---- Aide ----------------------------------------------------------
     QMenu *helpMenu = menuBar()->addMenu(tr("&Aide"));
-    make(helpMenu, G::Info, tr("Écran d'&accueil…"), QKeySequence(),
+    make(helpMenu, G::StartPage, tr("Écran d'&accueil…"), QKeySequence(),
          tr("Projets récents, projet d'exemple et les gestes à connaître"),
          &MainWindow::showStartPage);
-    make(helpMenu, G::Palette2, tr("&Toutes les commandes…"),
+    make(helpMenu, G::CommandPalette, tr("&Toutes les commandes…"),
          QKeySequence(Qt::Key_F1),
          tr("La liste complète de ce que le logiciel sait faire, avec les raccourcis"),
          &MainWindow::openCommandPalette);
@@ -1464,15 +1523,15 @@ void MainWindow::createDraftingToggles(QMenu *menu)
     m_gridAction = makeToggle(G::Grid, tr("Afficher la &grille"), tr("GRILLE"),
                               QKeySequence(Qt::Key_F7), true, tr("Afficher la grille"),
                               [this](bool on) { m_view->setGridVisible(on); });
-    m_orthoAction = makeToggle(G::Wire, tr("Mode &ortho"), tr("ORTHO"),
+    m_orthoAction = makeToggle(G::Ortho, tr("Mode &ortho"), tr("ORTHO"),
                                QKeySequence(Qt::Key_F8), engine.orthoEnabled(),
                                tr("Contraindre le tracé à l'horizontale et à la verticale"),
                                [this](bool on) { m_view->snapEngine().setOrthoEnabled(on); });
-    m_polarAction = makeToggle(G::Rotate, tr("Repérage &polaire"), tr("POLAIRE"),
+    m_polarAction = makeToggle(G::Polar, tr("Repérage &polaire"), tr("POLAIRE"),
                                QKeySequence(Qt::Key_F10), engine.polarEnabled(),
                                tr("Contraindre le tracé aux angles multiples de l'incrément"),
                                [this](bool on) { m_view->snapEngine().setPolarEnabled(on); });
-    m_osnapAction = makeToggle(G::Junction, tr("Accrochage aux o&bjets"), tr("ACCROBJ"),
+    m_osnapAction = makeToggle(G::ObjectSnap, tr("Accrochage aux o&bjets"), tr("ACCROBJ"),
                                QKeySequence(Qt::Key_F3), engine.objectSnapEnabled(),
                                tr("Accrocher aux extrémités, milieux, centres, broches…"),
                                [this](bool on) { m_view->snapEngine().setObjectSnapEnabled(on); });
@@ -1489,12 +1548,15 @@ void MainWindow::createDraftingToggles(QMenu *menu)
     // doubler en icones prenait la place de six commandes reelles pour ne
     // rien apprendre de plus.
 
-    auto *settings = new QAction(Icons::icon(G::Properties), tr("&Paramètres de dessin…"), this);
+    auto *settings = new QAction(Icons::icon(G::DraftingSettings), tr("&Paramètres de dessin…"), this);
     settings->setShortcut(QKeySequence(Qt::Key_F12));
     settings->setStatusTip(tr("Modes d'accrochage, grille, repérage polaire"));
     connect(settings, &QAction::triggered, this, &MainWindow::editDraftingSettings);
     menu->addAction(settings);
-    m_actionGlyphs.insert(settings, int(G::Properties));
+    // Le glyphe est re-applique au changement de theme : l'oublier ici
+    // rendrait a cette commande l'icone d'une autre au premier basculement,
+    // sans que rien ne le signale.
+    m_actionGlyphs.insert(settings, int(G::DraftingSettings));
 }
 
 void MainWindow::syncDraftingToggles()
@@ -1811,6 +1873,20 @@ void MainWindow::registerCommands()
                m_view->setLabelRole(Label::Role::Destination);
                m_view->setTool(FolioView::Tool::Label);
            });
+    // La cotation, avec les alias d'AutoCAD : DIM, DIMLIN, DIMALI.
+    auto coter = [this](DimensionItem::Kind kind) {
+        m_view->setDimensionKind(kind);
+        m_view->setTool(FolioView::Tool::Dimension);
+    };
+    simple(QStringLiteral("COTATION"), { QStringLiteral("CT"), QStringLiteral("DIM") },
+           tr("Coter : deux points, puis la place de la ligne de cote"),
+           [coter] { coter(DimensionItem::Kind::Aligned); });
+    simple(QStringLiteral("COTATIONH"), { QStringLiteral("CTH"), QStringLiteral("DIMLIN") },
+           tr("Coter l'écart horizontal"),
+           [coter] { coter(DimensionItem::Kind::Horizontal); });
+    simple(QStringLiteral("COTATIONV"), { QStringLiteral("CTV") },
+           tr("Coter l'écart vertical"),
+           [coter] { coter(DimensionItem::Kind::Vertical); });
     simple(QStringLiteral("TEXTE"), { QStringLiteral("T"), QStringLiteral("DT") },
            tr("Annoter le folio"), [this] { m_view->setTool(FolioView::Tool::Text); });
     simple(QStringLiteral("INSERER"), { QStringLiteral("I") },
@@ -2372,6 +2448,9 @@ void MainWindow::createRibbon()
         { "Annoter", "Formes", false, "Rectangle", "" },
         { "Annoter", "Formes", false, "Cercle", "" },
         { "Annoter", "Formes", false, "Arc", "" },
+        { "Annoter", "Mesures", true, "Cotation", "Coter" },
+        { "Annoter", "Mesures", false, "Cote horizontale", "" },
+        { "Annoter", "Mesures", false, "Cote verticale", "" },
         { "Annoter", "Mesures", false, "Mesurer une distance", "" },
         { "Annoter", "Tableaux", true, "Poser le rapport dans le dessin", "Poser" },
 

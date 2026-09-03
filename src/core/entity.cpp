@@ -48,6 +48,8 @@ EntityPtr createEntity(const QString &typeTag)
         return std::make_unique<GraphicItem>();
     if (typeTag == QLatin1String("label"))
         return std::make_unique<Label>();
+    if (typeTag == QLatin1String("dimension"))
+        return std::make_unique<DimensionItem>();
     return nullptr;
 }
 

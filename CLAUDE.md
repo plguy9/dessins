@@ -103,6 +103,8 @@ sont délibérés et documentés dans le code :
   rapport valait 3,99. L'annulation restaure l'état
   figé plutôt que d'appliquer l'homothétie inverse — dix aller-retours ne
   doivent pas éloigner le symbole de sa taille.
+- **Cotations** (`DimensionItem`) — voir « Le bloc C », plus bas. La règle en
+  une ligne : **une cote mesure, elle ne récite pas**.
 - **`core/edittools.*`** — RÉSEAU (ARRAY, rectangulaire seulement),
   ALIGNER/RÉPARTIR, JOINDRE, COUPER. RÉPARTIR aligne les **centres**, pas les
   bords : des éléments de tailles différentes paraissent sinon mal espacés.
@@ -781,6 +783,149 @@ sans suffixe c'est le millimètre — le cas courant ne doit rien coûter à
 écrire. L'ordre du tableau d'unités compte : **`mm` avant `m`**, sinon
 « 10mm » se lirait « 10 m ».
 
+## Le bloc C — les commandes qui manquaient (2026-09-03)
+
+Le relevé « ce qu'un dessinateur venu d'AutoCAD cherchera et ne trouvera pas »
+n'était pas une liste de détails d'interface : c'étaient **cinq commandes
+absentes**. Le bloc C les écrit.
+
+### C1 — Effacer un composant referme le fil
+
+Symétrique exact de l'insertion : poser un appareil de passage sur un fil le
+coupe et le rebranche, l'enlever doit **recoudre**. Sans cela, effacer un
+contact laisse deux fils qui pointent vers du vide — le dessin paraît juste et
+le circuit est ouvert ; l'erreur ne se voit qu'au câblage.
+
+`ComponentTools::healOnRemoval`, quatre décisions :
+
+1. **La recouture est calculée avant la suppression**, sur la géométrie encore
+   en place — après, les broches n'existent plus et on ne sait plus où les
+   fils tenaient. Elle entre dans **la même macro** : une seule annulation.
+2. **Deux extrémités, deux fils.** À une seule, rien ne s'ouvre en partant ; à
+   trois, il y a un nœud, et recoudre reviendrait à choisir à la place du
+   dessinateur.
+3. **Deux types de fils différents ne se recousent pas** — même règle que
+   JOINDRE : souder ferait disparaître une couleur, donc une section, sans que
+   rien ne le dise.
+4. **Le survivant est celui qui porte le plus d'identité** : repère verrouillé
+   d'abord, puis repère tout court. Le fil recousu est le même conducteur
+   qu'avant la pose de l'appareil ; il doit en garder le nom. Et les sommets
+   devenus inutiles sont retirés — un coude fantôme se verrait au premier
+   déplacement.
+
+Effacer un départ entier (appareil **et** ses fils) ne recoud rien : `alsoRemoved`
+porte ce qui part dans le même geste.
+
+### C2 — Remplacer un symbole posé
+
+Un contact NO devient un contact NF, un disjoncteur change de calibre. Sans ce
+geste il faut effacer, reposer, retaper le repère et refaire les fils — et
+c'est en refaisant les fils qu'on débranche un circuit sans le voir.
+`ComponentTools::planSwap` + `FolioView::swapSymbol`.
+
+- **Trois choses survivent**, et ce sont les trois qu'on perdrait à la main :
+  le **repère** et les champs, la **position** avec son orientation, les
+  **raccordements**.
+- **Les broches s'apparient par NUMÉRO d'abord** — un 13/14 reste un 13/14
+  quel que soit le dessin du symbole. C'est le seul appariement qui ait un
+  sens électrique ; la distance n'est qu'un secours. Apparier par distance
+  raccorderait la borne 1 sur la 2 sans que rien ne le dise.
+- **Une extrémité qu'aucune broche neuve ne reprend est comptée et dite.** Un
+  fil en l'air ne se voit pas sur le tracé, il se découvre au câblage.
+- Pas de `componentPlaced` : ce signal ouvre la boîte du composant quand le
+  réglage l'exige, et remplacer n'est pas poser.
+
+### C3 — Rechercher / remplacer dans tout le dossier
+
+`rules/findreplace.*` et `ui/findreplacedialog.*`. L'affaire change de numéro,
+un moteur change de repère d'atelier : cela se lit dans quarante endroits
+répartis sur douze folios, et à la main on en oublie toujours un — c'est
+celui-là qui part à l'atelier.
+
+- **Tout constat porte un lieu** (folio, zone), comme dans l'audit, et la
+  boîte montre *actuel → deviendrait* : remplacer à l'aveugle dans un dossier
+  entier est un geste qu'on n'ose pas faire, donc qu'on ne fait pas.
+- **Un double-clic saute sur place** — la boîte est aussi une recherche.
+- **Tout tient dans une annulation.** C'est ce qui rend le geste sans risque.
+- **« Mot entier » existe** parce que remplacer `KM1` par `KM7` transforme
+  `KM10` en `KM70` : le dossier devient faux d'un clic et rien ne le montre.
+  Le motif est **échappé** — on cherche du texte, pas une expression
+  régulière.
+- **Un repère remplacé est VERROUILLÉ.** Sans cela la prochaine régénération
+  le recalcule et le remplacement disparaît sans un mot — le pire résultat,
+  puisqu'on l'a vu marcher.
+- Les gisements sont séparés (repères, champs, textes, étiquettes, repères de
+  fil) : renommer les « M1 » ne doit pas toucher la phrase « alimentation M1 »
+  d'un cartouche si on ne l'a pas demandé.
+- Portée : la question d'AutoCAD, par le même `ReportScope` que les rapports.
+
+### C4 — Les cotations
+
+`DimensionItem`, septième type d'entité. Un schéma d'armoire porte des cotes —
+entraxe de deux rails, hauteur d'un jeu de barres, encombrement d'un coffret.
+Sans elles on écrit « 150 » à côté d'un trait et plus rien ne garantit que le
+trait mesure 150.
+
+1. **La cote est MESURÉE, jamais saisie.** La valeur se déduit des deux points
+   d'attache ; déplacer une attache change le nombre. C'est toute la
+   différence avec un texte posé à côté, et c'est ce qui empêche un plan de
+   mentir. `override` existe pour la rupture d'échelle et se voit comme ce
+   qu'il est.
+2. **La géométrie se calcule en UN endroit** (`DimensionItem::geometry`), dans
+   le cœur. Le peintre et l'export DXF la lisent tous les deux ; la
+   recalculer de chaque côté les ferait diverger d'un demi-millimètre, et cela
+   se voit sur une flèche.
+3. **Le décalage est donné par un point**, pas par une distance signée : le
+   troisième clic pose la ligne où on la veut, des deux côtés, sans avoir à
+   penser au signe.
+4. **Alignée, horizontale, verticale.** Un schéma est fait de traits droits :
+   coter l'entraxe horizontal de deux rails ne doit pas dépendre du fait qu'on
+   a désigné deux points exactement à la même hauteur.
+5. **Les deux premiers clics s'accrochent complètement, le troisième à l'œil.**
+   La cote *mesure* le dessin : ses attaches doivent tomber exactement sur la
+   géométrie. La ligne de cote, elle, ne fait que se placer — et il faut
+   pouvoir la glisser de 1,2 mm pour qu'elle passe entre deux fils. C'est
+   l'invariant 11 appliqué à un seul geste.
+6. **Le texte se lit toujours dans le bon sens** : angle ramené dans
+   `[-90, 90)`, donc une cote verticale se lit du bas vers le haut (ISO 129) —
+   en tournant la planche d'un quart de tour à droite, jamais à gauche. Il est
+   posé du côté « haut » du texte lui-même, quel que soit l'angle.
+7. **Les flèches passent à l'extérieur quand la cote est trop courte** pour
+   les contenir, et la ligne se prolonge pour les porter — sinon deux flèches
+   se croisent au milieu d'une cote de 3 mm.
+8. **On exporte le DESSIN de la cote en DXF, pas une entité DIMENSION.** Une
+   DIMENSION dépend d'un DIMSTYLE ; un style mal repris et AutoCAD la
+   redessine avec d'autres flèches, une autre hauteur, parfois une autre
+   valeur — le dessin changerait en s'ouvrant, ce que « écran = papier »
+   interdit. **Réserve honnête** : la cote exportée n'est plus modifiable
+   comme une cote dans AutoCAD, seulement comme des traits.
+9. **Elle se clique sur ses traits, pas dans la bande qu'elle mesure.** Sa
+   boîte englobante couvre toute la distance cotée : la prendre pour cible
+   avalerait les clics du dessin qu'elle mesure — exactement ce qu'on vise.
+10. **On s'accroche à ses points d'attache, jamais à sa ligne de cote.** Trois
+    entraxes alignés le long d'un rail se cotent à la suite ; s'accrocher à la
+    ligne enchaînerait les cotes les unes sur les autres — on coterait la
+    cotation.
+11. **Ses trois points sont étirables un par un** (ÉTIRER) : c'est la
+    démonstration du point 1, et le test la mesure.
+
+### C5 — Une icône par commande, partout
+
+Le relevé disait « une vingtaine de glyphes servent encore deux commandes ».
+L'inventaire complet en a trouvé **dix-huit groupes en collision** : Quitter et
+Supprimer, Pivoter et Repérage polaire, Jonction et Éditeur de borniers,
+Annuler et Vue précédente… Vingt-neuf glyphes ont été dessinés ; il en reste
+**trois**, et ils sont voulus — ce sont les mêmes commandes atteintes par deux
+chemins (Cotation / Cote alignée, Étiquette / Étiquette de potentiel, Palette
+de commandes / Toutes les commandes). Leur donner deux dessins serait pire que
+le doublon : on croirait à deux commandes.
+
+Un test (`[ui][icones][menus]`) parcourt désormais **tous** les menus et refuse
+tout autre partage. Il a immédiatement trouvé un piège : `m_actionGlyphs`
+réapplique le glyphe au changement de thème, si bien qu'une action construite
+avec la bonne icône mais **enregistrée avec une autre** retrouvait l'icône
+d'une voisine au premier basculement de thème — sans que rien ne le signale.
+
 ## Ce qui a été retiré, et pourquoi (bloc A, 2026-09-02)
 
 Le logiciel avait 66 commandes de menu et une centaine d'entrées cliquables.
@@ -835,7 +980,11 @@ leur suppression. C'est en soi le signe qu'on avait construit large et plat.
     appareil, une jonction tombent sur le pas de la grille ; un texte se pose
     à l'œil (`FolioView::snapAnnotation`). L'accrochage aux **objets**, lui,
     vaut pour tout : une étiquette doit pouvoir se poser au bout d'un fil.
-12. **Ce que le rapport imprime, le dessin le montre.** Un champ qu'une boîte
+12. **Une cote mesure, elle ne récite pas.** La valeur d'une `DimensionItem`
+    se déduit de ses deux points d'attache et n'est jamais stockée — comme la
+    netlist et les renvois. `override` est le seul échappatoire, et il se
+    déclare.
+13. **Ce que le rapport imprime, le dessin le montre.** Un champ qu'une boîte
     de dialogue renseigne et qu'un rapport publie doit être lisible sur la
     planche — sinon le plan et le rapport se contredisent, et c'est le plan
     que le câbleur a en main (payé sur le numéro de borne).
@@ -903,16 +1052,25 @@ La distribution se fait par la page GitHub Releases.
 Relevé lors de la revue du ruban, dans l'ordre où il s'en apercevra. Ce ne
 sont pas des détails d'interface : ce sont des commandes qui manquent.
 
-1. **Rechercher / remplacer du texte dans tout le dossier.**
-2. **Remplacer un symbole posé** sans perdre son repère ni ses raccordements.
-3. **Effacer un composant en refermant le fil** — l'insertion coupe et
-   rebranche, la suppression devrait recoudre.
-4. **Cotations.** Elles n'existent pas : ce n'est pas une case de ruban mais
-   un type d'entité, un tracé, un export DXF et des accrochages.
-5. **Une icône par commande, partout.** Le test `[ui][ruban][icones]` tient la
-   règle **par panneau du ruban** — c'est là que deux icônes se lisent côte à
-   côte. Ailleurs dans les menus, une vingtaine de glyphes servent encore deux
-   commandes ; ce n'est pas ambigu à l'œil, mais ce n'est pas tenu.
+**Les cinq sont faites — c'est le bloc C (2026-09-03), décrit plus haut.**
+Elles restent listées ici parce que c'est le relevé d'origine :
+
+1. ~~Rechercher / remplacer du texte dans tout le dossier.~~ → C3
+2. ~~Remplacer un symbole posé sans perdre son repère ni ses
+   raccordements.~~ → C2
+3. ~~Effacer un composant en refermant le fil.~~ → C1
+4. ~~Cotations.~~ → C4
+5. ~~Une icône par commande, partout.~~ → C5
+
+Ce qui manque encore, dans l'ordre où un dessinateur s'en apercevra :
+
+1. **Cotations d'angle et de rayon.** Seule la cotation linéaire existe ; sur
+   un schéma c'est l'essentiel, mais un plan d'implantation en demanderait
+   d'autres.
+2. **Lier un contact à sa bobine à l'insertion**, comme le propose AutoCAD
+   Electrical — aujourd'hui il faut la boîte du composant, une par contact.
+3. **Dire qu'un appareil ne porte pas de repère** : les contacts secs dessinés
+   à l'intérieur d'un boîtier reçoivent un `-K` propre que rien ne demande.
 
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 

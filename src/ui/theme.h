@@ -94,10 +94,19 @@ public:
         // en pointille, et il faut pouvoir le choisir d'un coup d'oeil.
         StrokeSolid, StrokeDashed, StrokeDotted, StrokeDashDot,
         MeasureLength, Join, Break,
+        Dimension, DimensionH, DimensionV,
         LabelFolio, SignalOut, SignalIn,
         WireTypes, SaveAs, TagFormat, ZoomWindow, MoveComponent,
         ViewGrid, ViewList, Collapse, Expand,
         Plus, Minus, Duplicate, Up, Down, Edit, Theme,
+        // Bloc C5 : une icone par commande, partout. Ces glyphes existent
+        // parce que deux commandes differentes portaient le meme dessin —
+        // dans un menu comme dans un panneau, on clique alors au hasard.
+        Ortho, Polar, Surfer, SelectAll, Move, Pan, Scoot,
+        DraftingSettings, EditComponent, PinNumbers, Plc, UnconnectedPins, Audit,
+        Quit, Ladder, ZoomPrevious, DuplicateEdit, Terminals,
+        CommandLine, CommandPalette, MatchProps, StartPage, ProjectInfo,
+        PageSetup, ObjectSnap, TextH1, TextH2, TextH3, TextH4,
 
         // Sentinelle : elle permet de parcourir tous les glyphes sans en
         // tenir la liste a jour ailleurs. Un test s'en sert pour verifier

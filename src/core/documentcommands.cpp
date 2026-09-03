@@ -275,6 +275,14 @@ QVector<QPointF> stretchablePoints(const Entity &entity)
         return QVector<QPointF>(static_cast<const Wire &>(entity).points);
     case EntityType::Graphic:
         return static_cast<const GraphicItem &>(entity).shape.points;
+    case EntityType::Dimension: {
+        // Les trois points d'une cote sont saisissables un par un. C'est la
+        // demonstration de ce qui fait une cote plutot qu'un texte pose a
+        // cote : etirer un point d'attache change LA VALEUR ecrite, parce
+        // qu'elle est mesuree et jamais stockee.
+        const auto &dim = static_cast<const DimensionItem &>(entity);
+        return { dim.first, dim.second, dim.linePoint };
+    }
     default:
         return {};
     }
@@ -306,6 +314,17 @@ void moveVertex(Entity &entity, int index, const QPointF &delta)
     if (auto *graphic = dynamic_cast<GraphicItem *>(&entity)) {
         if (index >= 0 && index < graphic->shape.points.size())
             graphic->shape.points[index] += delta;
+        return;
+    }
+    if (auto *dim = dynamic_cast<DimensionItem *>(&entity)) {
+        // Meme ordre que stretchablePoints : les deux listes se lisent
+        // ensemble, et les separer ferait deplacer le mauvais point.
+        if (index == 0)
+            dim->first += delta;
+        else if (index == 1)
+            dim->second += delta;
+        else if (index == 2)
+            dim->linePoint += delta;
     }
 }
 

@@ -26,6 +26,7 @@ constexpr auto kLayerWires = "FILS";
 constexpr auto kLayerTags = "REPERES";
 constexpr auto kLayerText = "TEXTES";
 constexpr auto kLayerFrame = "CADRE";
+constexpr auto kLayerDimensions = "COTES";
 
 struct LayerDef {
     const char *name;
@@ -38,6 +39,7 @@ const LayerDef kLayers[] = {
     { kLayerTags, 3 },    // vert
     { kLayerText, 4 },    // cyan
     { kLayerFrame, 8 },   // gris
+    { kLayerDimensions, 8 },
 };
 
 // Un calque DXF R12 ne porte pas de couleur vraie : seulement un indice ACI.
@@ -600,6 +602,31 @@ QByteArray DxfExport::encodeFolio(const Project &project, const Folio &folio,
             const auto *label = static_cast<const Label *>(entity.get());
             writeText(w, QLatin1String(kLayerTags), flip(label->point + QPointF(0.0, -1.5)),
                       label->name, label->height, Primitive::Align::Center);
+            break;
+        }
+        case EntityType::Dimension: {
+            // ON EXPORTE LE DESSIN DE LA COTE, PAS UNE ENTITE DIMENSION.
+            //
+            // Une DIMENSION de DXF est associative : elle depend d'un DIMSTYLE
+            // et d'un bloc. Un style mal repris et AutoCAD la redessine avec
+            // d'autres fleches, une autre hauteur de texte, parfois une autre
+            // valeur — le dessin change en s'ouvrant, ce que tout ce logiciel
+            // s'interdit (« ecran = papier »). Des lignes et un texte
+            // s'ouvrent partout et pareil.
+            //
+            // Reserve honnete : la cote exportee n'est plus modifiable comme
+            // une cote dans AutoCAD, seulement comme des traits.
+            const auto *dim = static_cast<const DimensionItem *>(entity.get());
+            const auto g = dim->geometry();
+            const QString layer = QLatin1String(kLayerDimensions);
+            writeLine(w, layer, flip(g.firstFrom), flip(g.firstTo));
+            writeLine(w, layer, flip(g.secondFrom), flip(g.secondTo));
+            writeLine(w, layer, flip(g.lineStart), flip(g.lineEnd));
+            // Le renversement d'axe du DXF inverse le sens des angles : une
+            // cote inclinee sortirait miroir sans ce signe.
+            writeText(w, layer, flip(g.textAt + QPointF(0.0, -dim->textHeight * 0.6)),
+                      dim->displayText(), dim->textHeight, Primitive::Align::Center,
+                      -g.angleDegrees);
             break;
         }
         }

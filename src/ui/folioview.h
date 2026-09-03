@@ -37,7 +37,7 @@ public:
     // produisent des GraphicItem, jamais des fils.
     enum class Tool {
         Select, Wire, Symbol, Junction, Label, Text, Trim, Extend,
-        Line, Rectangle, Circle, Arc, Polyline
+        Line, Rectangle, Circle, Arc, Polyline, Dimension
     };
     Q_ENUM(Tool)
 
@@ -176,6 +176,14 @@ public:
     void selectAll();
     void clearSelection();
     bool hasSelection() const { return !m_selection.isEmpty(); }
+
+    // COTATION.
+    //
+    // Le genre est arme comme l'est le type de fil ou le style de trait :
+    // choisi une fois, il vaut pour tout ce qu'on cote ensuite, et tombe au
+    // changement d'outil.
+    void setDimensionKind(DimensionItem::Kind kind);
+    DimensionItem::Kind dimensionKind() const { return m_dimensionKind; }
 
     void deleteSelection();
 
@@ -442,8 +450,10 @@ private:
     // termine par une entite electrique, une forme par une entite graphique,
     // et melanger les deux etats ferait poser un fil avec l'outil cercle.
     QVector<QPointF> m_shapePoints;
+    DimensionItem::Kind m_dimensionKind = DimensionItem::Kind::Aligned;
     void placeShapePoint(const QPointF &point);
     void commitShape();
+    void commitDimension();
     void paintShapePreview(QPainter &painter) const;
     // La forme que le trace en cours produirait, ou rien si elle n'est pas
     // encore definie. Sert au trace de l'apercu comme a la pose : une seule

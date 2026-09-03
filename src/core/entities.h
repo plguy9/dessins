@@ -204,4 +204,76 @@ public:
     bool isSignalArrow() const { return role != Role::Plain; }
 };
 
+// --------------------------------------------------------------------------
+// Cotation lineaire.
+//
+// Elle manquait, et ce n'etait pas une case de ruban : un schema d'armoire
+// porte des cotes — l'entraxe de deux rails, la hauteur d'un jeu de barres,
+// l'encombrement d'un coffret. Sans elles, on ecrit « 150 » a cote d'un trait
+// et plus rien ne garantit que le trait mesure 150.
+//
+// Trois decisions gouvernent ce type :
+//
+// 1. **La cote est MESUREE, jamais saisie.** La valeur se deduit des deux
+//    points d'attache. Deplacer une attache change le nombre ; c'est toute la
+//    difference avec un texte pose a cote, et c'est ce qui empeche un plan de
+//    mentir. `override` existe pour le cas rare (rupture d'echelle) et se voit
+//    comme ce qu'il est : une valeur imposee a la main.
+// 2. **La geometrie se calcule en UN endroit** (`geometry()`), dans le coeur.
+//    Le peintre et l'export DXF la lisent tous les deux ; la recalculer de
+//    chaque cote les ferait diverger d'un demi-millimetre, ce qui se voit sur
+//    une fleche.
+// 3. **Le decalage est donne par un point**, pas par une distance signee. Le
+//    troisieme clic pose la ligne de cote la ou on la veut, des deux cotes de
+//    la mesure, sans avoir a penser au signe.
+class DimensionItem : public Entity
+{
+public:
+    // Alignee suit la direction des deux points ; horizontale et verticale ne
+    // mesurent qu'une projection. Les trois existent parce qu'un schema est
+    // fait de traits droits : coter l'entraxe horizontal de deux rails ne doit
+    // pas dependre du fait qu'on a designe deux points exactement a la meme
+    // hauteur.
+    enum class Kind { Aligned, Horizontal, Vertical };
+
+    // Ce que le peintre et l'export ont besoin de savoir, calcule une fois.
+    struct Geometry {
+        QPointF lineStart;   // ligne de cote
+        QPointF lineEnd;
+        QPointF firstFrom;   // ligne d'attache du premier point
+        QPointF firstTo;
+        QPointF secondFrom;  // ligne d'attache du second
+        QPointF secondTo;
+        QPointF textAt;      // milieu de la ligne de cote
+        double angleDegrees = 0.0; // orientation du texte, dans le sens de la cote
+        double value = 0.0;        // la mesure, en millimetres
+    };
+
+    EntityType type() const override { return EntityType::Dimension; }
+    QString typeTag() const override { return QStringLiteral("dimension"); }
+    EntityPtr clone() const override;
+    bool assign(const Entity &other) override;
+    QRectF boundingBox() const override;
+    void translate(const QPointF &delta) override;
+    void scale(const QPointF &base, double factor) override;
+    QJsonObject toJson() const override;
+    bool readJson(const QJsonObject &object) override;
+
+    QPointF first;      // premier point d'attache
+    QPointF second;     // second point d'attache
+    QPointF linePoint;  // un point par lequel passe la ligne de cote
+    Kind kind = Kind::Aligned;
+    double textHeight = 2.5;   // serie ISO 3098, comme les textes
+    int decimals = 0;          // un schema se cote au millimetre entier
+    QString suffix;            // vide = pas d'unite ecrite
+    QString override;          // valeur imposee a la main, vide = la mesure
+
+    double measure() const;
+    QString displayText() const;
+    Geometry geometry() const;
+
+    static QString kindTag(Kind kind);
+    static Kind kindFromTag(const QString &tag);
+};
+
 } // namespace dsn

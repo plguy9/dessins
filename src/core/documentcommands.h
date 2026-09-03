@@ -152,24 +152,38 @@ private:
 // Mise en page d'un folio : format de feuille et cadre. Le contenu n'est pas
 // touche — un dessin qui depassait depassera encore, et c'est a l'utilisateur
 // de le voir dans l'apercu avant d'appliquer.
+// La mise en page d'un folio : format, cadre ET BANDES.
+//
+// Les bandes entrent dans la MEME commande que le cadre, parce qu'elles se
+// posent au meme endroit et se lisent ensemble : une bande est declaree en
+// millimetres depuis le bord du cadre, et la derniere s'etire jusqu'a son
+// bord droit. Les separer laisserait la mise en page a moitie appliquee — la
+// boite les a fait saisir, et seule la moitie serait entree dans le
+// document.
 class ChangeFolioLayoutCommand : public Command
 {
 public:
     ChangeFolioLayoutCommand(Project &project, QString folioId, SheetFormat sheet,
-                             SheetFrame frame);
+                             SheetFrame frame, QVector<FolioBand> bands,
+                             double bandHeaderHeight);
     void redo() override;
     void undo() override;
     QString text() const override;
 
 private:
-    void apply(const SheetFormat &sheet, const SheetFrame &frame);
+    struct Layout {
+        SheetFormat sheet;
+        SheetFrame frame;
+        QVector<FolioBand> bands;
+        double bandHeaderHeight = 6.0;
+    };
+
+    void apply(const Layout &layout);
 
     Project &m_project;
     QString m_folioId;
-    SheetFormat m_beforeSheet;
-    SheetFrame m_beforeFrame;
-    SheetFormat m_afterSheet;
-    SheetFrame m_afterFrame;
+    Layout m_before;
+    Layout m_after;
 };
 
 class ChangeProjectInfoCommand : public Command

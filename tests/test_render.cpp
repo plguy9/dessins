@@ -703,6 +703,53 @@ TEST_CASE("Une table de cartouche grandit vers le haut", "[render][cartouche]")
     CHECK(hasInkNear(une, QPointF(x, headerY - rowHeight), ppm, 5));
 }
 
+TEST_CASE("Un texte de table ne déborde pas de sa colonne", "[render][cartouche]")
+{
+    // Une description un peu longue s'écrivait par-dessus la colonne voisine,
+    // et c'est à l'impression qu'on le découvrait : deux textes superposés
+    // dans un cartouche ne se lisent ni l'un ni l'autre. On coupe, et la
+    // coupe se voit — le dessinateur raccourcit alors lui-même.
+    Project project;
+    project.titleBlock = TitleBlock::loopSheet();
+    Folio *folio = project.addFolio(QStringLiteral("Boucle"));
+    folio->sheet = sheetFormatById(QStringLiteral("A2"));
+    folio->frame.titleBlockWidth = project.titleBlock.width;
+    folio->frame.titleBlockHeight = project.titleBlock.height;
+
+    QRectF zone;
+    for (const TitleBlockCell &cell : project.titleBlock.cells) {
+        if (cell.kind == TitleBlockCell::Kind::Table
+            && cell.key == QStringLiteral("revisions")) {
+            zone = cell.rect;
+        }
+    }
+    REQUIRE(!zone.isNull());
+
+    const double ppm = 6.0;
+    const QRectF bloc = folio->titleBlockRect();
+    const QPointF origine = bloc.topLeft() + zone.topLeft();
+    const double rowHeight = 1.8 * 1.6;
+    const double ligneY = origine.y() + zone.height() - rowHeight * 1.5;
+
+    // Tout dans la PREMIÈRE colonne, le reste vide : sans coupe, le texte
+    // traverse la table de part en part.
+    folio->tables.insert(QStringLiteral("revisions"),
+                         { { QStringLiteral("RÉVISION GÉNÉRALE DU SCHÉMA DE BOUCLE ET "
+                                            "DU RACCORDEMENT AU CABINET"),
+                             {}, {}, {}, {}, {}, {} } });
+
+    const QImage rendu = PdfExport::renderFolio(project, *folio, RenderStyle::print(), ppm);
+    // La première colonne écrit quelque chose : la coupe ne doit pas tout
+    // effacer, sinon le test passerait pour une mauvaise raison.
+    CHECK(hasInkNear(rendu, QPointF(origine.x() + zone.width() * 0.04, ligneY), ppm, 3));
+    // Et rien n'a débordé sur la colonne voisine. On vise le MILIEU de la
+    // troisième colonne, là où le texte non coupé arrive vraiment — poids
+    // 0,8/1/1,6/4/1/1/1, donc son centre tombe au quart de la table. Un point
+    // pris plus loin, ou sur un séparateur, passerait sans rien prouver : le
+    // correctif a d'abord été vérifié en le retirant.
+    CHECK_FALSE(hasInkNear(rendu, QPointF(origine.x() + zone.width() * 0.25, ligneY), ppm, 2));
+}
+
 TEST_CASE("Une clef de cartouche inconnue n'écrit rien", "[render][cartouche]")
 {
     // Un cartouche qui affiche « projectTitle » en toutes lettres part à

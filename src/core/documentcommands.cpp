@@ -222,27 +222,36 @@ void MoveFolioCommand::undo() { m_project.moveFolio(m_to, m_from); }
 QString MoveFolioCommand::text() const { return QStringLiteral("Deplacer un folio"); }
 
 ChangeFolioLayoutCommand::ChangeFolioLayoutCommand(Project &project, QString folioId,
-                                                   SheetFormat sheet, SheetFrame frame)
-    : m_project(project), m_folioId(std::move(folioId)), m_afterSheet(std::move(sheet)),
-      m_afterFrame(frame)
+                                                   SheetFormat sheet, SheetFrame frame,
+                                                   QVector<FolioBand> bands,
+                                                   double bandHeaderHeight)
+    : m_project(project), m_folioId(std::move(folioId))
 {
+    m_after.sheet = std::move(sheet);
+    m_after.frame = frame;
+    m_after.bands = std::move(bands);
+    m_after.bandHeaderHeight = bandHeaderHeight;
     if (const Folio *folio = m_project.folio(m_folioId)) {
-        m_beforeSheet = folio->sheet;
-        m_beforeFrame = folio->frame;
+        m_before.sheet = folio->sheet;
+        m_before.frame = folio->frame;
+        m_before.bands = folio->bands;
+        m_before.bandHeaderHeight = folio->bandHeaderHeight;
     }
 }
 
-void ChangeFolioLayoutCommand::apply(const SheetFormat &sheet, const SheetFrame &frame)
+void ChangeFolioLayoutCommand::apply(const Layout &layout)
 {
     if (Folio *folio = m_project.folio(m_folioId)) {
-        folio->sheet = sheet;
-        folio->frame = frame;
+        folio->sheet = layout.sheet;
+        folio->frame = layout.frame;
+        folio->bands = layout.bands;
+        folio->bandHeaderHeight = layout.bandHeaderHeight;
     }
 }
 
-void ChangeFolioLayoutCommand::redo() { apply(m_afterSheet, m_afterFrame); }
+void ChangeFolioLayoutCommand::redo() { apply(m_after); }
 
-void ChangeFolioLayoutCommand::undo() { apply(m_beforeSheet, m_beforeFrame); }
+void ChangeFolioLayoutCommand::undo() { apply(m_before); }
 
 QString ChangeFolioLayoutCommand::text() const { return QStringLiteral("Mise en page"); }
 

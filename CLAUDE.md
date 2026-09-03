@@ -416,7 +416,12 @@ Et ce qui distingue toujours notre interface de celle d'AutoCAD :
   dire** — un test (`[ui][theme]`) vérifie qu'aucun bouton n'est caché.
 - **Aucun nom ni alias de commande en double** — un doublon ne casse rien
   visiblement : la seconde inscription masque la première et une commande
-  devient injoignable. Un test le vérifie sur les 157 jetons.
+  devient injoignable. Un test le vérifie sur tous les jetons.
+- **Une commande de menu doit avoir un nom à taper.** Deux essais l'ont
+  trouvée en défaut (`SUPPRIMER` au bloc C, `FORMATREPERE` au bloc D) : le
+  menu propose, la palette trouve, et la ligne de commande répond « commande
+  inconnue ». Aucun test ne le tient encore — le lien entre un libellé de
+  menu et un nom de commande n'est pas mécanique.
 
 ## Le système visuel (`ui/theme.*`)
 
@@ -1359,6 +1364,70 @@ le câbleur qui le découvre une fois le fil tiré.
 paire est un fil à deux conducteurs nommés `+` et `−`, et la netlist les
 apparie par nom comme elle apparie L1 à L1. Le relevé le listait comme un
 manque ; il n'en était pas un.
+
+### L'essai du bloc D — une planche de boucle, à la main (2026-09-03)
+
+`docs/BOUCLES.md` promettait la preuve : refaire une des planches relevées
+par événements de souris et de clavier. C'est `[essai][blocD]`, et il
+traverse les cinq morceaux d'un seul geste — bandes, cartouche, symboles ISA,
+câble, nommage — parce que c'est ainsi qu'un dessinateur les rencontre :
+ensemble, sur la même feuille.
+
+```sh
+QT_QPA_PLATFORM=offscreen ARCUS_ESSAI_CAPTURES=/tmp \
+    ./build/bin/arcus_ui_tests "[blocD]"
+```
+
+**Ce qu'il mesure.** 32 gestes, 4 boîtes modales — toutes des réglages
+voulus (mise en page, cartouche, format de repère, carte d'automate), aucune
+par objet posé —, 0 fil en biais, 5 constats d'audit dont aucune erreur. La
+planche sort avec ses trois bandes coiffées de leur bandeau, son repérage de
+droite à gauche, son cartouche de schéma de boucle et ses trois tables, la
+bulle `022TT8917` au champ, la borne à vis dans la boîte de jonction, la
+bulle d'automate `022TY8917` dans l'armoire, la carte adressée
+`%N04R07S07C000` et le code couleur `(N)` écrit le long du fil.
+
+**Les cinq défauts qu'il a trouvés.**
+
+1. **La mise en page perdait les bandes.** `ChangeFolioLayoutCommand` ne
+   portait que le format et le cadre : la boîte les faisait saisir, et elles
+   n'entraient jamais dans le document — ni dans l'annulation. C'est le
+   défaut le plus grave du lot, et invisible autrement : la boîte se referme
+   sans rien dire. Les bandes entrent maintenant dans **la même commande**
+   que le cadre, parce qu'elles se posent au même endroit et se lisent
+   ensemble.
+2. **« Format des repères… » n'avait pas de nom à taper.** Le menu le
+   propose, la palette le trouve, et la ligne de commande répondait
+   « commande inconnue ». C'est exactement ce que l'essai du bloc C avait
+   trouvé sur `EFFACER` / `SUPPRIMER` : la règle 3 de la ligne de commande —
+   *un bouton cliqué enseigne le nom à taper* — prise en défaut une seconde
+   fois. `FORMATREPERE` (alias `FORMAT`) existe.
+3. **Le repère d'un instrument était hors d'atteinte.** La lettre de famille
+   ne venait que de la définition du symbole — la même pour tous les
+   instruments au champ. Un transmetteur de température et un débitmètre
+   portaient donc la même lettre, et `%C%F%B` ne pouvait pas écrire
+   `022TT8917`. Le champ `family` posé sur l'appareil prime désormais sur la
+   définition, comme partout ailleurs, et la boîte du composant le propose.
+4. **Le tiret de tête n'était réglable que par le profil métier.** Un repère
+   d'instrument n'en porte pas ; il aurait fallu changer de profil pour une
+   question de ponctuation. C'est une convention de bureau, comme le format :
+   une case à cocher dans la même boîte, retenue dans le projet
+   (`Project::designationDash`).
+5. **Un texte de table débordait de sa colonne.** Une description un peu
+   longue s'écrivait par-dessus la voisine, et c'est à l'impression qu'on le
+   découvrait — deux textes superposés dans un cartouche ne se lisent ni l'un
+   ni l'autre. On coupe maintenant, avec des points de suspension : la coupe
+   se voit, et le dessinateur raccourcit lui-même. **Le test a d'abord été
+   écrit faux** — il visait un point que le texte débordé n'atteignait pas et
+   passait sans le correctif. Vérifié en retirant le correctif, comme les
+   trois fois précédentes.
+
+**Ce qu'il a appris sans qu'on le corrige.** Les bulles ISA portent leurs
+broches en haut et en bas, comme le veut la convention. Sur un schéma de
+boucle le signal traverse la feuille horizontalement : on fait donc pivoter
+la bulle d'un quart de tour avant de la poser — c'est le geste du
+dessinateur, pas un défaut du symbole, mais il faut le savoir, et l'essai le
+fait au grand jour.
 
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 

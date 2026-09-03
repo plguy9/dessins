@@ -86,6 +86,13 @@ ComponentDialog::ComponentDialog(const Project &project, const SymbolInstance &s
     m_location = new QLineEdit(fieldOf(symbol, "location"), descBox);
     m_location->setPlaceholderText(tr("+  armoire, coffret, pupitre…"));
     descForm->addRow(tr("Emplacement"), m_location);
+    // La lettre de FONCTION, quand elle appartient a l'appareil et non a son
+    // dessin : une bulle ISA porte TT, FT ou PT selon ce qu'elle mesure, et
+    // le symbole est le meme pour les trois.
+    m_family = new QLineEdit(fieldOf(symbol, "family"), descBox);
+    m_family->setPlaceholderText(definition ? definition->designationPrefix : QString());
+    m_family->setToolTip(tr("%F — la lettre de famille. Vide = celle du symbole."));
+    descForm->addRow(tr("Fonction"), m_family);
     // Secteur et boucle : ce qui compose le repere d'un instrument
     // (« 022TT8917A »). Ils ne servent qu'aux formats qui les demandent, et
     // ne coutent rien a qui dessine un schema de commande.
@@ -234,6 +241,7 @@ SymbolInstance ComponentDialog::result() const
     setField(out, "value", m_value->text());
     setField(out, "installation", m_installation->text());
     setField(out, "location", m_location->text());
+    setField(out, "family", m_family->text());
     setField(out, "sector", m_sector->text());
     setField(out, "loop", m_loop->text());
     setField(out, "manufacturer", m_manufacturer->text());

@@ -38,6 +38,10 @@ Profile Document::profile() const
         if (m_project.designationFormat.isEmpty())
             profile.designation.tagFormat.clear();
     }
+    // Le tiret de tete se regle au dossier : un repere d'instrument n'en
+    // porte pas, et cela ne doit pas obliger a changer de profil metier.
+    if (!m_project.designationDash.isEmpty())
+        profile.designation.leadingDash = m_project.designationDash == QLatin1String("oui");
     return profile;
 }
 

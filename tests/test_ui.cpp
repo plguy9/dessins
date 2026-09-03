@@ -902,7 +902,8 @@ TEST_CASE("La mise en page s'annule comme toute modification", "[ui][page]")
     frame.columns = 6;
 
     document.push(std::make_unique<ChangeFolioLayoutCommand>(document.project(), folio->id(),
-                                                             a4, frame));
+                                                             a4, frame, folio->bands,
+                                                             folio->bandHeaderHeight));
     CHECK(folio->sheet.width == a4.width);
     CHECK(folio->frame.columns == 6);
 

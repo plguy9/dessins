@@ -1106,6 +1106,44 @@ TEST_CASE("Un format sans numero se departage par une lettre",
                                        QStringLiteral("022TT8917A") });
 }
 
+TEST_CASE("La lettre de fonction peut venir de l'appareil", "[rules][numbering][nommage]")
+{
+    // Sur une bulle ISA, la fonction — TT, FT, PT, LT — est ce que le
+    // dessinateur ÉCRIT DANS le symbole. Elle ne peut pas venir de la
+    // définition, qui est la même pour tous les instruments au champ : sans
+    // ce champ, un transmetteur de température et un débitmètre porteraient
+    // la même lettre, et « 022TT8917 » serait hors d'atteinte.
+    Project project = makeProject();
+    project.library.insert(twoPinDevice(QStringLiteral("bubble"), QStringLiteral("I")));
+    Folio *folio = project.folioAt(0);
+    folio->titleBlock.insert(QStringLiteral("sector"), QStringLiteral("022"));
+
+    Profile profile = Profile::iec();
+    profile.designation.leadingDash = false;
+    profile.designation.tagFormat = QStringLiteral("%C%F%B");
+
+    const QRectF frame = folio->frameRect();
+    auto *tt = placeSymbol(project, folio, QStringLiteral("iec:bubble"),
+                           QPointF(frame.left() + 40.0, frame.top() + 30.0));
+    tt->fields.insert(QStringLiteral("family"), QStringLiteral("TT"));
+    tt->fields.insert(QStringLiteral("loop"), QStringLiteral("8917"));
+    auto *ft = placeSymbol(project, folio, QStringLiteral("iec:bubble"),
+                           QPointF(frame.left() + 40.0, frame.top() + 60.0));
+    ft->fields.insert(QStringLiteral("family"), QStringLiteral("FT"));
+    ft->fields.insert(QStringLiteral("loop"), QStringLiteral("4110"));
+    // Sans champ, la lettre reste celle du symbole : rien ne change pour un
+    // schéma de commande.
+    auto *nu = placeSymbol(project, folio, QStringLiteral("iec:bubble"),
+                           QPointF(frame.left() + 40.0, frame.top() + 90.0));
+    nu->fields.insert(QStringLiteral("loop"), QStringLiteral("7001"));
+
+    Numbering::designateDevices(project, profile);
+
+    CHECK(tt->designation() == QLatin1String("022TT8917"));
+    CHECK(ft->designation() == QLatin1String("022FT4110"));
+    CHECK(nu->designation() == QLatin1String("022I7001"));
+}
+
 TEST_CASE("Le secteur retombe sur celui de la planche", "[rules][numbering][nommage]")
 {
     // Une feuille de schema de boucle appartient a une aire de l'usine. Le

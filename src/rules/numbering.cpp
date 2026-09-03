@@ -303,7 +303,16 @@ NumberingResult designateTargets(const QVector<DesignationTarget> &targets,
         if (!definition)
             continue;
 
-        QString prefix = rule.prefixByDeviceKind.value(definition->deviceKind);
+        // LE PREFIXE PEUT VENIR DE L'APPAREIL LUI-MEME, et il prime sur tout
+        // le reste. Sur une bulle ISA, la lettre de fonction — TT, FT, PT,
+        // LT — est ce que le dessinateur ECRIT DANS le symbole : elle ne peut
+        // pas venir de la definition, qui est la meme pour tous les
+        // instruments au champ. Sans ce champ, un transmetteur de temperature
+        // et un debitmetre porteraient la meme lettre, et le repere compose
+        // (« 022TT8917 ») serait hors d'atteinte.
+        QString prefix = symbol->fields.value(QStringLiteral("family")).trimmed();
+        if (prefix.isEmpty())
+            prefix = rule.prefixByDeviceKind.value(definition->deviceKind);
         if (prefix.isEmpty())
             prefix = definition->designationPrefix;
         if (prefix.isEmpty())

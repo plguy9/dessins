@@ -55,6 +55,7 @@ private:
     QLineEdit *m_value = nullptr;
     QLineEdit *m_installation = nullptr;
     QLineEdit *m_location = nullptr;
+    QLineEdit *m_family = nullptr;
     QLineEdit *m_sector = nullptr;
     QLineEdit *m_loop = nullptr;
     QLineEdit *m_manufacturer = nullptr;

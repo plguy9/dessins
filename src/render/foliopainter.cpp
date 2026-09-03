@@ -725,9 +725,30 @@ void FolioPainter::paintTitleBlockTable(QPainter &painter, const TitleBlockCell 
     for (int i = 0; i < bornes.size(); ++i)
         painter.drawLine(QPointF(bornes.at(i), top), QPointF(bornes.at(i), r.bottom()));
 
+    // UN TEXTE NE DEBORDE PAS DE SA COLONNE. Une description un peu longue
+    // s'ecrivait par-dessus la colonne voisine, et c'est a l'impression qu'on
+    // le decouvrait : deux textes superposes dans un cartouche ne se lisent ni
+    // l'un ni l'autre, et c'est le cartouche qu'on regarde en premier. On
+    // coupe donc, avec des points de suspension — la coupe SE VOIT, ce qui
+    // laisse au dessinateur le soin de raccourcir lui-meme.
+    const double marge = std::max(0.4, cell.textHeight * 0.25);
+    auto tenirDans = [&](QString texte, double largeur) {
+        if (largeur <= 0.0 || texte.isEmpty())
+            return QString();
+        if (textWidthMm(painter.font(), texte, cell.textHeight) <= largeur)
+            return texte;
+        const QString points = QStringLiteral("…");
+        while (!texte.isEmpty()
+               && textWidthMm(painter.font(), texte + points, cell.textHeight) > largeur) {
+            texte.chop(1);
+        }
+        return texte.isEmpty() ? QString() : texte + points;
+    };
+
     auto ecrire = [&](const QStringList &cellules, double rowTop) {
         for (int i = 0; i < cell.columns.size() && i < cellules.size(); ++i) {
-            const QString texte = cellules.at(i);
+            const double largeur = bornes.at(i + 1) - bornes.at(i) - 2.0 * marge;
+            const QString texte = tenirDans(cellules.at(i), largeur);
             if (texte.isEmpty())
                 continue;
             const double cx = (bornes.at(i) + bornes.at(i + 1)) / 2.0;

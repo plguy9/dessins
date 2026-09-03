@@ -41,6 +41,7 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDateEdit>
 #include <QDialogButtonBox>
@@ -1641,8 +1642,12 @@ void MainWindow::editPageSetup()
         for (Folio *folio : folios) {
             if (!all && folio->id() != configured.id())
                 continue;
+            // Les bandes entrent dans la meme commande que le cadre : la
+            // boite les fait saisir, et les laisser dehors reviendrait a
+            // n'appliquer que la moitie de la mise en page — sans rien dire.
             m_document->push(std::make_unique<ChangeFolioLayoutCommand>(
-                    m_document->project(), folio->id(), configured.sheet, configured.frame));
+                    m_document->project(), folio->id(), configured.sheet, configured.frame,
+                    configured.bands, configured.bandHeaderHeight));
         }
     });
 
@@ -2022,6 +2027,11 @@ void MainWindow::registerCommands()
            [this] { alignSelection(AlignMode::DistributeHorizontally); });
     simple(QStringLiteral("CARTOUCHE"), { QStringLiteral("CA"), QStringLiteral("TITRE") },
            tr("Composer le cartouche du dossier"), [this] { editTitleBlock(); });
+    // Le menu disait « Format des repères… » et rien ne repondait a ce nom
+    // tape : c'est la regle 3 de la ligne de commande prise en defaut — un
+    // bouton clique enseigne le nom a taper. Trouve par l'essai du bloc D.
+    simple(QStringLiteral("FORMATREPERE"), { QStringLiteral("FORMAT") },
+           tr("Composer le format des repères d'appareil"), [this] { editTagFormat(); });
     simple(QStringLiteral("RECHERCHER"),
            { QStringLiteral("RH"), QStringLiteral("REMPLACER"), QStringLiteral("RP") },
            tr("Chercher un texte dans tout le dossier, et le remplacer"),
@@ -3208,6 +3218,14 @@ void MainWindow::editTagFormat()
     format->setPlaceholderText(tr("vide = le format du mode"));
     form->addRow(tr("Format"), format);
 
+    // Le tiret de tete est une convention de bureau, comme le format : la CEI
+    // 81346 ecrit -K1, l'usage nord-americain K1, et un repere d'instrument
+    // n'en porte pas du tout (« 022TT8917A »). Le regler ici evite d'avoir a
+    // changer de profil metier pour une question de ponctuation.
+    auto *dash = new QCheckBox(tr("Préfixer d'un tiret (CEI 81346)"), &dialog);
+    dash->setChecked(profile.designation.leadingDash);
+    form->addRow(QString(), dash);
+
     auto *help = new QLabel(tr("<b>%F</b> famille · <b>%N</b> numéro · <b>%S</b> folio · "
                                "<b>%X</b> référence de ligne · <b>%I</b> installation · "
                                "<b>%L</b> emplacement · <b>%C</b> secteur · <b>%B</b> boucle · "
@@ -3224,6 +3242,7 @@ void MainWindow::editTagFormat()
         DesignationRule rule = profile.designation;
         rule.mode = DesignationRule::modeFromTag(mode->currentData().toString());
         rule.tagFormat = format->text();
+        rule.leadingDash = dash->isChecked();
         // Un exemple concret vaut mieux qu'une explication : on montre le
         // repere que donnerait un contacteur en colonne 4 du folio 1.
         DesignationContext context;
@@ -3254,6 +3273,7 @@ void MainWindow::editTagFormat()
     };
     connect(mode, &QComboBox::currentIndexChanged, &dialog, refresh);
     connect(format, &QLineEdit::textChanged, &dialog, refresh);
+    connect(dash, &QCheckBox::toggled, &dialog, refresh);
     refresh();
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
@@ -3267,6 +3287,8 @@ void MainWindow::editTagFormat()
 
     m_document->project().designationMode = mode->currentData().toString();
     m_document->project().designationFormat = format->text().trimmed();
+    m_document->project().designationDash =
+            dash->isChecked() ? QStringLiteral("oui") : QStringLiteral("non");
     m_document->invalidateNetlist();
     report(tr("Format de repère modifié. Relancer le repérage "
            "automatique pour l'appliquer."));

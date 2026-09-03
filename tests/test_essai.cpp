@@ -51,6 +51,14 @@
 #include "ui/folioview.h"
 #include "ui/mainwindow.h"
 #include "ui/symbolpalette.h"
+#include "ui/wiretypedialog.h"
+#include "rules/plc.h"
+
+#include <QCheckBox>
+#include <QComboBox>
+#include <QPlainTextEdit>
+#include <QSpinBox>
+#include <QTableWidget>
 
 using namespace dsn;
 
@@ -1070,4 +1078,339 @@ TEST_CASE("Essai : les quatre commandes du bloc C, à la main", "[essai][blocC]"
     out << "=======================================================\n";
 
     CHECK(p.accrocs().isEmpty());
+}
+
+// --------------------------------------------------------------------------
+// ESSAI DU BLOC D — une planche de schema de boucle, a la main.
+//
+// Le bloc D est venu de trois planches reelles (docs/BOUCLES.md). La preuve
+// promise etait celle-ci : refaire une de ces planches par evenements de
+// souris et de clavier, et compter les accrocs. Elle traverse les cinq
+// morceaux du bloc d'un seul geste — bandes, cartouche, symboles ISA, cable,
+// nommage — parce que c'est ainsi qu'un dessinateur les rencontre : ensemble,
+// sur la meme feuille.
+//
+//   QT_QPA_PLATFORM=offscreen ARCUS_ESSAI_CAPTURES=/tmp \
+//       ./build/bin/arcus_ui_tests "[blocD]"
+
+TEST_CASE("Essai : une planche de schema de boucle, à la main", "[essai][blocD]")
+{
+    Pupitre p;
+    QTextStream out(stdout);
+    out << "\n===== ESSAI BLOC D — le schéma de boucle =====\n";
+    REQUIRE(p.vue());
+    REQUIRE(p.folio());
+
+    // ---- D1 : la feuille se coupe en bandes -----------------------------
+    //
+    // La bande est a un schema de boucle ce que l'echelle est a un schema de
+    // commande. Elle se saisit dans la mise en page, en texte, une par ligne.
+    p.dansLaBoite([](QWidget *modal) {
+        auto *bandes = modal->findChild<QPlainTextEdit *>();
+        REQUIRE(bandes);
+        bandes->setPlainText(QStringLiteral("CHAMP = 140\n"
+                                            "BOÎTE DE JONCTION = 80\n"
+                                            "CABINET 037BJ0151 = 140"));
+        for (QCheckBox *c : modal->findChildren<QCheckBox *>()) {
+            // Le repérage va de droite à gauche et de bas en haut sur les
+            // trois planches relevées : c'est un réglage, pas une exception.
+            if (c->text().contains(QStringLiteral("droite à gauche"))
+                || c->text().contains(QStringLiteral("bas en haut")))
+                c->setChecked(true);
+        }
+        if (auto *box = modal->findChild<QDialogButtonBox *>())
+            box->button(QDialogButtonBox::Ok)->click();
+    });
+    p.commande(QStringLiteral("MP"));
+    QApplication::processEvents();
+
+    Folio *feuille = p.folio();
+    REQUIRE(feuille);
+    if (feuille->bands.size() != 3)
+        p.accroc(QStringLiteral("La mise en page n'a pas retenu les trois bandes"));
+    REQUIRE(feuille->bands.size() == 3);
+    CHECK(feuille->frame.columnsRightToLeft);
+    CHECK(feuille->frame.rowsBottomToTop);
+    feuille->number = QStringLiteral("1");
+    feuille->title = QStringLiteral("BOUCLE 8917 — TEMPÉRATURE");
+    // Le secteur appartient a la PLANCHE : chaque instrument en herite.
+    feuille->titleBlock.insert(QStringLiteral("sector"), QStringLiteral("022"));
+    p.vue()->zoomToFit();
+
+    const QRectF cadre = feuille->frameRect();
+    const QRectF champ = feuille->bandRect(0);
+    const QRectF boite = feuille->bandRect(1);
+    const QRectF cabinet = feuille->bandRect(2);
+    out << "D1 bandes : " << feuille->bands.at(0).title << " | "
+        << feuille->bands.at(1).title << " | " << feuille->bands.at(2).title << "\n";
+
+    // ---- D2 : le cartouche du schéma de boucle --------------------------
+    p.dansLaBoite([](QWidget *modal) {
+        auto *gabarits = modal->findChild<QComboBox *>();
+        REQUIRE(gabarits);
+        const int rang = gabarits->findData(QStringLiteral("boucle"));
+        REQUIRE(rang >= 0);
+        gabarits->setCurrentIndex(rang);
+        if (auto *box = modal->findChild<QDialogButtonBox *>())
+            box->button(QDialogButtonBox::Ok)->click();
+    });
+    p.commande(QStringLiteral("CA"));
+    QApplication::processEvents();
+    if (p.document()->project().titleBlock.id != QLatin1String("boucle"))
+        p.accroc(QStringLiteral("Le gabarit « Schéma de boucle » n'est pas entré dans le projet"));
+    // Le cadre suit la taille du cartouche, dans la meme commande.
+    CHECK(p.folio()->frame.titleBlockWidth == p.document()->project().titleBlock.width);
+    // Une table du cartouche se remplit comme le reste du dossier.
+    p.folio()->tables.insert(QStringLiteral("revisions"),
+                             { { QStringLiteral("0"), QStringLiteral("ÉMISSION"),
+                                 QStringLiteral("2026-09-03") } });
+    out << "D2 cartouche : " << p.document()->project().titleBlock.name << ", "
+        << p.document()->project().titleBlock.cells.size() << " cases\n";
+
+    // ---- D5 : le repère d'instrument se compose -------------------------
+    //
+    // « 022TT8917A » : secteur + fonction ISA + boucle + suffixe. Et pas de
+    // tiret de tête — c'est la case à décocher de la même boîte.
+    p.dansLaBoite([](QWidget *modal) {
+        auto *champFormat = modal->findChild<QLineEdit *>();
+        REQUIRE(champFormat);
+        champFormat->setText(QStringLiteral("%C%F%B"));
+        for (QCheckBox *c : modal->findChildren<QCheckBox *>())
+            c->setChecked(false);
+        if (auto *box = modal->findChild<QDialogButtonBox *>())
+            box->button(QDialogButtonBox::Ok)->click();
+    });
+    p.commande(QStringLiteral("FORMATREPERE"));
+    QApplication::processEvents();
+    if (p.document()->project().designationFormat != QLatin1String("%C%F%B"))
+        p.accroc(QStringLiteral("Le format de repère n'a pas été retenu"));
+
+    // ---- D3 : les symboles d'instrumentation ----------------------------
+    //
+    // Le capteur au champ, la boîte de jonction, la bulle d'automate : le
+    // dessin lui-même. On les pose à la palette, au clavier.
+    //
+    // Les bulles portent leurs broches en HAUT et en BAS, comme le veut la
+    // convention ISA. Sur un schéma de boucle le signal traverse la feuille
+    // horizontalement : on fait donc pivoter la bulle d'un quart de tour,
+    // exactement comme à la main — et les broches tombent alors en face de
+    // celles de la borne, sans un fil en biais.
+    const double y = cadre.top() + 60.0;
+    auto *capteur = p.poser(QStringLiteral("Instrument au champ"),
+                            QPointF(champ.center().x(), y), 1);
+    REQUIRE(capteur);
+    // Ce que le dessinateur écrit dans la bulle : la fonction ISA et la
+    // boucle. Le symbole est le même pour un TT et un FT.
+    capteur->fields.insert(QStringLiteral("family"), QStringLiteral("TT"));
+    capteur->fields.insert(QStringLiteral("loop"), QStringLiteral("8917"));
+
+    auto *bornier = p.poser(QStringLiteral("Borne à vis"), QPointF(boite.center().x(), y));
+    REQUIRE(bornier);
+
+    auto *voie = p.poser(QStringLiteral("Fonction d'automate"),
+                         QPointF(cabinet.center().x(), y), 1);
+    REQUIRE(voie);
+    voie->fields.insert(QStringLiteral("family"), QStringLiteral("TY"));
+    voie->fields.insert(QStringLiteral("loop"), QStringLiteral("8917"));
+    out << "D3 symboles : " << p.folio()->entitiesOfType<SymbolInstance>().size()
+        << " posés depuis la palette\n";
+
+    // ---- D4 : le câble n'est pas un fil ---------------------------------
+    //
+    // Le type porte les paires, le blindage et le CODE COULEUR ; le fil porte
+    // le nom du câble qui le contient. C'est ce câble-là qu'on commande.
+    {
+        WireTypeDialog boite(p.document()->project().wireTypes, &p.fenetre());
+        auto *table = boite.findChild<QTableWidget *>();
+        REQUIRE(table);
+        const int ligne = table->rowCount();
+        for (QPushButton *b : boite.findChildren<QPushButton *>()) {
+            if (b->text() == QStringLiteral("Ajouter")) {
+                b->click();
+                break;
+            }
+        }
+        QApplication::processEvents();
+        if (table->rowCount() != ligne + 1)
+            p.accroc(QStringLiteral("Le bouton « Ajouter » du gestionnaire de types n'ajoute rien"));
+        REQUIRE(table->rowCount() == ligne + 1);
+        // On remplit la ligne comme on la taperait : nom, code couleur,
+        // calibre, paires, blindage.
+        table->item(ligne, 0)->setText(QStringLiteral("Instrumentation 2 paires"));
+        table->item(ligne, 2)->setText(QStringLiteral("N"));
+        table->item(ligne, 3)->setText(QStringLiteral("#16CU"));
+        table->item(ligne, 4)->setText(QStringLiteral("2"));
+        table->item(ligne, 5)->setCheckState(Qt::Checked);
+        QApplication::processEvents();
+        p.document()->project().wireTypes = boite.result();
+    }
+    QString typeCable;
+    for (const WireType &t : p.document()->project().wireTypes.all()) {
+        if (t.isCable())
+            typeCable = t.id;
+    }
+    if (typeCable.isEmpty())
+        p.accroc(QStringLiteral("Le type de câble saisi n'est pas revenu du gestionnaire"));
+    REQUIRE_FALSE(typeCable.isEmpty());
+    const WireType *cableType = p.document()->project().wireTypes.type(typeCable);
+    REQUIRE(cableType);
+    CHECK(cableType->cableCode().startsWith(QStringLiteral("2PR#16CU")));
+    CHECK(cableType->colorCode == QLatin1String("N"));
+
+    // Deux tronçons : du champ à la boîte de jonction, puis vers l'armoire.
+    // Ils portent le même câble — c'est un seul câble qu'on tire.
+    Wire *tronc1 = p.fil({ p.broche(capteur, QStringLiteral("2")),
+                           p.broche(bornier, QStringLiteral("1")) });
+    Wire *tronc2 = p.fil({ p.broche(bornier, QStringLiteral("2")),
+                           p.broche(voie, QStringLiteral("1")) });
+    REQUIRE(tronc1);
+    REQUIRE(tronc2);
+    for (Wire *w : { tronc1, tronc2 }) {
+        w->wireType = typeCable;
+        w->cable = QStringLiteral("022TT8917A");
+        w->conductors = { QStringLiteral("+"), QStringLiteral("-") };
+    }
+
+    int biais = 0;
+    for (const Wire *w : p.folio()->entitiesOfType<Wire>()) {
+        for (int i = 1; i < w->points.size(); ++i) {
+            const QPointF a = w->points.at(i - 1);
+            const QPointF b = w->points.at(i);
+            if (!qFuzzyCompare(a.x(), b.x()) && !qFuzzyCompare(a.y(), b.y()))
+                ++biais;
+        }
+    }
+    if (biais > 0)
+        p.accroc(QStringLiteral("%1 segment(s) de fil en biais").arg(biais));
+    out << "D4 câble tiré : 2 tronçons, " << biais << " segment(s) en biais\n";
+
+    // ---- D5 : l'automate a un nœud --------------------------------------
+    //
+    // « %N04R07S07C016 ». Deux cartes de deux automates portent le même rack
+    // et le même emplacement : sans le nœud, deux adresses identiques
+    // désignent deux bornes différentes.
+    p.dansLaBoite([](QWidget *modal) {
+        auto *modules = modal->findChild<QComboBox *>();
+        auto *recherche = modal->findChild<QLineEdit *>();
+        REQUIRE(recherche);
+        recherche->setText(QStringLiteral("noeud"));
+        QApplication::processEvents();
+        REQUIRE(modules);
+        if (modules->count() > 0)
+            modules->setCurrentIndex(0);
+        const auto compteurs = modal->findChildren<QSpinBox *>();
+        REQUIRE(compteurs.size() >= 4);
+        compteurs.at(0)->setValue(4);  // nœud
+        compteurs.at(1)->setValue(7);  // rack
+        compteurs.at(2)->setValue(7);  // emplacement
+        compteurs.at(3)->setValue(0);  // premier point
+        if (auto *box = modal->findChild<QDialogButtonBox *>())
+            box->button(QDialogButtonBox::Ok)->click();
+    });
+    p.commande(QStringLiteral("API"));
+    QApplication::processEvents();
+    if (p.vue()->pendingSymbol().isEmpty())
+        p.accroc(QStringLiteral("La boîte d'automate n'arme pas la carte"));
+    p.clic(QPointF(cabinet.center().x(), cadre.top() + 130.0));
+    QApplication::processEvents();
+
+    const SymbolInstance *carte = nullptr;
+    for (const SymbolInstance *s : p.folio()->entitiesOfType<SymbolInstance>()) {
+        if (PlcModule::isModule(*s))
+            carte = s;
+    }
+    if (!carte)
+        p.accroc(QStringLiteral("La carte d'automate n'est pas posée"));
+    REQUIRE(carte);
+    CHECK(PlcModule::node(*carte) == 4);
+    const auto points = PlcModule::points(*carte, PlcDatabase::builtin());
+    REQUIRE_FALSE(points.isEmpty());
+    if (!points.first().address.contains(QStringLiteral("N04")))
+        p.accroc(QStringLiteral("L'adresse du module ne porte pas son nœud"));
+    out << "D5 adresse : " << points.first().address << " … " << points.last().address << "\n";
+
+    // ---- le repérage, et ce qu'il compose -------------------------------
+    p.commande(QStringLiteral("RN"));
+    QApplication::processEvents();
+    const auto *capteurRelu =
+            dynamic_cast<const SymbolInstance *>(p.folio()->entity(capteur->id()));
+    REQUIRE(capteurRelu);
+    if (capteurRelu->designation() != QLatin1String("022TT8917")) {
+        p.accroc(QStringLiteral("Le repère composé attendu « 022TT8917 », obtenu « %1 »")
+                         .arg(capteurRelu->designation()));
+    }
+    out << "D5 repère : " << capteurRelu->designation() << "\n";
+
+    // ---- les rapports disent d'où à où ----------------------------------
+    const Netlist netlist = Netlist::build(p.document()->project());
+    const auto liaisons = Reports::wireFromTo(p.document()->project(), netlist);
+    REQUIRE_FALSE(liaisons.isEmpty());
+    QStringList lieux;
+    for (const WireRunLine &l : liaisons) {
+        if (!l.fromLocation.isEmpty() && !lieux.contains(l.fromLocation))
+            lieux << l.fromLocation;
+        if (!l.toLocation.isEmpty() && !lieux.contains(l.toLocation))
+            lieux << l.toLocation;
+    }
+    if (lieux.size() < 2)
+        p.accroc(QStringLiteral("Le rapport de câblage ne dit pas d'où à où"));
+    CHECK(liaisons.first().colorName == QLatin1String("N"));
+    out << "D1 localisation : " << lieux.join(QStringLiteral(" → ")) << "\n";
+
+    const auto cables = Reports::cableList(p.document()->project());
+    if (cables.size() != 1)
+        p.accroc(QStringLiteral("La liste des câbles ne voit pas le câble tiré"));
+    REQUIRE(cables.size() == 1);
+    out << "D4 câble : " << cables.first().name << " — " << cables.first().code << ", "
+        << cables.first().conductors << " conducteurs, de " << cables.first().fromLocation
+        << " vers " << cables.first().toLocation << "\n";
+
+    // ---- le dossier voyage, et s'imprime --------------------------------
+    QTemporaryDir dossier;
+    const QString chemin = dossier.filePath(QStringLiteral("boucle.arcus"));
+    REQUIRE(DsnFile::save(chemin, p.document()->project()));
+    Project relu;
+    REQUIRE(DsnFile::load(chemin, relu).ok);
+    const Folio *page = relu.folioAt(0);
+    REQUIRE(page);
+    CHECK(page->bands.size() == 3);
+    CHECK(page->frame.columnsRightToLeft);
+    CHECK(relu.titleBlock.id == QLatin1String("boucle"));
+    CHECK(relu.designationFormat == QLatin1String("%C%F%B"));
+    CHECK(relu.designationDash == QLatin1String("non"));
+    const WireType &typeRelu = relu.wireTypes.resolve(typeCable);
+    CHECK(typeRelu.pairs == 2);
+    CHECK(typeRelu.colorCode == QLatin1String("N"));
+
+    const QString pdf = dossier.filePath(QStringLiteral("boucle.pdf"));
+    CHECK(PdfExport::write(pdf, p.document()->project()));
+
+    const QByteArray captures = qgetenv("ARCUS_ESSAI_CAPTURES");
+    if (!captures.isEmpty()) {
+        p.vue()->zoomToFit();
+        p.capture(QString::fromLocal8Bit(captures) + QStringLiteral("/blocD-fenetre.png"));
+        p.captureVue(QString::fromLocal8Bit(captures) + QStringLiteral("/blocD-planche.png"));
+    }
+
+    const auto constats = Audit::run(p.document()->project(), netlist, PlcDatabase::builtin());
+    int erreurs = 0;
+    for (const AuditFinding &c : constats) {
+        if (c.severity == AuditFinding::Severity::Error)
+            ++erreurs;
+    }
+
+    out << "entités             : " << p.folio()->entityCount() << "\n";
+    out << "gestes              : " << p.gestes() << "\n";
+    out << "boîtes modales      : " << p.dialogues() << "\n";
+    out << "constats d'audit    : " << constats.size() << " dont " << erreurs
+        << " erreur(s)\n";
+    out << "accrocs             :\n";
+    if (p.accrocs().isEmpty())
+        out << "   (aucun)\n";
+    for (const QString &a : p.accrocs())
+        out << "   - " << a << "\n";
+    out << "==============================================\n";
+
+    CHECK(p.accrocs().isEmpty());
+    CHECK(erreurs == 0);
 }

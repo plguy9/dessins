@@ -47,6 +47,7 @@ Project::~Project() = default;
 Project::Project(const Project &other)
     : info(other.info), profileId(other.profileId),
       designationFormat(other.designationFormat), designationMode(other.designationMode),
+      designationDash(other.designationDash),
       wireTypes(other.wireTypes), library(other.library)
 {
     m_folios.reserve(other.m_folios.size());
@@ -62,6 +63,7 @@ Project &Project::operator=(const Project &other)
     profileId = other.profileId;
     designationFormat = other.designationFormat;
     designationMode = other.designationMode;
+    designationDash = other.designationDash;
     wireTypes = other.wireTypes;
     library = other.library;
     m_folios.clear();
@@ -233,6 +235,7 @@ void Project::clear()
     wireTypes = WireTypeSet::forNorm(profileId);
     designationFormat.clear();
     designationMode.clear();
+    designationDash.clear();
     titleBlock = TitleBlockTemplate();
     images.clear();
     info = ProjectInfo();
@@ -255,6 +258,8 @@ QJsonObject Project::toJson() const
         o[QStringLiteral("designationFormat")] = designationFormat;
     if (!designationMode.isEmpty())
         o[QStringLiteral("designationMode")] = designationMode;
+    if (!designationDash.isEmpty())
+        o[QStringLiteral("designationDash")] = designationDash;
     if (!titleBlock.isEmpty())
         o[QStringLiteral("titleBlock")] = titleBlock.toJson();
     if (!images.isEmpty()) {
@@ -281,6 +286,7 @@ bool Project::readJson(const QJsonObject &object)
     profileId = object.value(QStringLiteral("profile")).toString(QStringLiteral("iec"));
     designationFormat = object.value(QStringLiteral("designationFormat")).toString();
     designationMode = object.value(QStringLiteral("designationMode")).toString();
+    designationDash = object.value(QStringLiteral("designationDash")).toString();
     titleBlock = object.contains(QStringLiteral("titleBlock"))
             ? TitleBlockTemplate::fromJson(object.value(QStringLiteral("titleBlock")))
             : TitleBlockTemplate();

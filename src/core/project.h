@@ -52,6 +52,11 @@ public:
     // que le coeur n'en depend pas.
     QString designationFormat;   // ex. « %F%N » ; vide = celui du profil
     QString designationMode;     // « sequential » ou « lineReference » ; vide = profil
+    // Le tiret de tete de la CEI 81346 : -K1, -Q2. Un repere d'instrument
+    // n'en porte pas (« 022TT8917A »), et c'est une convention de bureau
+    // comme le format lui-meme — donc reglable ici, et pas seulement par le
+    // profil metier. Vide = celui du profil ; « oui » / « non » l'imposent.
+    QString designationDash;
 
     // Types de fils du projet (couleur, section, calque). Ils voyagent avec
     // le document : un dossier rouvert ailleurs garde ses couleurs. Un projet

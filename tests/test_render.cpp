@@ -670,3 +670,27 @@ TEST_CASE("Une clef de cartouche inconnue n'écrit rien", "[render][cartouche]")
     const QRectF bloc = folio->titleBlockRect();
     CHECK_FALSE(hasInkNear(image, bloc.topLeft() + QPointF(20, 9), ppm, 4));
 }
+
+TEST_CASE("Les bandes de localisation sont tracées sur toute la hauteur",
+          "[render][bandes]")
+{
+    // Le trait de séparation descend sur TOUTE la hauteur du cadre : c'est ce
+    // qui dit qu'on change de lieu, pas qu'on change de paragraphe. Un trait
+    // qui s'arrêterait au bandeau se lirait comme une décoration.
+    Project project;
+    Folio *folio = project.addFolio(QStringLiteral("Boucle"));
+    folio->sheet = sheetFormatById(QStringLiteral("A3"));
+    folio->bands = { { QStringLiteral("CHAMP"), 200.0 },
+                     { QStringLiteral("CABINET"), 100.0 } };
+
+    const double ppm = 4.0;
+    const QImage image = PdfExport::renderFolio(project, *folio, RenderStyle::print(), ppm);
+
+    const QRectF fr = folio->frameRect();
+    const double x = folio->bandRect(1).left();
+    CHECK(hasInkNear(image, QPointF(x, fr.top() + 20.0), ppm, 3));
+    CHECK(hasInkNear(image, QPointF(x, fr.center().y()), ppm, 3));
+    CHECK(hasInkNear(image, QPointF(x, fr.bottom() - 20.0), ppm, 3));
+    // Et le nom est écrit dans le bandeau.
+    CHECK(hasInkNear(image, QPointF(folio->bandRect(0).center().x(), fr.top() + 4.0), ppm, 6));
+}

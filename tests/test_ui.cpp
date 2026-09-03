@@ -27,6 +27,7 @@
 #include "ui/dockrail.h"
 #include "ui/findreplacedialog.h"
 #include "ui/titleblockeditor.h"
+#include "ui/pagesetupdialog.h"
 #include "core/titleblock.h"
 #include "ui/docktitle.h"
 #include "ui/document.h"
@@ -476,6 +477,34 @@ TEST_CASE("Une case ajoutée au cartouche se retrouve dans le dossier",
     const QMap<QString, QString> v =
             TitleBlock::values(document.project(), *document.currentFolio());
     CHECK(v.value(QStringLiteral("atelier")) == QStringLiteral("Montage 3"));
+}
+
+TEST_CASE("Les bandes se saisissent en « nom = largeur »", "[ui][bandes]")
+{
+    // Le format tient sur une ligne parce qu'un jeu de bandes se relit d'un
+    // coup d'œil ; un tableau à deux colonnes demanderait trois clics pour
+    // ajouter une bande.
+    const QVector<FolioBand> bandes = PageSetupDialog::parseBands(
+            QStringLiteral("CHAMP = 200\nCABINET 037BJ0151 = 120\n"));
+    REQUIRE(bandes.size() == 2);
+    CHECK(bandes.at(0).title == QStringLiteral("CHAMP"));
+    CHECK(bandes.at(0).width == 200.0);
+    CHECK(bandes.at(1).title == QStringLiteral("CABINET 037BJ0151"));
+
+    // Une ligne sans « = » garde son nom et prend la largeur par défaut :
+    // refuser la ligne perdrait ce qui vient d'être tapé.
+    const QVector<FolioBand> sansLargeur =
+            PageSetupDialog::parseBands(QStringLiteral("PROCEDE"));
+    REQUIRE(sansLargeur.size() == 1);
+    CHECK(sansLargeur.at(0).title == QStringLiteral("PROCEDE"));
+    CHECK(sansLargeur.at(0).width > 0.0);
+
+    // Le nom peut contenir un « = » : c'est le DERNIER qui sépare.
+    const QVector<FolioBand> avecEgal =
+            PageSetupDialog::parseBands(QStringLiteral("REPERE = X = 80"));
+    REQUIRE(avecEgal.size() == 1);
+    CHECK(avecEgal.at(0).title == QStringLiteral("REPERE = X"));
+    CHECK(avecEgal.at(0).width == 80.0);
 }
 
 TEST_CASE("La rotation depuis le canevas est annulable", "[ui][view]")

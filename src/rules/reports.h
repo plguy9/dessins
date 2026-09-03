@@ -86,11 +86,16 @@ struct WireRunLine {
     QString fromPin;
     QString fromFolio;
     QString fromZone;
+    // La BANDE de localisation, quand le folio en porte : « CHAMP »,
+    // « CABINET 037BJ0151 ». C'est ce qu'un cableur cherche en premier — pas
+    // la zone du cadre, mais l'endroit physique ou il doit aller visser.
+    QString fromLocation;
 
     QString toDesignation;
     QString toPin;
     QString toFolio;
     QString toZone;
+    QString toLocation;
 
     QString wireTypeName;
     QString colorName;     // « #rrggbb », la couleur du type

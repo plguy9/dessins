@@ -14,6 +14,7 @@
 class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
+class QPlainTextEdit;
 class QRadioButton;
 class QSpinBox;
 
@@ -49,6 +50,10 @@ public:
     Folio result() const;
     bool applyToAllFolios() const;
 
+    // « nom = largeur », une bande par ligne. Publique et pure : c'est la
+    // regle, et un test la lit sans monter la boite.
+    static QVector<FolioBand> parseBands(const QString &text);
+
 private:
     void refresh();
     SheetFormat currentFormat() const;
@@ -67,6 +72,9 @@ private:
     QSpinBox *m_columns = nullptr;
     QSpinBox *m_rows = nullptr;
     QCheckBox *m_zoneLabels = nullptr;
+    QCheckBox *m_columnsRtl = nullptr;
+    QCheckBox *m_rowsBtt = nullptr;
+    QPlainTextEdit *m_bands = nullptr;
     QDoubleSpinBox *m_blockWidth = nullptr;
     QDoubleSpinBox *m_blockHeight = nullptr;
     QCheckBox *m_applyAll = nullptr;

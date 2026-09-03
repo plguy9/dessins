@@ -18,7 +18,28 @@ QJsonObject SheetFrame::toJson() const
     o[QStringLiteral("showZoneLabels")] = showZoneLabels;
     o[QStringLiteral("titleBlockWidth")] = roundStorage(titleBlockWidth);
     o[QStringLiteral("titleBlockHeight")] = roundStorage(titleBlockHeight);
+    if (columnsRightToLeft)
+        o[QStringLiteral("columnsRightToLeft")] = true;
+    if (rowsBottomToTop)
+        o[QStringLiteral("rowsBottomToTop")] = true;
     return o;
+}
+
+QJsonObject FolioBand::toJson() const
+{
+    QJsonObject o;
+    o[QStringLiteral("title")] = title;
+    o[QStringLiteral("width")] = roundStorage(width);
+    return o;
+}
+
+FolioBand FolioBand::fromJson(const QJsonValue &v)
+{
+    const QJsonObject o = v.toObject();
+    FolioBand b;
+    b.title = o.value(QStringLiteral("title")).toString();
+    b.width = o.value(QStringLiteral("width")).toDouble(60.0);
+    return b;
 }
 
 SheetFrame SheetFrame::fromJson(const QJsonValue &v)
@@ -32,6 +53,8 @@ SheetFrame SheetFrame::fromJson(const QJsonValue &v)
     f.showZoneLabels = o.value(QStringLiteral("showZoneLabels")).toBool(f.showZoneLabels);
     f.titleBlockWidth = o.value(QStringLiteral("titleBlockWidth")).toDouble(f.titleBlockWidth);
     f.titleBlockHeight = o.value(QStringLiteral("titleBlockHeight")).toDouble(f.titleBlockHeight);
+    f.columnsRightToLeft = o.value(QStringLiteral("columnsRightToLeft")).toBool(false);
+    f.rowsBottomToTop = o.value(QStringLiteral("rowsBottomToTop")).toBool(false);
     return f;
 }
 
@@ -48,7 +71,8 @@ Folio::~Folio() = default;
 // apercu — et on cherche longtemps pourquoi. Paye sur `tables`.
 Folio::Folio(const Folio &other)
     : number(other.number), title(other.title), sheet(other.sheet), frame(other.frame),
-      titleBlock(other.titleBlock), tables(other.tables), m_id(other.m_id)
+      titleBlock(other.titleBlock), tables(other.tables), bands(other.bands),
+      bandHeaderHeight(other.bandHeaderHeight), m_id(other.m_id)
 {
     m_entities.reserve(other.m_entities.size());
     for (const EntityPtr &e : other.m_entities)
@@ -66,6 +90,8 @@ Folio &Folio::operator=(const Folio &other)
     frame = other.frame;
     titleBlock = other.titleBlock;
     tables = other.tables;
+    bands = other.bands;
+    bandHeaderHeight = other.bandHeaderHeight;
     m_entities.clear();
     m_entities.reserve(other.m_entities.size());
     for (const EntityPtr &e : other.m_entities)
@@ -170,8 +196,12 @@ int Folio::columnAt(const QPointF &p) const
     if (p.x() < fr.left() || p.x() > fr.right())
         return -1;
     const double cw = fr.width() / frame.columns;
-    const int c = int((p.x() - fr.left()) / cw) + 1;
-    return std::clamp(c, 1, frame.columns);
+    int c = int((p.x() - fr.left()) / cw) + 1;
+    c = std::clamp(c, 1, frame.columns);
+    // Certains bureaux numerotent de DROITE a gauche, la colonne 1 du cote du
+    // cartouche. C'est un reglage, pas un defaut : la reference de ligne d'un
+    // appareil et tous les renvois du dossier en dependent.
+    return frame.columnsRightToLeft ? frame.columns - c + 1 : c;
 }
 
 QString Folio::zoneAt(const QPointF &p) const
@@ -181,9 +211,55 @@ QString Folio::zoneAt(const QPointF &p) const
         return QString();
     const int c = columnAt(p);
     const double rh = fr.height() / frame.rows;
-    const int r = std::clamp(int((p.y() - fr.top()) / rh) + 1, 1, frame.rows);
+    int r = std::clamp(int((p.y() - fr.top()) / rh) + 1, 1, frame.rows);
+    // Le sens du reperage est un reglage : certains bureaux comptent les
+    // lignes du BAS vers le haut (voir SheetFrame). Le renvoi doit suivre,
+    // sinon il pointe la mauvaise case et rien ne le signale.
+    if (frame.rowsBottomToTop)
+        r = frame.rows - r + 1;
     // Lignes lettrees A, B, C... comme sur un plan cote.
     return QString(QChar(char16_t(u'A' + r - 1))) + QString::number(c);
+}
+
+// --------------------------------------------------------------------------
+// Les bandes de localisation
+
+int Folio::bandIndexAt(const QPointF &p) const
+{
+    if (bands.isEmpty())
+        return -1;
+    const QRectF fr = frameRect();
+    if (p.x() < fr.left() || p.x() > fr.right())
+        return -1;
+    double x = fr.left();
+    for (int i = 0; i < bands.size(); ++i) {
+        // La derniere bande s'etire jusqu'au bord : sans cela un changement de
+        // format laisserait une lisiere sans nom, et une entite posee dedans
+        // n'aurait pas de localisation.
+        const double droite = (i == bands.size() - 1) ? fr.right() : x + bands.at(i).width;
+        if (p.x() <= droite)
+            return i;
+        x = droite;
+    }
+    return int(bands.size()) - 1;
+}
+
+QString Folio::bandAt(const QPointF &p) const
+{
+    const int index = bandIndexAt(p);
+    return index < 0 ? QString() : bands.at(index).title;
+}
+
+QRectF Folio::bandRect(int index) const
+{
+    if (index < 0 || index >= bands.size())
+        return {};
+    const QRectF fr = frameRect();
+    double x = fr.left();
+    for (int i = 0; i < index; ++i)
+        x += bands.at(i).width;
+    const double droite = (index == bands.size() - 1) ? fr.right() : x + bands.at(index).width;
+    return QRectF(x, fr.top(), droite - x, fr.height());
 }
 
 QRectF Folio::contentBounds() const
@@ -222,6 +298,13 @@ QJsonObject Folio::toJson() const
         }
         o[QStringLiteral("tables")] = tabs;
     }
+    if (!bands.isEmpty()) {
+        QJsonArray a;
+        for (const FolioBand &b : bands)
+            a.append(b.toJson());
+        o[QStringLiteral("bands")] = a;
+        o[QStringLiteral("bandHeader")] = roundStorage(bandHeaderHeight);
+    }
 
     QJsonArray items;
     for (const EntityPtr &e : m_entities)
@@ -255,6 +338,10 @@ bool Folio::readJson(const QJsonObject &object)
             rows.append(stringListFromJson(r));
         tables.insert(it.key(), rows);
     }
+    bands.clear();
+    for (const QJsonValue &b : object.value(QStringLiteral("bands")).toArray())
+        bands.append(FolioBand::fromJson(b));
+    bandHeaderHeight = object.value(QStringLiteral("bandHeader")).toDouble(6.0);
 
     m_entities.clear();
     const QJsonArray items = object.value(QStringLiteral("entities")).toArray();

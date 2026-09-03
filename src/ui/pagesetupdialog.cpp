@@ -7,6 +7,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QPlainTextEdit>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QGroupBox>
@@ -71,6 +72,34 @@ void PagePreview::paintEvent(QPaintEvent *event)
 
 // --------------------------------------------------------------------------
 // PageSetupDialog
+
+// « nom = largeur », une bande par ligne. Le format tient sur une ligne parce
+// qu'un cartouche de bandes se relit d'un coup d'oeil ; un tableau a deux
+// colonnes demanderait trois clics pour ajouter une bande.
+//
+// Une ligne sans « = » est un nom sans largeur : elle prend la largeur par
+// defaut. Refuser la ligne serait pire — on perdrait le nom deja tape.
+QVector<FolioBand> PageSetupDialog::parseBands(const QString &text)
+{
+    QVector<FolioBand> bands;
+    const QStringList lignes = text.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    for (const QString &ligne : lignes) {
+        const int egal = ligne.lastIndexOf(QLatin1Char('='));
+        FolioBand b;
+        if (egal < 0) {
+            b.title = ligne.trimmed();
+        } else {
+            b.title = ligne.left(egal).trimmed();
+            bool ok = false;
+            const double w = ligne.mid(egal + 1).trimmed().toDouble(&ok);
+            if (ok && w > 1.0)
+                b.width = w;
+        }
+        if (!b.title.isEmpty())
+            bands.append(b);
+    }
+    return bands;
+}
 
 PageSetupDialog::PageSetupDialog(const Project &project, const Folio &folio, QWidget *parent)
     : QDialog(parent), m_project(project), m_folio(folio)
@@ -146,7 +175,37 @@ PageSetupDialog::PageSetupDialog(const Project &project, const Folio &folio, QWi
 
     m_zoneLabels = new QCheckBox(tr("Afficher les repères de zone"), frameBox);
     frameForm->addRow(m_zoneLabels);
+
+    // LE SENS DU REPERAGE. Ce n'est pas un detail d'affichage : tous les
+    // renvois du dossier en dependent, et une planche reproduite avec l'autre
+    // sens renvoie vers la mauvaise case sans que rien ne le signale.
+    m_columnsRtl = new QCheckBox(tr("Colonnes numérotées de droite à gauche"), frameBox);
+    m_columnsRtl->setToolTip(tr("La colonne 1 du côté du cartouche, comme sur les schémas "
+                                "de boucle"));
+    frameForm->addRow(m_columnsRtl);
+    m_rowsBtt = new QCheckBox(tr("Lignes lettrées de bas en haut"), frameBox);
+    m_rowsBtt->setToolTip(tr("La ligne A en bas de la planche"));
+    frameForm->addRow(m_rowsBtt);
+
+    // ---- les bandes de localisation --------------------------------------
+    //
+    // Ce que la bande veut dire : la localisation de tout ce qu'elle contient.
+    // Une ligne par bande, « nom = largeur », parce que c'est ce qu'on relit
+    // le plus vite — et la derniere s'étire jusqu'au bord.
+    auto *bandBox = new QGroupBox(tr("Bandes de localisation"), this);
+    auto *bandLayout = new QVBoxLayout(bandBox);
+    auto *bandHint = new QLabel(
+            tr("Une bande par ligne, « nom = largeur en mm ». La dernière s'étend jusqu'au "
+               "bord. Laisser vide pour une planche sans bandes."),
+            bandBox);
+    bandHint->setWordWrap(true);
+    bandLayout->addWidget(bandHint);
+    m_bands = new QPlainTextEdit(bandBox);
+    m_bands->setPlaceholderText(QStringLiteral("CHAMP = 200\nCABINET 037BJ0151 = 120"));
+    m_bands->setFixedHeight(84);
+    bandLayout->addWidget(m_bands);
     left->addWidget(frameBox);
+    left->addWidget(bandBox);
 
     // ---- cartouche ------------------------------------------------------
     auto *blockBox = new QGroupBox(tr("Cartouche"), this);
@@ -197,6 +256,16 @@ PageSetupDialog::PageSetupDialog(const Project &project, const Folio &folio, QWi
     m_columns->setValue(m_folio.frame.columns);
     m_rows->setValue(m_folio.frame.rows);
     m_zoneLabels->setChecked(m_folio.frame.showZoneLabels);
+    m_columnsRtl->setChecked(m_folio.frame.columnsRightToLeft);
+    m_rowsBtt->setChecked(m_folio.frame.rowsBottomToTop);
+    {
+        QStringList lignes;
+        for (const FolioBand &b : m_folio.bands) {
+            lignes.append(QStringLiteral("%1 = %2").arg(b.title)
+                                  .arg(b.width, 0, 'f', b.width == int(b.width) ? 0 : 1));
+        }
+        m_bands->setPlainText(lignes.join(QLatin1Char('\n')));
+    }
     m_blockWidth->setValue(m_folio.frame.titleBlockWidth);
     m_blockHeight->setValue(m_folio.frame.titleBlockHeight);
     m_updating = false;
@@ -252,6 +321,9 @@ PageSetupDialog::PageSetupDialog(const Project &project, const Folio &folio, QWi
     for (QSpinBox *box : { m_columns, m_rows })
         connect(box, &QSpinBox::valueChanged, this, &PageSetupDialog::refresh);
     connect(m_zoneLabels, &QCheckBox::toggled, this, &PageSetupDialog::refresh);
+    connect(m_columnsRtl, &QCheckBox::toggled, this, &PageSetupDialog::refresh);
+    connect(m_rowsBtt, &QCheckBox::toggled, this, &PageSetupDialog::refresh);
+    connect(m_bands, &QPlainTextEdit::textChanged, this, &PageSetupDialog::refresh);
 
     refresh();
     resize(940, 640);
@@ -293,6 +365,9 @@ Folio PageSetupDialog::result() const
     folio.frame.columns = m_columns->value();
     folio.frame.rows = m_rows->value();
     folio.frame.showZoneLabels = m_zoneLabels->isChecked();
+    folio.frame.columnsRightToLeft = m_columnsRtl->isChecked();
+    folio.frame.rowsBottomToTop = m_rowsBtt->isChecked();
+    folio.bands = parseBands(m_bands->toPlainText());
     folio.frame.titleBlockWidth = m_blockWidth->value();
     folio.frame.titleBlockHeight = m_blockHeight->value();
     return folio;

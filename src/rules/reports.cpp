@@ -360,10 +360,15 @@ QVector<WireRunLine> Reports::wireFromTo(const Project &project, const Netlist &
             chain.append(remaining.takeAt(best));
         }
 
-        auto describe = [&](const Netlist::PinRef &pin, QString &folioTagOut, QString &zoneOut) {
+        auto describe = [&](const Netlist::PinRef &pin, QString &folioTagOut, QString &zoneOut,
+                            QString &locationOut) {
             folioTagOut = folioTag(project, pin.folioId);
             const Folio *folio = project.folio(pin.folioId);
             zoneOut = folio ? folio->zoneAt(pin.position) : QString();
+            // La localisation se DEDUIT de l'abscisse : rien n'est stocke sur
+            // l'entite, donc rien ne peut se desynchroniser quand on la
+            // deplace d'une bande a l'autre.
+            locationOut = folio ? folio->bandAt(pin.position) : QString();
         };
 
         for (int i = 1; i < chain.size(); ++i) {
@@ -375,10 +380,10 @@ QVector<WireRunLine> Reports::wireFromTo(const Project &project, const Netlist &
             line.netName = net.name;
             line.fromDesignation = from.designation;
             line.fromPin = from.pinNumber;
-            describe(from, line.fromFolio, line.fromZone);
+            describe(from, line.fromFolio, line.fromZone, line.fromLocation);
             line.toDesignation = to.designation;
             line.toPin = to.pinNumber;
-            describe(to, line.toFolio, line.toZone);
+            describe(to, line.toFolio, line.toZone, line.toLocation);
             line.wireTypeName = type.name;
             line.colorName = type.colorName();
             line.crossSection = type.crossSection;
@@ -559,20 +564,38 @@ ReportTable Reports::toTable(const QVector<WireLine> &lines)
 
 ReportTable Reports::toTable(const QVector<WireRunLine> &lines)
 {
+    // Les colonnes de LOCALISATION n'apparaissent que si le dossier en porte.
+    // Deux colonnes vides sur toute une liasse ne sont pas neutres : elles
+    // volent la place des colonnes qu'on lit vraiment, et un cableur finit
+    // par ne plus regarder la ligne entiere.
+    bool localise = false;
+    for (const WireRunLine &line : lines)
+        localise = localise || !line.fromLocation.isEmpty() || !line.toLocation.isEmpty();
+
     ReportTable table;
     table.title = QStringLiteral("Câblage De / Vers");
     table.headers = { QStringLiteral("Repère fil"), QStringLiteral("Potentiel"),
-                      QStringLiteral("De"),         QStringLiteral("Broche"),
-                      QStringLiteral("Folio"),      QStringLiteral("Zone"),
-                      QStringLiteral("Vers"),       QStringLiteral("Broche"),
-                      QStringLiteral("Folio"),      QStringLiteral("Zone"),
-                      QStringLiteral("Type"),       QStringLiteral("Couleur"),
-                      QStringLiteral("Section") };
+                      QStringLiteral("De"),         QStringLiteral("Broche") };
+    if (localise)
+        table.headers.append(QStringLiteral("Emplacement"));
+    table.headers += { QStringLiteral("Folio"), QStringLiteral("Zone"),
+                       QStringLiteral("Vers"),  QStringLiteral("Broche") };
+    if (localise)
+        table.headers.append(QStringLiteral("Emplacement"));
+    table.headers += { QStringLiteral("Folio"),   QStringLiteral("Zone"),
+                       QStringLiteral("Type"),    QStringLiteral("Couleur"),
+                       QStringLiteral("Section") };
+
     for (const WireRunLine &line : lines) {
-        table.rows.append({ line.wireNumber, line.netName, line.fromDesignation, line.fromPin,
-                            line.fromFolio, line.fromZone, line.toDesignation, line.toPin,
-                            line.toFolio, line.toZone, line.wireTypeName, line.colorName,
-                            line.crossSection });
+        QStringList row = { line.wireNumber, line.netName, line.fromDesignation, line.fromPin };
+        if (localise)
+            row.append(line.fromLocation);
+        row += { line.fromFolio, line.fromZone, line.toDesignation, line.toPin };
+        if (localise)
+            row.append(line.toLocation);
+        row += { line.toFolio, line.toZone, line.wireTypeName, line.colorName,
+                 line.crossSection };
+        table.rows.append(row);
     }
     return table;
 }

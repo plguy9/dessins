@@ -266,3 +266,51 @@ TEST_CASE("Le champ du folio l'emporte sur celui du projet", "[document][cartouc
     CHECK(v.value(QStringLiteral("nexistePas")).isEmpty());
     CHECK_FALSE(v.contains(QStringLiteral("nexistePas")));
 }
+
+TEST_CASE("Une bande de localisation dit où se trouve ce qu'elle contient",
+          "[folio][bandes]")
+{
+    // C'est tout l'intérêt de la bande : elle n'est pas décorative, elle est
+    // la LOCALISATION de ce qu'elle contient — donc les colonnes « de » et
+    // « vers » du rapport de câblage. L'appartenance se déduit de l'abscisse,
+    // comme la zone : rien n'est stocké sur l'entité, donc rien ne peut se
+    // désynchroniser quand on la déplace.
+    Folio folio;
+    folio.sheet = sheetFormatById(QStringLiteral("A3"));
+    folio.bands = { { QStringLiteral("CHAMP"), 200.0 },
+                    { QStringLiteral("CABINET 037BJ0151"), 100.0 } };
+
+    const QRectF fr = folio.frameRect();
+    CHECK(folio.bandAt(fr.topLeft() + QPointF(50, 50)) == QStringLiteral("CHAMP"));
+    CHECK(folio.bandAt(fr.topLeft() + QPointF(250, 50))
+          == QStringLiteral("CABINET 037BJ0151"));
+    // La dernière s'étire jusqu'au bord : sans cela un changement de format
+    // laisserait une lisière sans nom, et une entité posée dedans n'aurait
+    // pas de localisation.
+    CHECK(folio.bandAt(QPointF(fr.right() - 1.0, fr.center().y()))
+          == QStringLiteral("CABINET 037BJ0151"));
+    CHECK(folio.bandAt(QPointF(fr.right() + 20.0, fr.center().y())).isEmpty());
+    CHECK(folio.bandRect(0).width() == 200.0);
+}
+
+TEST_CASE("Le sens du repérage change les renvois, pas seulement l'affichage",
+          "[folio][bandes]")
+{
+    // Deux bureaux d'études à seize ans d'écart numérotent de droite à gauche
+    // et de bas en haut, la zone A du côté du cartouche. Tous les renvois du
+    // dossier en dépendent : une planche reproduite avec l'autre sens renvoie
+    // vers la mauvaise case, et rien ne le signale.
+    Folio folio;
+    folio.sheet = sheetFormatById(QStringLiteral("A3"));
+    folio.frame.columns = 10;
+    folio.frame.rows = 6;
+
+    const QRectF fr = folio.frameRect();
+    const QPointF hautGauche = fr.topLeft() + QPointF(fr.width() * 0.05, fr.height() * 0.08);
+    CHECK(folio.zoneAt(hautGauche) == QStringLiteral("A1"));
+
+    folio.frame.columnsRightToLeft = true;
+    folio.frame.rowsBottomToTop = true;
+    // Le même point est maintenant en F10 : dernière colonne, dernière ligne.
+    CHECK(folio.zoneAt(hautGauche) == QStringLiteral("F10"));
+}

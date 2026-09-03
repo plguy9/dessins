@@ -466,22 +466,66 @@ void FolioPainter::paintFrame(QPainter &painter, const Folio &folio) const
             painter.drawLine(QPointF(frame.right() - 4.0, y), QPointF(frame.right(), y));
         }
 
+        // Les etiquettes suivent le SENS du reperage. Certains bureaux comptent
+        // les colonnes de droite a gauche et les lignes du bas vers le haut —
+        // la zone A du cote du cartouche. Ecrire l'etiquette d'un cote et
+        // calculer le renvoi de l'autre serait le pire des cas : le plan et le
+        // renvoi se contrediraient.
         painter.setPen(m_style.frame);
         for (int c = 1; c <= folio.frame.columns; ++c) {
             const double x = frame.left() + (c - 0.5) * columnWidth;
-            drawTextMm(painter, QPointF(x, frame.top() - 1.6), QString::number(c), 2.2,
+            const int numero = folio.frame.columnsRightToLeft ? folio.frame.columns - c + 1 : c;
+            drawTextMm(painter, QPointF(x, frame.top() - 1.6), QString::number(numero), 2.2,
                        Primitive::Align::Center);
-            drawTextMm(painter, QPointF(x, frame.bottom() + 3.6), QString::number(c), 2.2,
+            drawTextMm(painter, QPointF(x, frame.bottom() + 3.6), QString::number(numero), 2.2,
                        Primitive::Align::Center);
         }
         for (int r = 1; r <= folio.frame.rows; ++r) {
             const double y = frame.top() + (r - 0.5) * rowHeight + 1.1;
-            const QString letter(QChar(char16_t(u'A' + r - 1)));
+            const int rang = folio.frame.rowsBottomToTop ? folio.frame.rows - r + 1 : r;
+            const QString letter(QChar(char16_t(u'A' + rang - 1)));
             drawTextMm(painter, QPointF(frame.left() - 3.0, y), letter, 2.2,
                        Primitive::Align::Center);
             drawTextMm(painter, QPointF(frame.right() + 3.0, y), letter, 2.2,
                        Primitive::Align::Center);
         }
+    }
+    paintBands(painter, folio);
+    painter.restore();
+}
+
+// LES BANDES DE LOCALISATION.
+//
+// La feuille coupee sur toute sa hauteur en bandes verticales nommees —
+// « CHAMP » | « CABINET 037BJ0151 ». C'est la structure d'un schema de boucle,
+// ce que l'echelle de commande est a un schema de commande.
+//
+// Le trait de separation descend sur TOUTE la hauteur du cadre : c'est ce qui
+// dit qu'on change de lieu, pas qu'on change de paragraphe. Un trait qui
+// s'arreterait au bandeau se lirait comme une decoration.
+void FolioPainter::paintBands(QPainter &painter, const Folio &folio) const
+{
+    if (folio.bands.isEmpty())
+        return;
+    const QRectF frame = folio.frameRect();
+    const double entete = std::max(3.0, folio.bandHeaderHeight);
+
+    painter.save();
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(pen(m_style.frame, m_style.frameWidth));
+
+    // Le filet sous le bandeau, sur toute la largeur.
+    painter.drawLine(QPointF(frame.left(), frame.top() + entete),
+                     QPointF(frame.right(), frame.top() + entete));
+
+    for (int i = 0; i < folio.bands.size(); ++i) {
+        const QRectF r = folio.bandRect(i);
+        if (i > 0)
+            painter.drawLine(QPointF(r.left(), frame.top()), QPointF(r.left(), frame.bottom()));
+        painter.setPen(m_style.text);
+        drawTextMm(painter, QPointF(r.center().x(), frame.top() + entete * 0.72),
+                   folio.bands.at(i).title, entete * 0.5, Primitive::Align::Center);
+        painter.setPen(pen(m_style.frame, m_style.frameWidth));
     }
     painter.restore();
 }

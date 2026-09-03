@@ -24,8 +24,41 @@ struct SheetFrame {
     double titleBlockWidth = 180.0;
     double titleBlockHeight = 40.0;
 
+    // LE SENS DU REPERAGE, et ce n'est pas un detail d'affichage.
+    //
+    // Notre convention : 1 a gauche, A en haut. Celle des planches relevees
+    // (docs/BOUCLES.md) : la zone A est a DROITE, du cote du cartouche, et le
+    // 1 est EN BAS. Deux bureaux d'etudes a seize ans d'ecart la partagent —
+    // c'est une convention de metier, pas une lubie.
+    //
+    // Tous les renvois du dossier en dependent : une planche reproduite avec
+    // l'autre sens renvoie vers la mauvaise case, et rien ne le signale.
+    bool columnsRightToLeft = false;
+    bool rowsBottomToTop = false;
+
     QJsonObject toJson() const;
     static SheetFrame fromJson(const QJsonValue &v);
+};
+
+// UNE BANDE DE LOCALISATION.
+//
+// Sur un schema de boucle, la feuille est coupee sur toute sa hauteur en
+// bandes verticales nommees — « CHAMP », « CABINET 037BJ0151 » — chacune avec
+// son bandeau d'en-tete. La bande est a un schema de boucle ce que l'echelle
+// de commande est a un schema de commande : la structure qui organise la page.
+//
+// Et elle porte un SENS : c'est la localisation de tout ce qu'elle contient.
+// Un capteur est *au champ*, une borne est *dans l'armoire* — c'est exactement
+// ce qu'un rapport de cablage imprime dans ses colonnes « de » et « vers ».
+// L'appartenance se DEDUIT de l'abscisse, comme `Folio::zoneAt()` deduit la
+// zone : rien a stocker sur l'entite, donc rien qui puisse se desynchroniser
+// quand on la deplace.
+struct FolioBand {
+    QString title;
+    double width = 60.0;   // en millimetres, depuis la bande precedente
+
+    QJsonObject toJson() const;
+    static FolioBand fromJson(const QJsonValue &v);
 };
 
 class Folio
@@ -54,6 +87,14 @@ public:
     // dit ses colonnes. Ce choix rend une table maison gratuite : ajouter
     // « ESSAIS EN USINE » a son cartouche ne demande pas une ligne de code.
     QMap<QString, QVector<QStringList>> tables;
+
+    // Les bandes de localisation, de gauche a droite. Vides = pas de bandes,
+    // et le folio se dessine comme avant. La DERNIERE s'etire jusqu'au bord
+    // droit du cadre quelle que soit sa largeur declaree : sans cela un
+    // changement de format laisserait une lisiere sans nom, et une entite
+    // posee dedans n'aurait pas de localisation.
+    QVector<FolioBand> bands;
+    double bandHeaderHeight = 6.0;   // hauteur du bandeau de titre
 
     // ---- entites -------------------------------------------------------
     const std::vector<EntityPtr> &entities() const noexcept { return m_entities; }
@@ -102,6 +143,13 @@ public:
     // Repere de zone d'un point, ex. "B4". Vide si le point est hors cadre.
     QString zoneAt(const QPointF &p) const;
     int columnAt(const QPointF &p) const; // 1..columns, ou -1
+
+    // Le nom de la bande qui contient ce point, ou une chaine vide. C'est la
+    // LOCALISATION de ce qui s'y trouve : le rapport de cablage la lit pour
+    // remplir ses colonnes « de » et « vers ».
+    QString bandAt(const QPointF &p) const;
+    int bandIndexAt(const QPointF &p) const;  // -1 si hors bande
+    QRectF bandRect(int index) const;         // la bande, bandeau compris
 
     QRectF contentBounds() const;
 

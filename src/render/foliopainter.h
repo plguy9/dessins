@@ -62,6 +62,9 @@ public:
     void paintSheet(QPainter &painter, const Folio &folio) const;
     void paintGrid(QPainter &painter, const Folio &folio, const QRectF &clipMm) const;
     void paintFrame(QPainter &painter, const Folio &folio) const;
+    // Les bandes de localisation d'un schema de boucle. Appelees depuis
+    // paintFrame : elles font partie du cadre, pas du contenu.
+    void paintBands(QPainter &painter, const Folio &folio) const;
     void paintTitleBlock(QPainter &painter, const Folio &folio) const;
     void paintEntities(QPainter &painter, const Folio &folio, const QRectF &clipMm) const;
     void paintEntity(QPainter &painter, const Entity &entity) const;

@@ -1064,7 +1064,8 @@ La distribution se fait par la page GitHub Releases.
 
 ## Publier une version
 
-`v0.1.0` est publiée (2026-09-01). Pour la suivante :
+`v0.10.0` est publiée (2026-09-03) — elle porte les blocs C et D. Pour la
+suivante :
 
 1. monter `VERSION` dans le `project()` du CMakeLists racine — le workflow
    refuse un tag qui ne lui correspond pas ;

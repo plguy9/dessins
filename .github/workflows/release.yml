@@ -135,6 +135,17 @@ jobs:
 
             ## Contenu de cette version
 
-            Schémas de commande et de puissance multi-folios, 103 symboles
-            CEI 60617 et ANSI, éditeur de symboles, connectivité et repérage
-            automatiques, nomenclature et bornier, export PDF, DXF et CSV.
+            Schémas de commande et de puissance multi-folios, 122 symboles
+            CEI 60617, ANSI et instrumentation ISA S5.1, éditeur de symboles,
+            connectivité et repérage automatiques, nomenclature, bornier et
+            liste des câbles, export PDF, DXF et CSV.
+
+            Cette version ajoute le **schéma de boucle** à côté du schéma de
+            commande : bandes de localisation nommées, repérage de cadre
+            configurable dans les deux sens, **cartouche composable** (menu
+            Projet ▸ Cartouche du dossier), bibliothèque d'instrumentation,
+            câbles multipaires avec leur liste, et le repère composé
+            `secteur + fonction + boucle`. Avec elles : effacer un composant
+            referme le fil, remplacer un symbole garde repère et
+            raccordements, rechercher/remplacer dans tout le dossier, et les
+            cotations.

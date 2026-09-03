@@ -928,6 +928,22 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawPolyline(QPolygonF({ { 14, 5 }, { 7, 12 }, { 14, 19 } }));
         p.drawLine(QPointF(18, 4), QPointF(18, 20));
         break;
+    case Glyph::SwapSymbol:
+        // Deux boitiers et deux fleches croisees : l'un prend la place de
+        // l'autre. C'est l'echange, pas la copie — d'ou les deux sens.
+        p.drawRect(QRectF(3, 3, 7, 7));
+        p.drawRect(QRectF(14, 14, 7, 7));
+        p.drawLine(QPointF(11, 6.5), QPointF(17.5, 6.5));
+        p.drawPolyline(QPolygonF({ { 15, 4.5 }, { 17.5, 6.5 }, { 15, 8.5 } }));
+        p.drawLine(QPointF(13, 17.5), QPointF(6.5, 17.5));
+        p.drawPolyline(QPolygonF({ { 9, 15.5 }, { 6.5, 17.5 }, { 9, 19.5 } }));
+        break;
+    case Glyph::Find:
+        // La loupe, et son manche. C'est le seul dessin qu'on reconnaisse
+        // sans le lire.
+        p.drawEllipse(QPointF(10, 10), 6.0, 6.0);
+        p.drawLine(QPointF(14.5, 14.5), QPointF(20, 20));
+        break;
     case Glyph::Expand:
         // Le miroir du precedent : chevron vers le dessin, montant du cote du
         // bord. C'est l'onglet du rail — le panneau revient de la ou il est

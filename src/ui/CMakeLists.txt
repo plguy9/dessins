@@ -20,9 +20,11 @@ add_library(arcus_ui STATIC
     wiretypedialog.h  wiretypedialog.cpp
     componentdialog.h componentdialog.cpp
     surferdialog.h    surferdialog.cpp
+    symbolswapdialog.h symbolswapdialog.cpp
     terminalstripdialog.h terminalstripdialog.cpp
     plcdialog.h       plcdialog.cpp
     auditdialog.h     auditdialog.cpp
+    findreplacedialog.h findreplacedialog.cpp
     arraydialog.h     arraydialog.cpp
     busdialog.h       busdialog.cpp
     ribbon.h          ribbon.cpp

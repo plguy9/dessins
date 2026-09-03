@@ -11,6 +11,7 @@ add_library(arcus_rules STATIC
     plc.h        plc.cpp
     audit.h      audit.cpp
     circuitcopy.h circuitcopy.cpp
+    findreplace.h findreplace.cpp
 )
 
 # Le catalogue fabricant est embarque comme la bibliotheque de symboles : le

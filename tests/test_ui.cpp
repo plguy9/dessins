@@ -25,6 +25,7 @@
 #include "core/documentcommands.h"
 #include "symbols/librarystore.h"
 #include "ui/dockrail.h"
+#include "ui/findreplacedialog.h"
 #include "ui/docktitle.h"
 #include "ui/document.h"
 #include "ui/folioview.h"
@@ -195,6 +196,139 @@ TEST_CASE("Le canevas selectionne et supprime", "[ui][view]")
     document.undo();
     CHECK(folio->entityCount() == 1);
     CHECK(folio->entity(wire->id()) != nullptr);
+}
+
+TEST_CASE("Effacer un appareil referme le fil, en une seule annulation",
+          "[ui][view][heal]")
+{
+    // Le geste réel : sélectionner l'appareil, Suppr. Ce que le dessinateur
+    // attend, c'est le symétrique de l'insertion — poser le contact avait
+    // coupé le fil, l'effacer doit le refermer. Et en UNE annulation : deux
+    // Ctrl+Z pour défaire une suppression seraient une surprise.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    auto *contact = placeSymbol(document.project(), folio, QStringLiteral("iec:contact-no"),
+                                QPointF(100, 60), QStringLiteral("-K1"));
+    REQUIRE(contact);
+    const SymbolDefinition *def = document.project().library.definition(contact->definitionId);
+    REQUIRE(def);
+    REQUIRE(def->pins.size() == 2);
+    const QPointF gauche = contact->placement.map(def->pins.at(0).position);
+    const QPointF droite = contact->placement.map(def->pins.at(1).position);
+    drawWire(folio, { QPointF(40, gauche.y()), gauche });
+    drawWire(folio, { droite, QPointF(180, droite.y()) });
+    REQUIRE(folio->entityCount() == 3);
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    view.setSelection({ contact->id() });
+    view.deleteSelection();
+
+    // Un seul fil reste, et il va d'un bout à l'autre : le circuit est refermé.
+    const auto fils = folio->entitiesOfType<Wire>();
+    REQUIRE(fils.size() == 1);
+    CHECK(fils.front()->points.first().x() == 40.0);
+    CHECK(fils.front()->points.last().x() == 180.0);
+
+    document.undo();
+    CHECK(folio->entityCount() == 3);
+    CHECK(folio->entity(contact->id()) != nullptr);
+}
+
+TEST_CASE("Remplacer un symbole garde repère, position et fils",
+          "[ui][view][swap]")
+{
+    // Le geste que cherche un dessinateur venu d'AutoCAD : un contact NO
+    // devient un contact NF. Trois choses doivent survivre, et ce sont les
+    // trois qu'on perdrait en effaçant puis reposant.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *folio = document.currentFolio();
+    auto *contact = placeSymbol(document.project(), folio, QStringLiteral("iec:contact-no"),
+                                QPointF(100, 60), QStringLiteral("-K1"));
+    REQUIRE(contact);
+    const SymbolDefinition *def = document.project().library.definition(contact->definitionId);
+    REQUIRE(def);
+    const QPointF gauche = contact->placement.map(def->pins.at(0).position);
+    Wire *fil = drawWire(folio, { QPointF(40, gauche.y()), gauche });
+    const QPointF avant = contact->placement.position;
+
+    FolioView view(&document);
+    view.resize(900, 640);
+    const int orphelins = view.swapSymbol(contact->id(), QStringLiteral("iec:contact-nc"));
+    CHECK(orphelins == 0);
+
+    const auto *apres =
+            dynamic_cast<const SymbolInstance *>(folio->entity(contact->id()));
+    REQUIRE(apres);
+    CHECK(apres->definitionId == QStringLiteral("iec:contact-nc"));
+    CHECK(apres->designation() == QStringLiteral("-K1")); // le repère survit
+    CHECK(apres->placement.position == avant);            // la position aussi
+
+    // Et le fil tient toujours à une broche : c'est le point qui décide si le
+    // circuit est encore raccordé.
+    const SymbolDefinition *neuf = document.project().library.definition(apres->definitionId);
+    REQUIRE(neuf);
+    bool raccorde = false;
+    for (const Pin &pin : neuf->pins) {
+        if (samePoint(apres->placement.map(pin.position), fil->points.last()))
+            raccorde = true;
+    }
+    CHECK(raccorde);
+
+    // Une seule annulation défait tout : le symbole ET le fil qui l'a suivi.
+    document.undo();
+    const auto *revenu = dynamic_cast<const SymbolInstance *>(folio->entity(contact->id()));
+    REQUIRE(revenu);
+    CHECK(revenu->definitionId == QStringLiteral("iec:contact-no"));
+    CHECK(fil->points.last() == gauche);
+}
+
+TEST_CASE("Remplacer dans tout le dossier tient dans une annulation",
+          "[ui][findreplace]")
+{
+    // C'est ce qui rend le geste sans risque : on essaie sur quarante
+    // occurrences, on regarde, Ctrl+Z. Deux annulations pour défaire un
+    // remplacement seraient un piège.
+    Document document;
+    document.newProject(builtinLibrary());
+    Folio *premier = document.currentFolio();
+    premier->number = QStringLiteral("1");
+    auto *k1 = placeSymbol(document.project(), premier, QStringLiteral("iec:coil"),
+                           QPointF(60, 60), QStringLiteral("-KM1"));
+    k1->fields.insert(QStringLiteral("value"), QStringLiteral("bobine KM1"));
+    Folio *second = document.project().addFolio(QStringLiteral("Commande"));
+    second->number = QStringLiteral("2");
+    placeSymbol(document.project(), second, QStringLiteral("iec:coil"), QPointF(60, 60),
+                QStringLiteral("-KM1"));
+
+    FindReplaceDialog dialog(&document);
+    dialog.setNeedle(QStringLiteral("KM1"));
+    CHECK(dialog.runSearch() == 3); // deux repères et un champ, sur deux folios
+
+    // Sans texte de remplacement, la boîte ne fait que chercher.
+    CHECK(dialog.runReplaceAll() == 0);
+
+    dialog.findChild<QLineEdit *>()->setText(QStringLiteral("KM1"));
+    const auto champs = dialog.findChildren<QLineEdit *>();
+    REQUIRE(champs.size() >= 2);
+    champs.at(1)->setText(QStringLiteral("KM9"));
+    CHECK(dialog.runReplaceAll() == 3);
+
+    const auto *apres = dynamic_cast<const SymbolInstance *>(premier->entity(k1->id()));
+    REQUIRE(apres);
+    CHECK(apres->designation() == QStringLiteral("-KM9"));
+    CHECK(apres->fields.value(QStringLiteral("value")) == QStringLiteral("bobine KM9"));
+    // Le repère remplacé est verrouillé : sans cela la prochaine régénération
+    // le recalcule et le remplacement disparaît sans un mot.
+    CHECK(apres->designationLocked);
+
+    document.undo();
+    const auto *revenu = dynamic_cast<const SymbolInstance *>(premier->entity(k1->id()));
+    REQUIRE(revenu);
+    CHECK(revenu->designation() == QStringLiteral("-KM1"));
+    CHECK(revenu->fields.value(QStringLiteral("value")) == QStringLiteral("bobine KM1"));
 }
 
 TEST_CASE("La rotation depuis le canevas est annulable", "[ui][view]")

@@ -478,3 +478,168 @@ TEST_CASE("Deux fils tirant dans des axes differents ne donnent pas d'axe",
 
     CHECK_FALSE(ComponentTools::scootAxis(*folio, project.library, *symbol).has_value());
 }
+
+TEST_CASE("Retirer un appareil referme le fil", "[commands][component][heal]")
+{
+    // L'insertion coupe et rebranche ; la suppression doit recoudre. Sans
+    // cela, effacer un contact laisse deux fils qui pointent vers du vide :
+    // le dessin paraît juste et le circuit est ouvert — l'erreur ne se voit
+    // qu'au câblage.
+    SymbolInstance *symbol = nullptr;
+    Wire *left = nullptr;
+    Wire *right = nullptr;
+    Project project = wiredDevice(&symbol, &left, &right);
+    Folio *folio = project.folioAt(0);
+
+    const auto heal = ComponentTools::healOnRemoval(*folio, project.library, *symbol);
+    REQUIRE(heal);
+    // Les deux morceaux redeviennent un fil qui va d'un bout à l'autre...
+    CHECK(heal->points.first() == QPointF(40, 60));
+    CHECK(heal->points.last() == QPointF(180, 60));
+    // ...et sans sommet inutile : les deux points de broche étaient alignés
+    // avec leurs voisins, un coude fantôme se verrait au premier déplacement.
+    CHECK(heal->points.size() == 2);
+    CHECK(((heal->keepWireId == left->id() && heal->removeWireId == right->id())
+           || (heal->keepWireId == right->id() && heal->removeWireId == left->id())));
+}
+
+TEST_CASE("Le fil recousu garde le repère saisi à la main", "[commands][component][heal]")
+{
+    // Le fil recousu est le même conducteur qu'avant la pose de l'appareil :
+    // il doit en garder le nom, et c'est le nom saisi à la main qui compte.
+    SymbolInstance *symbol = nullptr;
+    Wire *left = nullptr;
+    Wire *right = nullptr;
+    Project project = wiredDevice(&symbol, &left, &right);
+    Folio *folio = project.folioAt(0);
+    right->number = QStringLiteral("L1");
+    right->numberLocked = true;
+
+    const auto heal = ComponentTools::healOnRemoval(*folio, project.library, *symbol);
+    REQUIRE(heal);
+    CHECK(heal->keepWireId == right->id());
+}
+
+TEST_CASE("On ne recoud pas deux types de fils différents", "[commands][component][heal]")
+{
+    // Même règle que JOINDRE : souder deux types ferait disparaître une
+    // couleur — donc une section — sans que rien ne le dise.
+    SymbolInstance *symbol = nullptr;
+    Wire *left = nullptr;
+    Wire *right = nullptr;
+    Project project = wiredDevice(&symbol, &left, &right);
+    Folio *folio = project.folioAt(0);
+    right->wireType = QStringLiteral("commande");
+
+    CHECK_FALSE(ComponentTools::healOnRemoval(*folio, project.library, *symbol).has_value());
+}
+
+TEST_CASE("Effacer tout un départ ne recoud rien", "[commands][component][heal]")
+{
+    // Effacer l'appareil ET ses fils dans le même geste : recoudre des fils
+    // qu'on est en train d'effacer produirait un fil ressuscité.
+    SymbolInstance *symbol = nullptr;
+    Wire *left = nullptr;
+    Wire *right = nullptr;
+    Project project = wiredDevice(&symbol, &left, &right);
+    Folio *folio = project.folioAt(0);
+
+    const QSet<QString> partent = { symbol->id(), left->id(), right->id() };
+    CHECK_FALSE(ComponentTools::healOnRemoval(*folio, project.library, *symbol, partent)
+                        .has_value());
+}
+
+namespace {
+
+// Un second appareil deux bornes, aux broches ailleurs : c'est ce décalage
+// qui rend le test lisible — si les fils ne suivent pas, ils restent où ils
+// étaient et l'appareil est débranché en silence.
+SymbolDefinition otherTwoPinDevice(const QString &logicalId, double dx,
+                                   const QString &firstNumber = QStringLiteral("1"),
+                                   const QString &secondNumber = QStringLiteral("2"))
+{
+    SymbolDefinition def = twoPinDevice(logicalId, QStringLiteral("K"));
+    def.pins[0].position = QPointF(-dx, 0.0);
+    def.pins[0].number = firstNumber;
+    def.pins[1].position = QPointF(dx, 0.0);
+    def.pins[1].number = secondNumber;
+    return def;
+}
+
+} // namespace
+
+TEST_CASE("Remplacer un symbole fait suivre les fils", "[commands][component][swap]")
+{
+    // Sans ce geste il faut effacer, reposer, retaper le repère et refaire les
+    // fils — et c'est en refaisant les fils qu'on débranche un circuit sans
+    // le voir. Les extrémités doivent donc suivre les broches neuves.
+    SymbolInstance *symbol = nullptr;
+    Wire *left = nullptr;
+    Wire *right = nullptr;
+    Project project = wiredDevice(&symbol, &left, &right);
+    Folio *folio = project.folioAt(0);
+    project.library.insert(otherTwoPinDevice(QStringLiteral("autre"), 8.0));
+
+    const auto plan = ComponentTools::planSwap(*folio, project.library, *symbol,
+                                               QStringLiteral("iec:autre"));
+    REQUIRE(plan.valid);
+    CHECK(plan.orphaned == 0);
+    REQUIRE(plan.moves.size() == 2);
+
+    // Broches à ±8 au lieu de ±5 : les deux extrémités se déplacent de 3 mm.
+    QSet<double> cibles;
+    for (const auto &move : plan.moves)
+        cibles.insert(move.to.x());
+    CHECK(cibles.contains(92.0));
+    CHECK(cibles.contains(108.0));
+}
+
+TEST_CASE("Les broches s'apparient par numéro, pas par distance",
+          "[commands][component][swap]")
+{
+    // Un 13/14 reste un 13/14 quel que soit le dessin du symbole : c'est le
+    // seul appariement qui ait un sens électrique. Ici les numéros sont
+    // inversés dans l'espace — apparier par distance laisserait chaque fil sur
+    // place et raccorderait la borne 1 sur la 2 sans que rien ne le dise.
+    SymbolInstance *symbol = nullptr;
+    Wire *left = nullptr;
+    Wire *right = nullptr;
+    Project project = wiredDevice(&symbol, &left, &right);
+    Folio *folio = project.folioAt(0);
+    project.library.insert(otherTwoPinDevice(QStringLiteral("inverse"), 5.0,
+                                             QStringLiteral("2"), QStringLiteral("1")));
+
+    const auto plan = ComponentTools::planSwap(*folio, project.library, *symbol,
+                                               QStringLiteral("iec:inverse"));
+    REQUIRE(plan.valid);
+    REQUIRE(plan.moves.size() == 2);
+    // Le fil de gauche tenait à la borne « 1 », qui est maintenant à droite.
+    for (const auto &move : plan.moves) {
+        if (move.wireId == left->id())
+            CHECK(move.to.x() == 105.0);
+        else
+            CHECK(move.to.x() == 95.0);
+    }
+}
+
+TEST_CASE("Une extrémité sans broche correspondante est comptée",
+          "[commands][component][swap]")
+{
+    // Un fil qu'aucune broche neuve ne reprend reste où il est. Le compter
+    // permet de le DIRE : un fil en l'air ne se voit pas sur le tracé, il se
+    // découvre au câblage.
+    SymbolInstance *symbol = nullptr;
+    Wire *left = nullptr;
+    Wire *right = nullptr;
+    Project project = wiredDevice(&symbol, &left, &right);
+    Folio *folio = project.folioAt(0);
+
+    SymbolDefinition seule = twoPinDevice(QStringLiteral("borne"), QStringLiteral("X"));
+    seule.pins.remove(1); // une seule borne
+    project.library.insert(seule);
+
+    const auto plan = ComponentTools::planSwap(*folio, project.library, *symbol,
+                                               QStringLiteral("iec:borne"));
+    REQUIRE(plan.valid);
+    CHECK(plan.orphaned == 1);
+}

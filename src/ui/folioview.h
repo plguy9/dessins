@@ -178,6 +178,12 @@ public:
     bool hasSelection() const { return !m_selection.isEmpty(); }
 
     void deleteSelection();
+
+    // Remplace la definition d'un symbole pose sans le debrancher : le
+    // repere, les champs, la position et les raccordements sont gardes.
+    // Renvoie le nombre d'extremites de fil qu'aucune broche neuve n'a
+    // reprises — zero quand tout a suivi.
+    int swapSymbol(const QString &entityId, const QString &newDefinitionId);
     void rotateSelection(bool clockwise);
 
     // DEPLACER : un point de base puis un point d'arrivee, comme MOVE. Le

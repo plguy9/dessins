@@ -10,6 +10,7 @@
 #include "folio.h"
 #include "symbollibrary.h"
 
+#include <QSet>
 #include <QVector>
 
 #include <optional>
@@ -56,6 +57,52 @@ public:
     static std::optional<WireSplit> splitForInsertion(const Folio &folio,
                                                       const SymbolLibrary &library,
                                                       const SymbolInstance &symbol);
+
+    // Recouture du fil au retrait d'un appareil. C'est le symetrique exact de
+    // splitForInsertion : poser un appareil de passage sur un fil le coupe et
+    // le rebranche, l'enlever doit refermer le trace. Sans cela, effacer un
+    // contact laisse deux fils qui pointent vers du vide — le dessin parait
+    // juste et le circuit est ouvert.
+    struct WireHeal {
+        QString keepWireId;      // le fil qui survit, avec son repere et son type
+        QString removeWireId;    // celui qui est absorbe
+        QVector<QPointF> points; // le trace recousu
+    };
+
+    // La recouture a faire en retirant ce symbole, ou rien. `alsoRemoved`
+    // porte ce qui part dans le meme geste : effacer un depart entier ne doit
+    // pas recoudre des fils qu'on est en train d'effacer aussi.
+    static std::optional<WireHeal> healOnRemoval(const Folio &folio, const SymbolLibrary &library,
+                                                 const SymbolInstance &symbol,
+                                                 const QSet<QString> &alsoRemoved = {});
+
+    // Remplacer un symbole pose, sans le debrancher.
+    //
+    // Un contact NO devient un contact NF, un disjoncteur change de calibre :
+    // le geste existe chez AutoCAD Electrical, et sans lui il faut effacer,
+    // reposer, retaper le repere et refaire les fils. Trois choses sont
+    // gardees, et ce sont les trois qu'on perdrait a la main : le REPERE et
+    // les champs, la POSITION avec son orientation, et les RACCORDEMENTS.
+    struct PinMove {
+        QString wireId;
+        int vertex = 0;
+        QPointF to;
+    };
+
+    struct SwapPlan {
+        bool valid = false;       // faux si une des deux definitions manque
+        QVector<PinMove> moves;   // extremites de fil a suivre
+        int orphaned = 0;         // extremites qu'aucune broche neuve ne reprend
+    };
+
+    // Ce qu'il faut deplacer pour que ce symbole devienne `newDefinitionId`.
+    // L'appariement des broches se fait d'abord par NUMERO — un 13/14 reste un
+    // 13/14 quel que soit le dessin — puis, a defaut, par la broche neuve la
+    // plus proche de l'ancienne. Une extremite qu'aucune broche ne reprend est
+    // comptee, jamais deplacee au hasard : il vaut mieux le dire que laisser
+    // le dessinateur decouvrir un fil en l'air.
+    static SwapPlan planSwap(const Folio &folio, const SymbolLibrary &library,
+                             const SymbolInstance &symbol, const QString &newDefinitionId);
 
     // Projette un deplacement sur l'axe : Scoot ne bouge que le long du fil,
     // c'est ce qui l'empeche de detacher l'appareil de son circuit.

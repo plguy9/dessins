@@ -88,6 +88,7 @@ public:
         ZoomIn, ZoomOut, ZoomFit, Grid, Snap, Tracking, Palette2,
         Renumber, Check, Info, Palette, Folios, Properties, Reports,
         Scale, Stretch, Array, Align, Trim, Extend,
+        SwapSymbol, Find,
         Line, Rectangle, Circle, Arc, Polyline,
         // Les styles de trait des formes : le contour d'une armoire se dessine
         // en pointille, et il faut pouvoir le choisir d'un coup d'oeil.

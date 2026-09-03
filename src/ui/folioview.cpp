@@ -818,12 +818,89 @@ void FolioView::deleteSelection()
     if (!folio || m_selection.isEmpty())
         return;
     const QStringList ids(m_selection.cbegin(), m_selection.cend());
+    // Poser un appareil de passage sur un fil le coupe et le rebranche ;
+    // l'enlever doit refermer le trace. Sans cela, effacer un contact laisse
+    // deux fils qui pointent vers du vide : le dessin parait juste et le
+    // circuit est ouvert. La recouture est calculee AVANT la suppression, sur
+    // la geometrie encore en place, et elle entre dans la meme macro — une
+    // seule annulation defait le tout.
+    int recousus = 0;
     m_document->pushMacro(tr("Supprimer %n élément(s)", "", int(ids.size())), [&] {
+        for (const QString &id : ids) {
+            const auto *symbol = dynamic_cast<const SymbolInstance *>(folio->entity(id));
+            if (!symbol)
+                continue;
+            const auto heal = ComponentTools::healOnRemoval(*folio, m_document->project().library,
+                                                            *symbol, m_selection);
+            if (!heal)
+                continue;
+            const auto *keep = dynamic_cast<const Wire *>(folio->entity(heal->keepWireId));
+            if (!keep)
+                continue;
+            auto after = std::make_unique<Wire>(*keep);
+            after->points = heal->points;
+            m_document->push(std::make_unique<ModifyEntityCommand>(
+                    m_document->project(), folio->id(), keep->clone(), std::move(after),
+                    tr("Refermer le fil")));
+            m_document->push(std::make_unique<RemoveEntityCommand>(
+                    m_document->project(), folio->id(), heal->removeWireId,
+                    tr("Refermer le fil")));
+            ++recousus;
+        }
         for (const QString &id : ids)
             m_document->push(std::make_unique<RemoveEntityCommand>(m_document->project(),
                                                                    folio->id(), id));
     });
+    if (recousus > 0)
+        Q_EMIT statusMessage(tr("%n fil(s) refermé(s) sur l'appareil retiré.", "", recousus));
     clearSelection();
+}
+
+int FolioView::swapSymbol(const QString &entityId, const QString &newDefinitionId)
+{
+    Folio *folio = m_document->currentFolio();
+    if (!folio)
+        return 0;
+    const auto *symbol = dynamic_cast<const SymbolInstance *>(folio->entity(entityId));
+    if (!symbol || symbol->definitionId == newDefinitionId)
+        return 0;
+    const SymbolLibrary &library = m_document->project().library;
+    const SymbolDefinition *neuf = library.definition(newDefinitionId);
+    if (!neuf)
+        return 0;
+
+    // Le plan est calcule AVANT toute modification, sur la geometrie en
+    // place : une fois la definition changee, les anciennes broches n'existent
+    // plus et on ne saurait plus ou les fils tenaient.
+    const auto plan = ComponentTools::planSwap(*folio, library, *symbol, newDefinitionId);
+
+    m_document->pushMacro(tr("Remplacer le symbole"), [&] {
+        auto apres = std::make_unique<SymbolInstance>(*symbol);
+        apres->definitionId = newDefinitionId;
+        apres->setLocalBounds(neuf->bounds());
+        // Le repere et les champs ne sont PAS touches : c'est tout l'interet
+        // du geste, et l'invariant « ce que l'utilisateur a saisi n'est jamais
+        // ecrase » l'exige. Un contact qui devient un contact NF reste -K1.
+        m_document->push(std::make_unique<ModifyEntityCommand>(
+                m_document->project(), folio->id(), symbol->clone(), std::move(apres),
+                tr("Remplacer le symbole")));
+
+        for (const auto &move : plan.moves) {
+            const auto *wire = dynamic_cast<const Wire *>(folio->entity(move.wireId));
+            if (!wire || move.vertex >= wire->points.size())
+                continue;
+            auto apresFil = std::make_unique<Wire>(*wire);
+            apresFil->points[move.vertex] = move.to;
+            m_document->push(std::make_unique<ModifyEntityCommand>(
+                    m_document->project(), folio->id(), wire->clone(), std::move(apresFil),
+                    tr("Suivre la broche")));
+        }
+    });
+
+    // Pas de componentPlaced ici : ce signal ouvre la boite du composant quand
+    // le reglage l'exige, et remplacer un symbole n'est pas une pose.
+    update();
+    return plan.orphaned;
 }
 
 void FolioView::rotateSelection(bool clockwise)

@@ -101,6 +101,8 @@ private:
     void editComponent(const QString &entityId, bool insertion);
     void editSelectedComponent();
     void surfSelection();
+    void showFindReplace(const QString &needle = QString());
+    void swapSelectedSymbol();
     void editTerminalStrips();
     // Modification : le groupe « Modifier » du ruban d'AutoCAD.
     void arraySelection();
@@ -228,6 +230,8 @@ private:
     QAction *m_stretchAction = nullptr;
     QAction *m_editComponentAction = nullptr;
     QAction *m_scaleAction = nullptr;
+    QAction *m_findAction = nullptr;
+    QAction *m_swapSymbolAction = nullptr;
     QAction *m_arrayAction = nullptr;
     QAction *m_joinAction = nullptr;
     QAction *m_busAction = nullptr;

@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 
+#include "findreplacedialog.h"
 #include "folionavigator.h"
 #include "io/csvexport.h"
 #include "io/dsnfile.h"
@@ -23,6 +24,7 @@
 #include "symbolpalette.h"
 #include "componentdialog.h"
 #include "surferdialog.h"
+#include "symbolswapdialog.h"
 #include "appearance.h"
 #include "dockrail.h"
 #include "docktitle.h"
@@ -476,6 +478,13 @@ void MainWindow::createActions()
                              [this] { m_view->pasteClipboard(true); }, Need::Clipboard);
     m_deleteAction = make(editMenu, G::Delete, tr("&Supprimer"), QKeySequence::Delete,
                           tr("Supprimer la sélection"), [this] { m_view->deleteSelection(); }, Need::AnyEntity);
+    // Rechercher / remplacer dans tout le dossier. Ctrl+F et Ctrl+H ouvrent la
+    // meme boite : le champ « Remplacer par » decide de ce qu'elle fait, et
+    // deux boites pour un seul travail se contrediraient tot ou tard.
+    m_findAction = make(editMenu, G::Find, tr("&Rechercher / remplacer…"),
+                        QKeySequence::Find,
+                        tr("Chercher un texte dans tout le dossier, et le remplacer"),
+                        [this] { showFindReplace(); }, Need::Always);
     m_selectAllAction = make(editMenu, G::Select, tr("&Tout sélectionner"),
                              QKeySequence::SelectAll, QString(), [this] { m_view->selectAll(); }, Need::AnyEntity);
 
@@ -508,6 +517,14 @@ void MainWindow::createActions()
                           QKeySequence(Qt::Key_O),
                           tr("Copier un fil parallèlement, à une distance donnée"),
                           [this] { offsetSelection(); }, Need::AnyWire);
+    // Remplacer un symbole pose : le Swap Block d'AutoCAD Electrical. Sans lui
+    // il faut effacer, reposer, retaper le repere et refaire les fils — et
+    // c'est en refaisant les fils qu'on debranche un circuit sans le voir.
+    m_swapSymbolAction = make(modifyMenu, G::SwapSymbol, tr("Remplacer le s&ymbole…"),
+                              QKeySequence(),
+                              tr("Échanger le symbole en gardant son repère, sa position "
+                                 "et ses raccordements"),
+                              &MainWindow::swapSelectedSymbol, Need::AnySymbol);
     m_arrayAction = make(modifyMenu, G::Array, tr("&Réseau…"), QKeySequence(),
                          tr("Une matrice de copies, en lignes et colonnes ou autour "
                             "d'un centre"),
@@ -1061,6 +1078,80 @@ void MainWindow::surfSelection()
         return;
     }
     dialog.exec();
+}
+
+void MainWindow::showFindReplace(const QString &needle)
+{
+    FindReplaceDialog dialog(m_document, this);
+    connect(&dialog, &FindReplaceDialog::locateRequested, this, &MainWindow::locate);
+    QString depart = needle;
+    if (depart.isEmpty()) {
+        // Ce qui est designe part dans le champ : chercher le repere qu'on a
+        // sous les yeux est le cas courant, et le retaper est une corvee.
+        for (const QString &id : m_view->selection()) {
+            if (const auto *symbol = dynamic_cast<const SymbolInstance *>(
+                        m_document->project().findEntity(id))) {
+                depart = symbol->designation();
+            } else if (const auto *text = dynamic_cast<const TextItem *>(
+                               m_document->project().findEntity(id))) {
+                depart = text->text;
+            }
+            if (!depart.isEmpty())
+                break;
+        }
+    }
+    dialog.setNeedle(depart);
+    dialog.exec();
+    m_view->update();
+    m_reports->refresh();
+}
+
+void MainWindow::swapSelectedSymbol()
+{
+    QString cible;
+    for (const QString &id : m_view->selection()) {
+        if (dynamic_cast<const SymbolInstance *>(m_document->project().findEntity(id))) {
+            cible = id;
+            break;
+        }
+    }
+    if (cible.isEmpty()) {
+        // La commande ne refuse pas : elle demande. C'est la regle du bloc A.
+        m_view->requestSelection(tr("Remplacer : désignez le symbole à échanger"),
+                                 FolioView::PickFilter::Symbols, 1,
+                                 [this] { swapSelectedSymbol(); });
+        return;
+    }
+
+    const auto *symbol =
+            dynamic_cast<const SymbolInstance *>(m_document->project().findEntity(cible));
+    if (!symbol)
+        return;
+
+    SymbolSwapDialog dialog(&m_document->project().library, m_document->profile().norm,
+                            symbol->definitionId, symbol->designation(), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    const QString neuf = dialog.chosenDefinitionId();
+    if (neuf.isEmpty()) {
+        report(tr("Remplacer : aucun autre symbole choisi"));
+        return;
+    }
+
+    const int orphelins = m_view->swapSymbol(cible, neuf);
+    m_palette->noteUsed(neuf);
+    m_document->invalidateNetlist();
+    if (orphelins > 0) {
+        // Un fil qu'aucune broche neuve ne reprend reste ou il est. Le dire
+        // est le minimum : un fil en l'air ne se voit pas sur le trace, il se
+        // decouvre au cablage.
+        reportError(tr("Symbole remplacé — %n extrémité(s) de fil sans broche "
+                       "correspondante, à reprendre.",
+                       "", orphelins));
+    } else {
+        report(tr("Symbole remplacé — repère, position et raccordements conservés."));
+    }
+    m_view->update();
 }
 
 void MainWindow::editTerminalStrips()
@@ -1831,6 +1922,13 @@ void MainWindow::registerCommands()
     simple(QStringLiteral("REPARTIR"), { QStringLiteral("REP") },
            tr("Répartir la sélection horizontalement, à pas égal"),
            [this] { alignSelection(AlignMode::DistributeHorizontally); });
+    simple(QStringLiteral("RECHERCHER"),
+           { QStringLiteral("RH"), QStringLiteral("REMPLACER"), QStringLiteral("RP") },
+           tr("Chercher un texte dans tout le dossier, et le remplacer"),
+           [this] { showFindReplace(); });
+    simple(QStringLiteral("REMPLACERSYMBOLE"), { QStringLiteral("RS") },
+           tr("Échanger un symbole en gardant repère, position et raccordements"),
+           [this] { swapSelectedSymbol(); });
     simple(QStringLiteral("ETIRER"), { QStringLiteral("ETI") },
            tr("Étirer les sommets pris dans une fenêtre de capture"),
            [this] { m_view->beginStretch(); });
@@ -2228,6 +2326,7 @@ void MainWindow::createRibbon()
         { "Accueil", "Modification", false, "Étirer", "" },
         { "Accueil", "Modification", false, "Décaler", "" },
         { "Accueil", "Modification", false, "Réseau", "" },
+        { "Accueil", "Modification", false, "Remplacer le symbole", "" },
         { "Accueil", "Modification", false, "Copier les propriétés", "" },
 
         { "Accueil", "Dessin", false, "Ligne", "" },
@@ -2263,6 +2362,7 @@ void MainWindow::createRibbon()
         // ---- Annoter ----------------------------------------------------
         { "Annoter", "Texte", true, "Texte", "Texte" },
         { "Annoter", "Texte", false, "Étiquette", "" },
+        { "Annoter", "Texte", false, "Rechercher / remplacer", "" },
         { "Annoter", "Renvois", false, "Étiquette de potentiel", "" },
         { "Annoter", "Renvois", false, "Renvoi de folio", "" },
         { "Annoter", "Renvois", false, "Flèche de signal — source", "" },

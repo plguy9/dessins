@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "rules/catalog.h"
+#include "rules/findreplace.h"
 #include "rules/numbering.h"
 #include "rules/reports.h"
 #include "symbols/librarystore.h"
@@ -890,4 +891,87 @@ TEST_CASE("Le bornier se remplit, il ne se renumérote pas", "[rules][bornier]")
     CHECK(numero(pose1) == QStringLiteral("1"));
     CHECK(numero(neuve) == QStringLiteral("2"));
     CHECK(numero(pose3) == QStringLiteral("3"));
+}
+
+// --------------------------------------------------------------------------
+// Rechercher / remplacer dans tout le dossier
+
+TEST_CASE("La recherche traverse le dossier et dit où", "[rules][findreplace]")
+{
+    // Le cas réel : l'affaire change de numéro, et le texte est écrit sur
+    // plusieurs folios. Une liste qui dit « 3 occurrences » sans dire où coûte
+    // plus de temps qu'elle n'en fait gagner — d'où le folio et la zone.
+    Project project = makeProject(2);
+    auto *k1 = placeSymbol(project, project.folioAt(0), QStringLiteral("iec:contactor"),
+                           QPointF(60, 60), QStringLiteral("-KM1"));
+    k1->fields.insert(QStringLiteral("value"), QStringLiteral("KM1 24 V"));
+    placeSymbol(project, project.folioAt(1), QStringLiteral("iec:breaker"), QPointF(60, 60),
+                QStringLiteral("-KM10"));
+
+    FindQuery query;
+    query.needle = QStringLiteral("KM1");
+    const auto hits = FindReplace::find(project, query);
+    // -KM1, son champ valeur, et -KM10 du second folio.
+    REQUIRE(hits.size() == 3);
+    CHECK_FALSE(hits.at(0).zone.isEmpty());
+    CHECK(hits.at(0).folioLabel.startsWith(QStringLiteral("1")));
+    CHECK(hits.at(2).folioLabel.startsWith(QStringLiteral("2")));
+
+    // La portée est celle des rapports : un seul point de filtrage.
+    query.scope.folioId = project.folioAt(0)->id();
+    CHECK(FindReplace::find(project, query).size() == 2);
+}
+
+TEST_CASE("« Mot entier » ne prend pas -KM10 pour -KM1", "[rules][findreplace]")
+{
+    // Sans cette option, renommer KM1 en KM7 transforme KM10 en KM70 : le
+    // dossier devient faux d'un seul clic, et l'erreur ne se voit nulle part.
+    FindQuery query;
+    query.needle = QStringLiteral("KM1");
+    query.replacement = QStringLiteral("KM7");
+    CHECK(FindReplace::replaced(QStringLiteral("-KM10"), query) == QStringLiteral("-KM70"));
+
+    query.wholeWord = true;
+    CHECK(FindReplace::replaced(QStringLiteral("-KM10"), query) == QStringLiteral("-KM10"));
+    CHECK(FindReplace::replaced(QStringLiteral("-KM1"), query) == QStringLiteral("-KM7"));
+}
+
+TEST_CASE("La recherche ne prend pas le point pour un joker", "[rules][findreplace]")
+{
+    // « Mot entier » passe par une expression régulière : le motif doit être
+    // échappé, sinon un repère qui contient un point se met à tout attraper.
+    FindQuery query;
+    query.needle = QStringLiteral("A.1");
+    query.wholeWord = true;
+    CHECK(FindReplace::matches(QStringLiteral("A.1"), query));
+    CHECK_FALSE(FindReplace::matches(QStringLiteral("AB1"), query));
+}
+
+TEST_CASE("Chercher une chaîne vide ne renvoie pas tout le dossier",
+          "[rules][findreplace]")
+{
+    // Ce ne serait pas une recherche mais un inventaire, et personne ne l'a
+    // demandé — surtout suivi d'un « Remplacer tout ».
+    Project project = makeProject(1);
+    placeSymbol(project, project.folioAt(0), QStringLiteral("iec:contactor"), QPointF(60, 60),
+                QStringLiteral("-KM1"));
+    FindQuery query;
+    CHECK(FindReplace::find(project, query).isEmpty());
+}
+
+TEST_CASE("On ne cherche que dans les gisements demandés", "[rules][findreplace]")
+{
+    // Renommer tous les « M1 » d'un dossier ne doit pas toucher la phrase
+    // « alimentation M1 » d'une annotation si on ne l'a pas demandé.
+    Project project = makeProject(1);
+    auto *k1 = placeSymbol(project, project.folioAt(0), QStringLiteral("iec:contactor"),
+                           QPointF(60, 60), QStringLiteral("-KM1"));
+    k1->fields.insert(QStringLiteral("value"), QStringLiteral("bobine KM1"));
+
+    FindQuery query;
+    query.needle = QStringLiteral("KM1");
+    query.inFields = false;
+    const auto hits = FindReplace::find(project, query);
+    REQUIRE(hits.size() == 1);
+    CHECK(hits.at(0).where == QStringLiteral("Repere"));
 }

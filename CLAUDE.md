@@ -926,6 +926,24 @@ réapplique le glyphe au changement de thème, si bien qu'une action construite
 avec la bonne icône mais **enregistrée avec une autre** retrouvait l'icône
 d'une voisine au premier basculement de thème — sans que rien ne le signale.
 
+### L'essai du bloc C
+
+Les quatre commandes ont été conduites **à la main** (`tests/test_essai.cpp`,
+`[essai][blocC]`) : ligne de commande, palette, clics, boîtes. 31 gestes,
+**0 boîte modale**, 0 accroc — le contact effacé referme son fil, le symbole
+remplacé garde son repère et ses raccordements, la recherche trouve ses
+occurrences, la cote mesure 150 et traverse le fichier.
+
+**Ce qu'il a trouvé.** Le menu et la palette de commandes disent
+« Supprimer », et la commande s'appelait `EFFACER` : taper le mot qu'on vient
+de lire répondait « commande inconnue ». C'est la règle 3 de la ligne de
+commande — *un bouton cliqué enseigne le nom à taper* — prise en défaut.
+`SUPPRIMER` est devenu un alias.
+
+```sh
+QT_QPA_PLATFORM=offscreen ./build/bin/arcus_ui_tests "[blocC]"
+```
+
 ## Ce qui a été retiré, et pourquoi (bloc A, 2026-09-02)
 
 Le logiciel avait 66 commandes de menu et une centaine d'entrées cliquables.

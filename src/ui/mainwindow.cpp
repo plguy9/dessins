@@ -1905,7 +1905,12 @@ void MainWindow::registerCommands()
            });
 
     // ---- edition ---------------------------------------------------------
-    simple(QStringLiteral("EFFACER"), { QStringLiteral("E"), QStringLiteral("SU") },
+    // SUPPRIMER est un alias, et ce n'est pas un luxe : le menu et la palette
+    // de commandes disent « Supprimer », et un bouton clique enseigne le nom a
+    // taper. Taper le mot qu'on vient de lire ne doit pas repondre « commande
+    // inconnue » — l'essai du bloc C l'a decouvert en le tapant.
+    simple(QStringLiteral("EFFACER"),
+           { QStringLiteral("E"), QStringLiteral("SU"), QStringLiteral("SUPPRIMER") },
            tr("Supprimer la sélection"), [this] { m_view->deleteSelection(); });
     simple(QStringLiteral("COPIER"), { QStringLiteral("CP"), QStringLiteral("CO") },
            tr("Copier la sélection"), [this] { m_view->copySelection(); });

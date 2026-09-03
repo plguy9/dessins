@@ -47,6 +47,7 @@
 #include "symbols/librarystore.h"
 #include "ui/commandline.h"
 #include "ui/document.h"
+#include "ui/findreplacedialog.h"
 #include "ui/folioview.h"
 #include "ui/mainwindow.h"
 #include "ui/symbolpalette.h"
@@ -954,4 +955,119 @@ TEST_CASE("Essai : un dossier de deux folios reliés, de bout en bout", "[essai]
     }
 
     CHECK(projet.folioCount() == 2);
+}
+
+// ==========================================================================
+// Essai du bloc C — les quatre commandes qui manquaient, conduites à la main
+//
+// Les tests d'unité disent que chaque pièce marche. Cet essai dit qu'on peut
+// s'en servir : il passe par la ligne de commande, la palette, les clics et
+// les boîtes, comme une main. C'est ce chemin-là qui a trouvé les défauts des
+// deux essais précédents, pas les tests d'unité.
+// ==========================================================================
+
+TEST_CASE("Essai : les quatre commandes du bloc C, à la main", "[essai][blocC]")
+{
+    Pupitre p;
+    QTextStream out(stdout);
+    out << "\n===== ESSAI BLOC C — les commandes qui manquaient =====\n";
+
+    p.vue()->zoomToFit();
+
+    // ---- C1 : effacer un composant referme le fil -----------------------
+    //
+    // On pose un contact, on le câble des deux côtés, on l'efface. Le circuit
+    // doit rester fermé — c'est le symétrique de l'insertion.
+    auto *contact = p.poser(QStringLiteral("contact"), QPointF(150, 100));
+    REQUIRE(contact);
+    const SymbolDefinition *def =
+            p.document()->project().library.definition(contact->definitionId);
+    REQUIRE(def);
+    REQUIRE(def->pins.size() >= 2);
+    const QPointF b1 = contact->placement.map(def->pins.at(0).position);
+    const QPointF b2 = contact->placement.map(def->pins.at(1).position);
+    p.fil({ QPointF(80, b1.y()), b1 });
+    p.fil({ b2, QPointF(220, b2.y()) });
+    REQUIRE(p.folio()->entitiesOfType<Wire>().size() == 2);
+
+    p.vue()->setSelection({ contact->id() });
+    p.commande(QStringLiteral("EFFACER"));
+    QApplication::processEvents();
+    const auto filsApres = p.folio()->entitiesOfType<Wire>();
+    if (filsApres.size() != 1)
+        p.accroc(QStringLiteral("Effacer le contact n'a pas referme le fil"));
+    REQUIRE(filsApres.size() == 1);
+    out << "C1 effacer et refermer : "
+        << filsApres.front()->points.first().x() << " -> "
+        << filsApres.front()->points.last().x() << " mm en un seul fil\n";
+    // Une seule annulation ramène tout.
+    p.touche(p.vue(), Qt::Key_Z, Qt::ControlModifier);
+    QApplication::processEvents();
+    CHECK(p.folio()->entitiesOfType<Wire>().size() == 2);
+    p.touche(p.vue(), Qt::Key_Y, Qt::ControlModifier);
+    QApplication::processEvents();
+
+    // ---- C2 : remplacer un symbole posé ---------------------------------
+    auto *bobine = p.poser(QStringLiteral("bobine"), QPointF(150, 180));
+    REQUIRE(bobine);
+    bobine->setDesignation(QStringLiteral("-KM1"));
+    const QString avant = bobine->definitionId;
+    const QPointF placeAvant = bobine->placement.position;
+
+    // La commande demande le symbole si rien n'est désigné : on désigne.
+    p.vue()->setSelection({ bobine->id() });
+    const int orphelins = p.vue()->swapSymbol(bobine->id(), QStringLiteral("iec:contact-nc"));
+    QApplication::processEvents();
+    const auto *echange =
+            dynamic_cast<const SymbolInstance *>(p.folio()->entity(bobine->id()));
+    REQUIRE(echange);
+    CHECK(echange->definitionId != avant);
+    CHECK(echange->designation() == QStringLiteral("-KM1"));
+    CHECK(echange->placement.position == placeAvant);
+    out << "C2 remplacer un symbole : repère et position gardés, "
+        << orphelins << " extrémité(s) en l'air\n";
+
+    // ---- C3 : rechercher / remplacer dans tout le dossier ---------------
+    p.texte(QPointF(60, 240), QStringLiteral("ARMOIRE KM1"), 3.5);
+    FindReplaceDialog boite(p.document(), &p.fenetre());
+    boite.setNeedle(QStringLiteral("KM1"));
+    const int trouves = boite.runSearch();
+    if (trouves < 2)
+        p.accroc(QStringLiteral("La recherche ne voit pas toutes les occurrences de KM1"));
+    out << "C3 rechercher KM1 : " << trouves << " occurrence(s)\n";
+
+    // ---- C4 : coter ------------------------------------------------------
+    //
+    // Trois clics par la commande, comme un dessinateur : la cote doit
+    // mesurer ce qu'on lui a désigné.
+    p.commande(QStringLiteral("COTATIONH"));
+    if (p.vue()->tool() != FolioView::Tool::Dimension)
+        p.accroc(QStringLiteral("La commande COTATIONH n'arme pas l'outil de cotation"));
+    p.clic(QPointF(80, 60));
+    p.clic(QPointF(230, 60));
+    p.clic(QPointF(150, 40));
+    QApplication::processEvents();
+    const auto cotes = p.folio()->entitiesOfType<DimensionItem>();
+    REQUIRE(cotes.size() == 1);
+    CHECK(cotes.front()->measure() == 150.0);
+    out << "C4 coter : " << cotes.front()->displayText() << " mm\n";
+
+    // Et le dossier tient le voyage, cotes comprises.
+    QTemporaryDir dossier;
+    const QString chemin = dossier.filePath(QStringLiteral("blocC.arcus"));
+    REQUIRE(DsnFile::save(chemin, p.document()->project()));
+    Project relu;
+    CHECK(DsnFile::load(chemin, relu).ok);
+    CHECK(relu.folioAt(0)->entitiesOfType<DimensionItem>().size() == 1);
+
+    out << "gestes              : " << p.gestes() << "\n";
+    out << "boites modales      : " << p.dialogues() << "\n";
+    out << "accrocs             :\n";
+    if (p.accrocs().isEmpty())
+        out << "   (aucun)\n";
+    for (const QString &a : p.accrocs())
+        out << "   - " << a << "\n";
+    out << "=======================================================\n";
+
+    CHECK(p.accrocs().isEmpty());
 }

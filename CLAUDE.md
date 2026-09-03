@@ -1090,6 +1090,58 @@ Ce qui manque encore, dans l'ordre où un dessinateur s'en apercevra :
 3. **Dire qu'un appareil ne porte pas de repère** : les contacts secs dessinés
    à l'intérieur d'un boîtier reçoivent un `-K` propre que rien ne demande.
 
+## Le schéma de boucle — ce que trois planches réelles ont montré (2026-09-03)
+
+L'utilisateur a fourni **trois planches de production** : deux d'un bureau
+d'études (1999), une d'un autre (2025). Le relevé complet est dans
+`docs/BOUCLES.md` — conventions seulement, aucune donnée client, et les
+planches ne sont pas versionnées.
+
+**Le constat qui compte.** Les trois sont des **schémas de boucle**
+(diagrammes de connexions) : une boucle d'instrumentation par feuille, du
+capteur au champ jusqu'à la carte d'automate. Arcus est bâti sur le modèle
+d'AutoCAD **Electrical** — échelle de commande, contacteurs, bobines. Le
+travail quotidien de l'utilisateur est un **autre document** : autre structure
+de page, autre bibliothèque, autres rapports. Seize ans et deux bureaux
+séparent la plus ancienne planche de la plus récente et la mise en page est la
+même : c'est une convention de métier, pas l'habitude d'un dessinateur.
+
+Rien n'est incompatible avec l'existant — fils, symboles, bornes, renvois et
+netlist servent tels quels. **Ce qui manque est au-dessus** : la structure de
+la planche et la bibliothèque.
+
+Les cinq manques, dans l'ordre de valeur (bloc D proposé, `docs/BOUCLES.md`) :
+
+1. **Les bandes de localisation.** La feuille est coupée en bandes verticales
+   nommées (`CHAMP` | `CABINET 037BJ0151`), chacune avec son bandeau. La bande
+   est à un schéma de boucle ce que l'échelle est à un schéma de commande, et
+   elle porte un sens : c'est la **localisation** de ce qu'elle contient, donc
+   les colonnes « de » et « vers » du rapport de câblage. L'appartenance se
+   **déduit de l'abscisse**, comme `Folio::zoneAt()` déduit la zone.
+   Au passage : **leur repérage de cadre va de droite à gauche et de bas en
+   haut** (zone A à droite, 1 en bas). Le sens doit devenir un réglage de
+   profil — tous les renvois du dossier en dépendent.
+2. **Le cartouche est une structure de données, pas un dessin.** Trois tables
+   qui grandissent (Cheminement, Références, Révisions — les lignes s'ajoutent
+   vers le haut), un sceau et un logo (des **images**, que nous ne savons pas
+   poser), et **quatre** lignes libres de description, pas trois.
+3. **La bibliothèque d'instrumentation** : la bulle ISA S5.1 et ses variantes
+   normatives (cercle nu = au champ, barré = façade de panneau, dans un carré =
+   système partagé), la borne à vis ⊘ avec sa borne de blindage, la boîte de
+   jonction en cadre pointillé nommé, vanne + positionneur + I/P, manomètres,
+   débitmètre.
+4. **Le câble n'est pas un fil.** `1PR#16CU`, `2PR#16CU`, `12PR#16CU` : n
+   paires, calibre AWG, blindage. Notre `WireType` porte une section en mm² et
+   rien de tout cela ; et la liste des **câbles** n'existe pas — or c'est le
+   câble qu'on commande, pas le fil.
+5. **Le nommage.** Le repère est `secteur + fonction ISA + boucle + suffixe`
+   (`022TT8917A`) — `tagFormat` ne sait pas le composer. Le conducteur porte
+   **sa couleur en lettre** (`(N)` noir, `(B)` blanc…) : c'est le code qui
+   s'imprime, et notre type de fil n'a qu'une teinte d'écran. L'adresse
+   d'automate est `%N04R07S07C016` (Nœud/Rack/Slot/Canal) — `rules/plc.*` n'a
+   pas la notion de **nœud**, pourtant écrite en toutes lettres à côté de
+   chaque carte.
+
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 
 0. Reste du relevé AutoCAD (`docs/AUTOCAD.md`) : gestionnaire de projet

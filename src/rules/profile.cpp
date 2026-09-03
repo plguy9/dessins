@@ -36,6 +36,21 @@ QString DesignationRule::effectiveFormat() const
     return mode == Mode::LineReference ? QStringLiteral("%X%F") : QStringLiteral("%F%N");
 }
 
+bool DesignationRule::usesNumber() const
+{
+    const QString pattern = effectiveFormat();
+    for (int i = 0; i + 1 < pattern.size(); ++i) {
+        if (pattern.at(i) != QLatin1Char('%'))
+            continue;
+        const QChar token = pattern.at(++i);
+        if (token == QLatin1Char('N'))
+            return true;
+        // « %% » est un pour-cent litteral : le second ne commence pas un
+        // jeton, et « %%N » n'est donc pas un numero.
+    }
+    return false;
+}
+
 QString DesignationRule::format(const DesignationContext &context) const
 {
     QString number = QString::number(context.number);
@@ -58,6 +73,8 @@ QString DesignationRule::format(const DesignationContext &context) const
         case u'X': out += context.lineReference; break;
         case u'I': out += context.installation; break;
         case u'L': out += context.location; break;
+        case u'C': out += context.sector; break;
+        case u'B': out += context.loop; break;
         case u'%': out += QLatin1Char('%'); break;
         // Un jeton inconnu est recopie tel quel : un format mal saisi doit
         // rester lisible, pas disparaitre silencieusement du repere.

@@ -799,7 +799,20 @@ void FolioPainter::paintWire(QPainter &painter, const Wire &wire) const
         }
     }
 
-    if (m_style.showWireNumbers && !wire.number.isEmpty()) {
+    // LE CODE COULEUR SE LIT SUR LA PLANCHE, pas seulement dans le rapport.
+    // C'est l'invariant « ce que le rapport imprime, le dessin le montre » :
+    // un cableur qui lit « (N) » sur sa liste doit le retrouver a cote du
+    // fil, sinon les deux documents se contredisent. Il ne s'ecrit que quand
+    // le type en porte un — un schema de commande n'en a pas, et rien ne
+    // change pour lui.
+    const QString label = [&] {
+        const QString tag = typed ? type.colorTag() : QString();
+        if (wire.number.isEmpty())
+            return tag;
+        return tag.isEmpty() ? wire.number : wire.number + QLatin1Char(' ') + tag;
+    }();
+
+    if (m_style.showWireNumbers && !label.isEmpty()) {
         const QPointF a = wire.points.at(0);
         const QPointF b = wire.points.at(1);
         const bool vertical = std::abs(b.y() - a.y()) > std::abs(b.x() - a.x());
@@ -808,7 +821,7 @@ void FolioPainter::paintWire(QPainter &painter, const Wire &wire) const
         // Le repere se pose a cote du fil, jamais dessus : il doit rester
         // lisible sur un folio dense.
         const QPointF at = vertical ? middle + QPointF(1.2, -0.8) : middle + QPointF(0.0, -1.2);
-        drawTextMm(painter, at, wire.number, m_style.wireNumberHeight,
+        drawTextMm(painter, at, label, m_style.wireNumberHeight,
                    vertical ? Primitive::Align::Left : Primitive::Align::Center);
     }
     painter.restore();

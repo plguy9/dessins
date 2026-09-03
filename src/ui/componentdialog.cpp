@@ -86,6 +86,15 @@ ComponentDialog::ComponentDialog(const Project &project, const SymbolInstance &s
     m_location = new QLineEdit(fieldOf(symbol, "location"), descBox);
     m_location->setPlaceholderText(tr("+  armoire, coffret, pupitre…"));
     descForm->addRow(tr("Emplacement"), m_location);
+    // Secteur et boucle : ce qui compose le repere d'un instrument
+    // (« 022TT8917A »). Ils ne servent qu'aux formats qui les demandent, et
+    // ne coutent rien a qui dessine un schema de commande.
+    m_sector = new QLineEdit(fieldOf(symbol, "sector"), descBox);
+    m_sector->setPlaceholderText(tr("%C  aire de l'usine — vide = celui de la planche"));
+    descForm->addRow(tr("Secteur"), m_sector);
+    m_loop = new QLineEdit(fieldOf(symbol, "loop"), descBox);
+    m_loop->setPlaceholderText(tr("%B  numéro de boucle, ex. 8917"));
+    descForm->addRow(tr("Boucle"), m_loop);
     layout->addWidget(descBox);
 
     // ---- catalogue -----------------------------------------------------
@@ -225,6 +234,8 @@ SymbolInstance ComponentDialog::result() const
     setField(out, "value", m_value->text());
     setField(out, "installation", m_installation->text());
     setField(out, "location", m_location->text());
+    setField(out, "sector", m_sector->text());
+    setField(out, "loop", m_loop->text());
     setField(out, "manufacturer", m_manufacturer->text());
     setField(out, "partNumber", m_partNumber->text());
     out.deviceGroup = m_parent->currentData().toString();

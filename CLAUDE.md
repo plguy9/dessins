@@ -1117,10 +1117,9 @@ Rien n'est incompatible avec l'existant — fils, symboles, bornes, renvois et
 netlist servent tels quels. **Ce qui manque est au-dessus** : la structure de
 la planche et la bibliothèque.
 
-Les cinq manques, dans l'ordre de valeur (bloc D proposé, `docs/BOUCLES.md`) :
-
-**D2 est fait** (voir « D2 — Le cartouche est une structure de données »).
-Restent :
+Les cinq manques, dans l'ordre de valeur (bloc D proposé, `docs/BOUCLES.md`).
+**Les cinq sont faits** — chacun a sa section plus bas. Ils restent listés ici
+parce que c'est le relevé d'origine :
 
 1. **Les bandes de localisation.** La feuille est coupée en bandes verticales
    nommées (`CHAMP` | `CABINET 037BJ0151`), chacune avec son bandeau. La bande
@@ -1130,27 +1129,63 @@ Restent :
    **déduit de l'abscisse**, comme `Folio::zoneAt()` déduit la zone.
    Au passage : **leur repérage de cadre va de droite à gauche et de bas en
    haut** (zone A à droite, 1 en bas). Le sens doit devenir un réglage de
-   profil — tous les renvois du dossier en dépendent.
+   profil — tous les renvois du dossier en dépendent. → D1
 2. **Le cartouche est une structure de données, pas un dessin.** Trois tables
    qui grandissent (Cheminement, Références, Révisions — les lignes s'ajoutent
    vers le haut), un sceau et un logo (des **images**, que nous ne savons pas
-   poser), et **quatre** lignes libres de description, pas trois.
+   poser), et **quatre** lignes libres de description, pas trois. → D2
 3. **La bibliothèque d'instrumentation** : la bulle ISA S5.1 et ses variantes
    normatives (cercle nu = au champ, barré = façade de panneau, dans un carré =
    système partagé), la borne à vis ⊘ avec sa borne de blindage, la boîte de
    jonction en cadre pointillé nommé, vanne + positionneur + I/P, manomètres,
-   débitmètre.
+   débitmètre. → D3
 4. **Le câble n'est pas un fil.** `1PR#16CU`, `2PR#16CU`, `12PR#16CU` : n
    paires, calibre AWG, blindage. Notre `WireType` porte une section en mm² et
    rien de tout cela ; et la liste des **câbles** n'existe pas — or c'est le
-   câble qu'on commande, pas le fil.
+   câble qu'on commande, pas le fil. → D4
 5. **Le nommage.** Le repère est `secteur + fonction ISA + boucle + suffixe`
    (`022TT8917A`) — `tagFormat` ne sait pas le composer. Le conducteur porte
    **sa couleur en lettre** (`(N)` noir, `(B)` blanc…) : c'est le code qui
    s'imprime, et notre type de fil n'a qu'une teinte d'écran. L'adresse
    d'automate est `%N04R07S07C016` (Nœud/Rack/Slot/Canal) — `rules/plc.*` n'a
    pas la notion de **nœud**, pourtant écrite en toutes lettres à côté de
-   chaque carte.
+   chaque carte. → D5
+
+### D1 — Les bandes de localisation (2026-09-03)
+
+Une planche de schéma de boucle est coupée en **bandes verticales nommées** —
+`CHAMP` | `BOÎTE DE JONCTION` | `CABINET 037BJ0151` — chacune coiffée de son
+bandeau. La bande est à ce document ce que l'échelle de commande est à un
+schéma de commande : la structure qui fait tenir la page.
+
+Elle porte surtout un **sens** : c'est la **localisation** de ce qu'elle
+contient. Un câbleur ne cherche pas la case du cadre, il cherche l'endroit où
+aller visser — d'où les colonnes « De / Emplacement » et « Vers /
+Emplacement » du rapport de câblage, qui n'apparaissent **que si le dossier a
+des bandes** : les ajouter partout donnerait deux colonnes vides à tous les
+schémas de commande.
+
+Quatre décisions :
+
+1. **L'appartenance se déduit de l'abscisse** (`Folio::bandAt`), exactement
+   comme `zoneAt()` déduit la zone. Rien n'est stocké sur l'entité : déplacer
+   un appareil d'une bande à l'autre change sa localisation, et c'est bien ce
+   qu'on veut — sinon le rapport dirait « CHAMP » pour un appareil qu'on
+   vient de tirer dans l'armoire.
+2. **La dernière bande s'étire jusqu'au bord droit du cadre**, quelle que soit
+   la largeur déclarée. Sans cela, changer de format de feuille laisserait une
+   lisière sans nom, et une entité posée dedans n'aurait pas de localisation.
+3. **Le sens du repérage du cadre est un réglage**
+   (`SheetFrame::columnsRightToLeft`, `rowsBottomToTop`). Les trois planches
+   relevées numérotent de droite à gauche et de bas en haut (zone A à droite,
+   1 en bas) — et **tous les renvois du dossier en dépendent** : `zoneAt()` et
+   `columnAt()` lisent les deux drapeaux, donc un renvoi, une référence de
+   ligne et un repère de fil suivent sans une ligne de code en plus.
+4. **Les bandes se saisissent en texte**, une par ligne, `nom = largeur`
+   (`PageSetupDialog::parseBands`, publique et pure pour qu'un test lise la
+   règle). Le **dernier** `=` sépare : une bande peut s'appeler
+   « CABINET = ARMOIRE 3 ». Une ligne sans `=` garde son nom et une largeur
+   par défaut — on tape d'abord les noms, on ajuste les largeurs ensuite.
 
 ### D2 — Le cartouche est une structure de données (2026-09-03)
 
@@ -1224,6 +1259,106 @@ dans `operator=`** — un commentaire le dit maintenant à cet endroit, et un te
 le tient.
 
 Menu Projet ▸ Cartouche du dossier, commande `CARTOUCHE` (alias `CA`).
+
+### D3 — La bibliothèque d'instrumentation (2026-09-03)
+
+`libraries/iec/instrumentation.json`, dix-huit symboles. La **bulle ISA
+S5.1** et ses variantes, qui sont aussi normatives que les formes des
+marqueurs d'accrochage : cercle nu = instrument au champ, barré d'un trait
+plein = façade de panneau, barré d'un trait pointillé = derrière le panneau,
+dans un carré = système partagé, losange = fonction d'automate. Avec elles la
+borne à vis ⊘ et sa borne de blindage, la boîte de jonction en cadre
+pointillé nommé, vanne + positionneur + convertisseur I/P, filtre-détendeur,
+manomètres, débitmètre magnétique, l'étiquette de câble en stade, et quatre
+symboles de ventilation.
+
+**Ce que ça a trouvé.** Quatre de ces symboles n'ont **aucune broche** — une
+étiquette de câble ne se raccorde pas, un manomètre non plus — et le test de
+cohérence de la bibliothèque refusait un symbole sans broche. La tentation
+était de relâcher le test ; c'est le contraire qui a été fait :
+`SymbolDefinition::noConnections` **le déclare**, et le test refuse
+maintenant les deux fautes — un symbole muet qui ne se déclare pas, et un
+symbole qui se déclare muet en portant des broches. Un test qu'on assouplit
+ne trouve plus rien.
+
+### D4 — Le câble n'est pas un fil (2026-09-03)
+
+`1PR#16CU`, `2PR#16CU`, `12PR#16CU` : n paires, calibre AWG, cuivre, blindé.
+C'est ce qu'on commande, ce qu'on tire et ce qu'on repère sur le chemin de
+câbles — et rien dans notre `WireType` ne le disait. Trois décisions :
+
+1. **`pairs` et `shielded` sur le type de fil**, et `pairs == 0` veut dire
+   « ce type n'est pas un câble ». C'est le cas par défaut : un schéma de
+   commande ne paie rien.
+2. **Le code se COMPOSE** (`WireType::cableCode`), il ne se saisit pas. Un
+   type à deux paires pourrait sinon s'appeler « 3PR » sans que rien ne le
+   relève, et c'est le bon de commande qui serait faux.
+3. **`Wire::cable` nomme le câble qui porte le fil**, et la liste des câbles
+   (`Reports::cableList`) se construit **sur les fils, pas sur la netlist** :
+   deux paires d'un même câble portent deux potentiels différents et restent
+   un seul câble — c'est même tout l'intérêt de la chose. Une liste de fils
+   sur un dossier d'instrumentation compte trois cents lignes ; la liste des
+   câbles en compte quarante.
+
+Les deux bouts d'un câble sont dits par leur **bande** (D1) : d'où à où, pas
+dans quelle case du cadre.
+
+### D5 — Le nommage (2026-09-03)
+
+Trois manques, et ils ne se ressemblent pas.
+
+**1. Le repère d'instrument se compose.** `022TT8917A` = secteur + fonction
+ISA + boucle + suffixe. `DesignationContext` gagne `sector` (`%C`) et `loop`
+(`%B`) ; ni l'un ni l'autre ne se déduit de la position de l'appareil sur la
+planche, contrairement à la référence de ligne. Deux décisions :
+
+- **Le secteur retombe sur celui de la planche** (`Folio::titleBlock["sector"]`,
+  puis le projet). Une feuille de schéma de boucle appartient à une aire de
+  l'usine ; le retaper sur chaque instrument serait le meilleur moyen d'en
+  oublier un. Le champ posé sur l'appareil garde le dernier mot — un
+  instrument peut être physiquement dans un autre secteur que sa planche.
+- **Un format sans `%N` se départage par une LETTRE**
+  (`DesignationRule::usesNumber`), comme le fait déjà le mode référence de
+  ligne. **Et c'est un garde-fou, pas un raffinement** : le repérage
+  incrémentait un compteur jusqu'à trouver un repère libre, or `%C%F%B` ne
+  contient pas ce compteur — deux instruments de la même boucle faisaient
+  **tourner la boucle sans fin**, et le logiciel se figeait. Le défaut
+  existait déjà : `tagFormat = "%F"` suffisait à le déclencher. Le test le
+  démontre, et il **fige le logiciel quand on retire le correctif** — c'est
+  ainsi qu'on sait qu'il ne prouve pas rien.
+
+**2. La couleur qui s'imprime est une lettre.** `WireType::colorCode` :
+`N` noir, `B` blanc, `R` rouge… `rgb` sert à l'écran, le **code** est ce que
+le câbleur cherche dans le faisceau, et c'est le seul moyen qu'un dossier tiré
+en noir et blanc garde ses couleurs. Il se lit entre parenthèses à côté du
+repère de fil (`WireType::colorTag`) **et** dans les rapports — invariant 15,
+ce que le rapport imprime, le dessin le montre. La colonne « Couleur » du
+rapport De/Vers portait `#202020`, ce qui n'apprend rien à personne ; elle
+porte maintenant le code, et retombe sur la teinte tant qu'aucun code n'est
+réglé.
+**Il est vide par défaut, y compris dans les jeux livrés** : un code que
+personne n'a demandé apparaîtrait sur chaque fil de chaque schéma déjà
+dessiné, et la table des lettres est une convention de bureau (« N » pour
+noir en français, « BK » pour black ailleurs) — l'inventer serait deviner à
+la place de l'utilisateur. Le gestionnaire de types de fils a une colonne
+« Code », et son infobulle donne la table relevée.
+
+**3. L'automate a un nœud.** `%N04R07S07C016` = Nœud / Rack / Slot / Canal.
+`PlcAddress::format` gagne le jeton `%N`, et **le nœud passe en premier
+paramètre** : c'est l'ordre de la hiérarchie, celui dans lequel l'adresse
+s'écrit. Il vit dans les champs de l'instance (`PlcModule::nodeKey`) comme le
+rack et l'emplacement, donc **l'adresse reste recalculée** — changer de nœud
+réadresse les seize points d'un coup. Trois modules génériques adressés par
+nœud sont livrés dans la base, ce qui prouve que le format y rentre. Sans le
+nœud, deux cartes de deux automates portent le même rack et le même
+emplacement : deux adresses identiques pour deux bornes différentes, et c'est
+le câbleur qui le découvre une fois le fil tiré.
+
+**Ce qui n'a demandé aucun code.** Le conducteur porte aussi sa **polarité**
+(`+` / `−`) sur les planches relevées. `Wire::conductors` la nomme déjà : une
+paire est un fil à deux conducteurs nommés `+` et `−`, et la netlist les
+apparie par nom comme elle apparie L1 à L1. Le relevé le listait comme un
+manque ; il n'en était pas un.
 
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 

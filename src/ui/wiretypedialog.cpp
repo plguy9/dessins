@@ -22,8 +22,11 @@ namespace {
 // « Paires » et « Blindé » font d'un type de fil un CABLE : c'est ce qu'on
 // commande, et rien d'autre dans la table ne le dit. Zéro paire = un
 // conducteur ordinaire, le cas de tout schéma de commande.
-enum Column { ColName = 0, ColColor, ColSection, ColPairs, ColShield, ColLayer, ColStyle,
-              ColWidth, ColCount };
+// « Code » est la couleur qui S'IMPRIME : une lettre, pas une teinte. Elle
+// est vide par defaut — un code que personne n'a demande apparaitrait sur
+// chaque fil de chaque schema deja dessine.
+enum Column { ColName = 0, ColColor, ColCode, ColSection, ColPairs, ColShield, ColLayer,
+              ColStyle, ColWidth, ColCount };
 
 QString styleLabel(const QString &style)
 {
@@ -48,15 +51,17 @@ WireTypeDialog::WireTypeDialog(const WireTypeSet &types, QWidget *parent)
 
     auto *hint = new QLabel(tr("Chaque fil du schéma porte un type. Le type gouverne la "
                                "couleur à l'écran et à l'impression, la section reportée "
-                               "dans la nomenclature et le calque de l'export DXF."),
+                               "dans la nomenclature et le calque de l'export DXF. Le "
+                               "<b>code</b> est la couleur en lettres — « N », « B » — "
+                               "celle que le câbleur lit sur la planche."),
                             this);
     hint->setWordWrap(true);
     layout->addWidget(hint);
 
     m_table = new QTableWidget(this);
     m_table->setColumnCount(ColCount);
-    m_table->setHorizontalHeaderLabels({ tr("Nom"), tr("Couleur"), tr("Section"), tr("Paires"),
-                                         tr("Blindé"), tr("Calque"), tr("Style"),
+    m_table->setHorizontalHeaderLabels({ tr("Nom"), tr("Couleur"), tr("Code"), tr("Section"),
+                                         tr("Paires"), tr("Blindé"), tr("Calque"), tr("Style"),
                                          tr("Épaisseur (mm)") });
     m_table->horizontalHeader()->setStretchLastSection(false);
     m_table->horizontalHeader()->setSectionResizeMode(ColName, QHeaderView::Stretch);
@@ -121,6 +126,13 @@ void WireTypeDialog::reload()
         color->setToolTip(tr("Double-cliquer pour choisir la couleur"));
         m_table->setItem(row, ColColor, color);
 
+        auto *code = new QTableWidgetItem(t.colorCode);
+        code->setToolTip(tr("La couleur telle qu'elle s'imprime, en lettres : "
+                            "N noir, B blanc, R rouge, V vert, O orange… Elle se lit "
+                            "entre parenthèses à côté du fil, et dans les rapports. "
+                            "Vide = rien n'est écrit."));
+        m_table->setItem(row, ColCode, code);
+
         m_table->setItem(row, ColSection, new QTableWidgetItem(t.crossSection));
         m_table->setItem(row, ColPairs,
                          new QTableWidgetItem(t.pairs > 0 ? QString::number(t.pairs) : QString()));
@@ -169,6 +181,8 @@ void WireTypeDialog::commitRow(int row)
 
     WireType t = *existing;
     t.name = name->text();
+    if (QTableWidgetItem *item = m_table->item(row, ColCode))
+        t.colorCode = item->text().trimmed();
     if (QTableWidgetItem *item = m_table->item(row, ColSection))
         t.crossSection = item->text().trimmed();
     if (QTableWidgetItem *item = m_table->item(row, ColPairs))

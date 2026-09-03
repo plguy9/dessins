@@ -266,6 +266,7 @@ QVector<WireLine> Reports::wireList(const Project &project, const Netlist &netli
             if (line.crossSection.isEmpty() && !wire->wireType.isEmpty()) {
                 const WireType &type = project.wireTypes.resolve(wire->wireType);
                 line.wireTypeName = type.name;
+                line.colorCode = type.colorCode;
                 line.crossSection = type.crossSection;
             }
             conductors = std::max(conductors, wire->conductorCount());
@@ -385,7 +386,7 @@ QVector<WireRunLine> Reports::wireFromTo(const Project &project, const Netlist &
             line.toPin = to.pinNumber;
             describe(to, line.toFolio, line.toZone, line.toLocation);
             line.wireTypeName = type.name;
-            line.colorName = type.colorName();
+            line.colorName = type.colorCode.isEmpty() ? type.colorName() : type.colorCode;
             line.crossSection = type.crossSection;
             line.crossesFolios = from.folioId != to.folioId;
             lines.append(line);
@@ -550,12 +551,13 @@ ReportTable Reports::toTable(const QVector<WireLine> &lines)
                       QStringLiteral("Folios"),  QStringLiteral("De"),
                       QStringLiteral("Broche"),  QStringLiteral("Vers"),
                       QStringLiteral("Broche"),  QStringLiteral("Type"),
-                      QStringLiteral("Section"),  QStringLiteral("Conducteurs"),
+                      QStringLiteral("Couleur"), QStringLiteral("Section"),
+                      QStringLiteral("Conducteurs"),
                       QStringLiteral("Longueur (mm)") };
     for (const WireLine &line : lines) {
         table.rows.append({ line.number, line.netName, line.folios.join(QStringLiteral(", ")),
                             line.from, line.fromPin, line.to, line.toPin,
-                            line.wireTypeName, line.crossSection,
+                            line.wireTypeName, line.colorCode, line.crossSection,
                             QString::number(line.conductorCount),
                             QString::number(line.length, 'f', 1) });
     }

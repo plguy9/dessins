@@ -373,7 +373,7 @@ TEST_CASE("Une carte d'automate collee ne reprend pas les adresses de l'original
     Folio *folio = project.folios().front();
 
     auto symbol = std::make_unique<SymbolInstance>();
-    PlcModule::configure(*symbol, *def, 0, 2, 0);
+    PlcModule::configure(*symbol, *def, 0, 0, 2, 0);
     project.library.insert(
             PlcModule::buildSymbol(*def, PlcModule::points(*symbol, database)));
     symbol->definitionId = PlcModule::symbolId(*def);

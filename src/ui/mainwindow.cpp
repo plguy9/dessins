@@ -3210,7 +3210,8 @@ void MainWindow::editTagFormat()
 
     auto *help = new QLabel(tr("<b>%F</b> famille · <b>%N</b> numéro · <b>%S</b> folio · "
                                "<b>%X</b> référence de ligne · <b>%I</b> installation · "
-                               "<b>%L</b> emplacement · <b>%%</b> un pour cent"),
+                               "<b>%L</b> emplacement · <b>%C</b> secteur · <b>%B</b> boucle · "
+                               "<b>%%</b> un pour cent"),
                             &dialog);
     help->setWordWrap(true);
     form->addRow(QString(), help);
@@ -3232,8 +3233,24 @@ void MainWindow::editTagFormat()
         context.lineReference = QStringLiteral("104");
         context.installation = QStringLiteral("A1");
         context.location = QStringLiteral("ARM");
-        preview->setText(tr("Un contacteur en colonne 4 du folio 1 : <b>%1</b>")
-                                 .arg(rule.format(context)));
+        const QString contacteur = rule.format(context);
+
+        // Et le second document : un instrument de schema de boucle, dont le
+        // repere se compose du secteur, de la fonction, de la boucle et d'un
+        // suffixe. Les deux exemples sont montres ensemble parce que le meme
+        // format doit pouvoir ecrire l'un ou l'autre — le voir est le seul
+        // moyen d'apprendre a quoi servent %C et %B.
+        DesignationContext boucle;
+        boucle.family = QStringLiteral("TT");
+        boucle.number = 1;
+        boucle.sheet = QStringLiteral("1");
+        boucle.lineReference = QStringLiteral("101");
+        boucle.sector = QStringLiteral("022");
+        boucle.loop = QStringLiteral("8917");
+        boucle.suffix = QStringLiteral("A");
+        preview->setText(tr("Un contacteur en colonne 4 du folio 1 : <b>%1</b><br>"
+                            "Un transmetteur de la boucle 8917, secteur 022 : <b>%2</b>")
+                                 .arg(contacteur, rule.format(boucle)));
     };
     connect(mode, &QComboBox::currentIndexChanged, &dialog, refresh);
     connect(format, &QLineEdit::textChanged, &dialog, refresh);

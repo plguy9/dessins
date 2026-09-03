@@ -384,19 +384,36 @@ NumberingResult designateTargets(const QVector<DesignationTarget> &targets,
             context.lineReference = lineReferenceOf(*group.folio, context.sheet, group.anchor);
         }
         // Les codes d'installation et d'emplacement viennent de l'appareil :
-        // ils identifient l'armoire, pas la famille.
+        // ils identifient l'armoire, pas la famille. Le secteur et la boucle
+        // aussi — un instrument porte SA boucle, c'est ce qui le relie a sa
+        // carte a travers tout le dossier.
         for (const SymbolInstance *member : group.members) {
             if (context.installation.isEmpty())
                 context.installation = member->fields.value(QStringLiteral("installation"));
             if (context.location.isEmpty())
                 context.location = member->fields.value(QStringLiteral("location"));
+            if (context.sector.isEmpty())
+                context.sector = member->fields.value(QStringLiteral("sector"));
+            if (context.loop.isEmpty())
+                context.loop = member->fields.value(QStringLiteral("loop"));
         }
+        // Le secteur retombe sur celui de la PLANCHE : une feuille de schema
+        // de boucle appartient a une aire de l'usine, et le retaper sur
+        // chaque instrument serait le meilleur moyen d'en oublier un. Le
+        // champ pose sur l'appareil garde le dernier mot.
+        if (context.sector.isEmpty() && group.folio)
+            context.sector = group.folio->titleBlock.value(QStringLiteral("sector"));
+        if (context.sector.isEmpty())
+            context.sector = project.info.extra.value(QStringLiteral("sector"));
 
         QString designation;
-        if (rule.mode == DesignationRule::Mode::LineReference) {
-            // La reference de ligne place l'appareil ; deux appareils au meme
-            // endroit se departagent par une lettre, comme la liste de
-            // suffixes d'AutoCAD.
+        // Le departage se fait par une LETTRE des que le format ne porte pas
+        // de numero — c'est le cas de la reference de ligne (104K, 104K-A) et
+        // celui du repere d'instrument (022TT8917A). Sans cette question, un
+        // format comme « %C%F%B » ferait tourner le compteur sans jamais
+        // changer le texte produit : la boucle « tant que le repere est pris »
+        // ne s'arreterait pas.
+        if (rule.mode == DesignationRule::Mode::LineReference || !rule.usesNumber()) {
             context.number = 1;
             designation = rule.format(context);
             int suffix = 0;

@@ -163,9 +163,11 @@ Par ordre de fréquence sur les planches relevées.
  └────────────── secteur
 ```
 
-`DesignationRule::tagFormat` sait faire `%F%N` et la référence de ligne. Il ne
-sait pas composer **secteur** + **fonction** + **boucle** + **suffixe** : il
-lui manque deux champs et la notion de boucle.
+`DesignationRule::tagFormat` savait faire `%F%N` et la référence de ligne. Il
+ne savait pas composer **secteur** + **fonction** + **boucle** + **suffixe**.
+→ **Fait (D5)** : les jetons `%C` (secteur) et `%B` (boucle), le secteur
+hérité de la planche, et le départage par une lettre quand le format ne porte
+pas de numéro.
 
 ### Nom de conducteur
 
@@ -179,10 +181,14 @@ Deux manques :
 
 - **la couleur est une lettre**, pas une teinte : `(N)` noir, `(B)` blanc,
   `(R)` rouge, `(G)` vert, `(O)` orange, `(RO)` rouge-orange. Notre `WireType`
-  porte une couleur `0xRRGGBB` pour l'écran ; **c'est le code qui s'imprime**,
-  et nous ne l'avons pas ;
+  porte une couleur `0xRRGGBB` pour l'écran ; **c'est le code qui s'imprime**.
+  → **Fait (D5)** : `WireType::colorCode`, écrit à côté du repère de fil et
+  dans les rapports. Vide par défaut — la table des lettres est une convention
+  de bureau, pas une norme, et l'inventer serait deviner ;
 - le conducteur porte **la polarité** (`+` / `−`), qui n'est pas un repère de
-  fil mais un rang dans la paire.
+  fil mais un rang dans la paire. → **Déjà possible** : `Wire::conductors`
+  nomme les conducteurs, et la netlist les apparie par nom. Une paire est un
+  fil à deux conducteurs nommés `+` et `−`.
 
 ### Adresse d'automate
 
@@ -191,9 +197,11 @@ Deux manques :
 %R04S06C001         (sans nœud)
 ```
 
-`rules/plc.*` sait écrire `I:3/00`, `%I0.0`, `%I0.2.5`. Il ne sait pas ce
-format, et surtout il n'a **pas la notion de nœud** — or elle est écrite en
-toutes lettres à côté de chaque carte :
+`rules/plc.*` savait écrire `I:3/00`, `%I0.0`, `%I0.2.5`. Il n'avait **pas la
+notion de nœud** — or elle est écrite en toutes lettres à côté de chaque
+carte. → **Fait (D5)** : le jeton `%N`, le nœud rangé dans les champs de
+l'instance comme le rack, et trois modules génériques adressés par nœud dans
+la base livrée :
 
 ```
 MODULE:  SAM (ENTREE)
@@ -235,13 +243,17 @@ Un dossier de boucles produit naturellement :
 Dans l'ordre de valeur. Chaque point est nécessaire pour que la planche
 reproduite ressemble à la leur.
 
+Les cinq sont **faits** ; le détail des décisions est dans `CLAUDE.md`,
+sections D1 à D5.
+
 | | | Pourquoi maintenant |
 |---|---|---|
-| **D1** | Bandes de localisation + sens du repérage du cadre configurable | Sans elles, aucune de leurs planches n'est reproductible, et le rapport de câblage ne sait pas dire « du champ vers l'armoire ». |
-| **D2** | Cartouche piloté par un gabarit + tables Révisions / Références / Cheminement + logo + 4 lignes de description | C'est la première chose qu'on regarde sur une planche, et aujourd'hui nous ne savons pas sortir le leur. |
-| **D3** | Bibliothèque instrumentation : bulles ISA et leurs variantes, borne à vis, boîte de jonction, vanne + positionneur + I/P, manomètres, débitmètre | Le dessin lui-même. |
-| **D4** | Le **câble** : n paires, calibre AWG, blindage, étiquette en ellipse, paire torsadée — et la **liste des câbles** | Le modèle multi-conducteurs est déjà là (`Wire::conductors`) ; il manque l'enveloppe et le rapport. |
-| **D5** | Nommage : secteur + boucle dans le format de repère, code couleur des conducteurs, adresse Nœud/Rack/Slot/Canal | Ce qui fait qu'un plan est lisible par le câbleur qui l'a en main. |
+| **D1** ✅ | Bandes de localisation + sens du repérage du cadre configurable | Sans elles, aucune de leurs planches n'est reproductible, et le rapport de câblage ne sait pas dire « du champ vers l'armoire ». |
+| **D2** ✅ | Cartouche piloté par un gabarit + tables Révisions / Références / Cheminement + logo + 4 lignes de description | C'est la première chose qu'on regarde sur une planche, et aujourd'hui nous ne savons pas sortir le leur. |
+| **D3** ✅ | Bibliothèque instrumentation : bulles ISA et leurs variantes, borne à vis, boîte de jonction, vanne + positionneur + I/P, manomètres, débitmètre | Le dessin lui-même. |
+| **D4** ✅ | Le **câble** : n paires, calibre AWG, blindage, étiquette en ellipse, paire torsadée — et la **liste des câbles** | Le modèle multi-conducteurs est déjà là (`Wire::conductors`) ; il manque l'enveloppe et le rapport. |
+| **D5** ✅ | Nommage : secteur + boucle dans le format de repère, code couleur des conducteurs, adresse Nœud/Rack/Slot/Canal | Ce qui fait qu'un plan est lisible par le câbleur qui l'a en main. |
 
-**La preuve, comme pour les blocs précédents** : redessiner une des planches à
-la main, par événements de souris et de clavier, et compter les accrocs.
+**La preuve, comme pour les blocs précédents** : redessiner une planche à la
+main, par événements de souris et de clavier, et compter les accrocs — c'est
+l'essai `[essai][blocD]` de `tests/test_essai.cpp`.

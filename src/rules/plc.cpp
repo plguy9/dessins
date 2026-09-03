@@ -191,7 +191,7 @@ PlcDatabase PlcDatabase::loadAll()
 // --------------------------------------------------------------------------
 // PlcAddress
 
-QString PlcAddress::format(const QString &pattern, int rack, int slot, int point,
+QString PlcAddress::format(const QString &pattern, int node, int rack, int slot, int point,
                            int bitsPerByte)
 {
     if (pattern.isEmpty())
@@ -237,6 +237,7 @@ QString PlcAddress::format(const QString &pattern, int rack, int slot, int point
                              : QString::number(value);
         };
         switch (token.unicode()) {
+        case 'N': out.append(pad(node)); break;
         case 'R': out.append(pad(rack)); break;
         case 'S': out.append(pad(slot)); break;
         case 'P': out.append(pad(point)); break;
@@ -273,6 +274,11 @@ QString PlcModule::moduleId(const SymbolInstance &symbol)
     return symbol.fields.value(moduleKey());
 }
 
+int PlcModule::node(const SymbolInstance &symbol)
+{
+    return symbol.fields.value(nodeKey()).toInt();
+}
+
 int PlcModule::rack(const SymbolInstance &symbol)
 {
     return symbol.fields.value(rackKey()).toInt();
@@ -288,10 +294,11 @@ int PlcModule::firstPoint(const SymbolInstance &symbol)
     return symbol.fields.value(firstPointKey()).toInt();
 }
 
-void PlcModule::configure(SymbolInstance &symbol, const PlcModuleDef &def, int rack, int slot,
-                          int firstPoint)
+void PlcModule::configure(SymbolInstance &symbol, const PlcModuleDef &def, int node, int rack,
+                          int slot, int firstPoint)
 {
     symbol.fields.insert(moduleKey(), def.id);
+    symbol.fields.insert(nodeKey(), QString::number(std::max(0, node)));
     symbol.fields.insert(rackKey(), QString::number(std::max(0, rack)));
     symbol.fields.insert(slotKey(), QString::number(std::max(0, slot)));
     symbol.fields.insert(firstPointKey(), QString::number(std::max(0, firstPoint)));
@@ -329,8 +336,8 @@ QVector<PlcPoint> PlcModule::points(const SymbolInstance &symbol, const PlcDatab
     for (int i = 0; i < def->points; ++i) {
         PlcPoint p;
         p.index = i;
-        p.address = PlcAddress::format(def->addressFormat, rack(symbol), slot(symbol), base + i,
-                                       def->bitsPerByte);
+        p.address = PlcAddress::format(def->addressFormat, node(symbol), rack(symbol),
+                                       slot(symbol), base + i, def->bitsPerByte);
         // Le repere de borne du module suit le rang dans le module, pas
         // l'adresse : c'est ce qui est serigraphie sur la carte.
         p.terminal = QStringLiteral("%1").arg(i, 2, 10, QLatin1Char('0'));

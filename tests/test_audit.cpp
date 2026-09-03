@@ -144,7 +144,7 @@ TEST_CASE("Deux cartes d'automate ne peuvent pas occuper la meme adresse", "[aud
 
     auto place = [&](int firstPoint, const QString &tag, const QPointF &at) {
         auto module = std::make_unique<SymbolInstance>();
-        PlcModule::configure(*module, *def, 0, 0, firstPoint);
+        PlcModule::configure(*module, *def, 0, 0, 0, firstPoint);
         project.library.insert(
                 PlcModule::buildSymbol(*def, PlcModule::points(*module, database)));
         module->definitionId = PlcModule::symbolId(*def);
@@ -178,7 +178,7 @@ TEST_CASE("Deux cartes d'automate ne peuvent pas occuper la meme adresse", "[aud
     Folio *other = apart.folios().front();
     {
         auto module = std::make_unique<SymbolInstance>();
-        PlcModule::configure(*module, *def, 0, 0, 0);
+        PlcModule::configure(*module, *def, 0, 0, 0, 0);
         apart.library.insert(
                 PlcModule::buildSymbol(*def, PlcModule::points(*module, database)));
         module->definitionId = PlcModule::symbolId(*def);
@@ -187,7 +187,7 @@ TEST_CASE("Deux cartes d'automate ne peuvent pas occuper la meme adresse", "[aud
         other->addEntity(std::move(module));
 
         auto second = std::make_unique<SymbolInstance>();
-        PlcModule::configure(*second, *def, 0, 0, 16);
+        PlcModule::configure(*second, *def, 0, 0, 0, 16);
         second->definitionId = PlcModule::symbolId(*def);
         second->setDesignation(QStringLiteral("-A2"));
         second->placement.position = QPointF(160, 100);

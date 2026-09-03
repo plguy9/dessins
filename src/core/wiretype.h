@@ -51,6 +51,20 @@ struct WireType {
     int pairs = 0;
     bool shielded = false;
 
+    // LA COULEUR QUI S'IMPRIME EST UNE LETTRE, PAS UNE TEINTE.
+    //
+    // `rgb` sert a l'ecran et au trace. Sur une planche, le conducteur porte
+    // son code entre parentheses — « (N) » noir, « (B) » blanc, « (R) » rouge
+    // — et c'est ce code que le cableur lit, pas la teinte du trait : un
+    // dossier tire en noir et blanc garde ses couleurs par ce seul moyen.
+    //
+    // Il est VIDE par defaut, y compris dans les jeux livres. Un code que
+    // personne n'a demande apparaitrait sur chaque fil de chaque schema deja
+    // dessine ; et la table des lettres est une convention de bureau (« N »
+    // pour noir en francais, « BK » pour black ailleurs), pas une norme —
+    // l'inventer serait deviner a la place de l'utilisateur.
+    QString colorCode;
+
     bool isCable() const { return pairs > 0; }
 
     // Le code qu'on ecrit sur la planche et qu'on porte au catalogue :
@@ -59,6 +73,11 @@ struct WireType {
     QString cableCode() const;
 
     bool isValid() const { return !id.isEmpty(); }
+
+    // Ce qui se lit a cote du fil : « (N) », ou rien quand aucun code n'est
+    // regle. Les parentheses sont dans la convention relevee, pas ajoutees
+    // par le dessinateur — les mettre ici evite que chacun les tape.
+    QString colorTag() const;
 
     // « #rrggbb », la forme lisible utilisee par le fichier et par le DXF.
     QString colorName() const;

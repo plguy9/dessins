@@ -47,9 +47,9 @@ struct PlcModuleDef {
     QString voltage;
     int points = 8;
 
-    // Format d'adressage du constructeur. Jetons : %R rack, %S emplacement,
-    // %P point, %B octet, %b bit, %% pour un pour-cent litteral. Un chiffre
-    // avant la lettre donne la largeur : %2P rend « 03 ».
+    // Format d'adressage du constructeur. Jetons : %N noeud, %R rack,
+    // %S emplacement, %P point, %B octet, %b bit, %% pour un pour-cent
+    // litteral. Un chiffre avant la lettre donne la largeur : %2P rend « 03 ».
     QString addressFormat;
 
     // Nombre de bits par octet d'adressage, 0 quand le constructeur numerote
@@ -112,7 +112,13 @@ class PlcAddress
 public:
     // Rend l'adresse d'un point. `point` est le rang absolu du point dans
     // l'espace d'adressage du module (adresse de depart + rang du point).
-    static QString format(const QString &pattern, int rack, int slot, int point,
+    //
+    // LE NOEUD VIENT EN PREMIER parce que c'est l'ordre de la hierarchie :
+    // noeud, chassis, emplacement, canal — « %N04R07S07C016 » se lit de la
+    // gauche vers la droite comme on descend dans le reseau. Un automate
+    // isole n'a pas de noeud : il vaut zero, et un format qui ne porte pas
+    // %N ne l'ecrit pas.
+    static QString format(const QString &pattern, int node, int rack, int slot, int point,
                           int bitsPerByte = 0);
 };
 
@@ -123,6 +129,12 @@ class PlcModule
 public:
     // Clefs de champ. Publiques parce que les rapports et la boite les lisent.
     static QString moduleKey() { return QStringLiteral("plc.module"); }
+    // Le NOEUD : le rang de l'automate sur son reseau. Il est ecrit en
+    // toutes lettres a cote de chaque carte sur les planches relevees, parce
+    // que deux cartes de deux automates portent le meme rack et le meme
+    // emplacement — sans le noeud, deux adresses identiques designent deux
+    // bornes differentes, et c'est le cableur qui le decouvre.
+    static QString nodeKey() { return QStringLiteral("plc.node"); }
     static QString rackKey() { return QStringLiteral("plc.rack"); }
     static QString slotKey() { return QStringLiteral("plc.slot"); }
     static QString firstPointKey() { return QStringLiteral("plc.point"); }
@@ -130,13 +142,14 @@ public:
 
     static bool isModule(const SymbolInstance &symbol);
     static QString moduleId(const SymbolInstance &symbol);
+    static int node(const SymbolInstance &symbol);
     static int rack(const SymbolInstance &symbol);
     static int slot(const SymbolInstance &symbol);
     static int firstPoint(const SymbolInstance &symbol);
 
     // Ecrit l'identite et l'adresse de depart dans l'instance.
-    static void configure(SymbolInstance &symbol, const PlcModuleDef &def, int rack, int slot,
-                          int firstPoint);
+    static void configure(SymbolInstance &symbol, const PlcModuleDef &def, int node, int rack,
+                          int slot, int firstPoint);
     static void setDescription(SymbolInstance &symbol, int index, const QString &text);
     static QString description(const SymbolInstance &symbol, int index);
 

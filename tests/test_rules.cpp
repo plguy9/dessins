@@ -1044,3 +1044,135 @@ TEST_CASE("Le code d'un câble se compose, il ne se saisit pas", "[rules][cables
     CHECK(cable.isCable());
     CHECK(cable.cableCode() == QStringLiteral("12PR#16CU"));
 }
+
+// --------------------------------------------------------------------------
+// Le nommage : secteur, boucle, code couleur
+
+TEST_CASE("Le format compose un repere d'instrument", "[rules][tagformat][nommage]")
+{
+    // « 022TT8917A » = secteur + fonction ISA + boucle + suffixe. C'est le
+    // repere de tout instrument sur un schema de boucle, et le format ne
+    // savait pas l'ecrire : ni le secteur ni la boucle ne se deduisent de la
+    // position de l'appareil sur la planche.
+    DesignationRule rule;
+    rule.leadingDash = false;
+    rule.tagFormat = QStringLiteral("%C%F%B");
+
+    DesignationContext context;
+    context.sector = QStringLiteral("022");
+    context.family = QStringLiteral("TT");
+    context.loop = QStringLiteral("8917");
+    context.suffix = QStringLiteral("A");
+    CHECK(rule.format(context) == QLatin1String("022TT8917A"));
+
+    // Sans secteur ni boucle, le meme format n'ecrit que ce qu'il a : un
+    // champ vide fait un trou, jamais le nom du jeton.
+    DesignationContext nu;
+    nu.family = QStringLiteral("TT");
+    CHECK(rule.format(nu) == QLatin1String("TT"));
+}
+
+TEST_CASE("Un format sans numero se departage par une lettre",
+          "[rules][numbering][nommage]")
+{
+    // ET C'EST AUSSI UN GARDE-FOU. « %C%F%B » ne porte pas de numero : le
+    // compteur pouvait tourner sans jamais changer le texte produit, et la
+    // boucle « tant que le repere est pris, incremente » ne s'arretait pas.
+    // Deux instruments de la meme boucle suffisent a le declencher.
+    Project project = makeProject();
+    project.library.insert(twoPinDevice(QStringLiteral("transmitter"), QStringLiteral("TT")));
+    Folio *folio = project.folioAt(0);
+    folio->titleBlock.insert(QStringLiteral("sector"), QStringLiteral("022"));
+
+    Profile profile = Profile::iec();
+    profile.designation.leadingDash = false;
+    profile.designation.tagFormat = QStringLiteral("%C%F%B");
+    CHECK_FALSE(profile.designation.usesNumber());
+
+    const QRectF frame = folio->frameRect();
+    for (double dy : { 30.0, 60.0 }) {
+        auto *tt = placeSymbol(project, folio, QStringLiteral("iec:transmitter"),
+                               QPointF(frame.left() + 40.0, frame.top() + dy));
+        tt->fields.insert(QStringLiteral("loop"), QStringLiteral("8917"));
+    }
+
+    Numbering::designateDevices(project, profile);
+
+    QStringList designations;
+    for (const SymbolInstance *symbol : folio->entitiesOfType<SymbolInstance>())
+        designations << symbol->designation();
+    designations.sort();
+    CHECK(designations == QStringList{ QStringLiteral("022TT8917"),
+                                       QStringLiteral("022TT8917A") });
+}
+
+TEST_CASE("Le secteur retombe sur celui de la planche", "[rules][numbering][nommage]")
+{
+    // Une feuille de schema de boucle appartient a une aire de l'usine. Le
+    // retaper sur chaque instrument serait le meilleur moyen d'en oublier un
+    // — mais le champ pose sur l'appareil garde le dernier mot, parce qu'un
+    // instrument peut etre physiquement dans un autre secteur que sa planche.
+    Project project = makeProject();
+    project.library.insert(twoPinDevice(QStringLiteral("transmitter"), QStringLiteral("TT")));
+    Folio *folio = project.folioAt(0);
+    folio->titleBlock.insert(QStringLiteral("sector"), QStringLiteral("022"));
+
+    Profile profile = Profile::iec();
+    profile.designation.leadingDash = false;
+    profile.designation.tagFormat = QStringLiteral("%C%F%B");
+
+    const QRectF frame = folio->frameRect();
+    auto *herite = placeSymbol(project, folio, QStringLiteral("iec:transmitter"),
+                               QPointF(frame.left() + 40.0, frame.top() + 30.0));
+    herite->fields.insert(QStringLiteral("loop"), QStringLiteral("8917"));
+    auto *propre = placeSymbol(project, folio, QStringLiteral("iec:transmitter"),
+                               QPointF(frame.left() + 40.0, frame.top() + 60.0));
+    propre->fields.insert(QStringLiteral("loop"), QStringLiteral("4110"));
+    propre->fields.insert(QStringLiteral("sector"), QStringLiteral("037"));
+
+    Numbering::designateDevices(project, profile);
+
+    CHECK(herite->designation() == QLatin1String("022TT8917"));
+    CHECK(propre->designation() == QLatin1String("037TT4110"));
+}
+
+TEST_CASE("La couleur qui s'imprime est une lettre", "[rules][reports][nommage]")
+{
+    // Un « #202020 » dans la colonne « Couleur » n'apprend rien a un cableur :
+    // ce qu'il cherche dans le faisceau, c'est la lettre ecrite sur la
+    // planche. Le code prime donc sur la teinte partout ou la couleur
+    // s'imprime.
+    Project project = makeProject();
+    WireType noir;
+    noir.id = QStringLiteral("noir");
+    noir.name = QStringLiteral("Noir");
+    noir.rgb = 0x202020u;
+    noir.colorCode = QStringLiteral("N");
+    project.wireTypes.insert(noir);
+    CHECK(noir.colorTag() == QLatin1String("(N)"));
+
+    Folio *folio = project.folioAt(0);
+    placeSymbol(project, folio, QStringLiteral("iec:contactor"), QPointF(60, 60));
+    placeSymbol(project, folio, QStringLiteral("iec:breaker"), QPointF(120, 60));
+    Wire *fil = drawWire(folio, { QPointF(65, 60), QPointF(115, 60) });
+    fil->wireType = noir.id;
+
+    const auto runs = Reports::wireFromTo(project, Netlist::build(project));
+    REQUIRE_FALSE(runs.isEmpty());
+    CHECK(runs.first().colorName == QLatin1String("N"));
+
+    // Le meme code descend dans la liste des fils, qui n'avait aucune colonne
+    // de couleur : le dessin la montre, le rapport doit la porter.
+    const auto fils = Reports::wireList(project, Netlist::build(project));
+    REQUIRE_FALSE(fils.isEmpty());
+    CHECK(fils.first().colorCode == QLatin1String("N"));
+
+    // Sans code, la teinte reste : elle vaut mieux que du vide tant que
+    // personne n'a rien reglé.
+    WireType sansCode = noir;
+    sansCode.colorCode.clear();
+    project.wireTypes.insert(sansCode);
+    const auto brut = Reports::wireFromTo(project, Netlist::build(project));
+    REQUIRE_FALSE(brut.isEmpty());
+    CHECK(brut.first().colorName == QLatin1String("#202020"));
+}

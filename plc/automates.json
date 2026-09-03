@@ -247,6 +247,39 @@
       "points": 2,
       "addressFormat": "%%QW%P",
       "voltage": "4-20 mA"
+    },
+    {
+      "id": "generique:noeud-e-ana-16",
+      "manufacturer": "Générique",
+      "series": "Noeud / Rack / Slot / Canal",
+      "partNumber": "N-E-ANA-16",
+      "description": "Entrées analogiques 16 voies — automate adresse par noeud",
+      "ioType": "entree-analogique",
+      "points": 16,
+      "addressFormat": "%%N%2NR%2RS%2SC%3P",
+      "voltage": "4-20 mA"
+    },
+    {
+      "id": "generique:noeud-s-ana-8",
+      "manufacturer": "Générique",
+      "series": "Noeud / Rack / Slot / Canal",
+      "partNumber": "N-S-ANA-8",
+      "description": "Sorties analogiques 8 voies — automate adresse par noeud",
+      "ioType": "sortie-analogique",
+      "points": 8,
+      "addressFormat": "%%N%2NR%2RS%2SC%3P",
+      "voltage": "4-20 mA"
+    },
+    {
+      "id": "generique:noeud-e-tor-16",
+      "manufacturer": "Générique",
+      "series": "Noeud / Rack / Slot / Canal",
+      "partNumber": "N-E-TOR-16",
+      "description": "Entrées TOR 16 points — automate adresse par noeud",
+      "ioType": "entree-tor",
+      "points": 16,
+      "addressFormat": "%%N%2NR%2RS%2SC%3P",
+      "voltage": "24 V c.c."
     }
   ]
 }

@@ -36,6 +36,28 @@ TEST_CASE("Un type de fil survit a l'aller-retour JSON", "[wiretype]")
     CHECK(back.colorName() == QLatin1String("#7a4a2b"));
 }
 
+TEST_CASE("Le code couleur voyage avec le type", "[wiretype][nommage]")
+{
+    // La teinte sert a l'ecran ; c'est la LETTRE qui s'imprime et que le
+    // cableur cherche dans le faisceau. La perdre au ratissage du fichier
+    // ferait rouvrir un dossier dont les conducteurs n'ont plus de nom de
+    // couleur — et le rapport le dirait avant que personne ne s'en apercoive.
+    WireType t;
+    t.id = QStringLiteral("noir");
+    t.rgb = 0x202020u;
+    t.colorCode = QStringLiteral("N");
+    CHECK(t.colorTag() == QLatin1String("(N)"));
+
+    const WireType back = WireType::fromJson(t.toJson());
+    CHECK(back.colorCode == QLatin1String("N"));
+
+    // Aucun code : rien ne s'ecrit a cote du fil. C'est le cas par defaut,
+    // celui de tous les schemas de commande deja dessines.
+    WireType nu;
+    CHECK(nu.colorTag().isEmpty());
+    CHECK_FALSE(nu.toJson().contains(QStringLiteral("colorCode")));
+}
+
 TEST_CASE("Une couleur illisible laisse le type inchange", "[wiretype]")
 {
     // Un fichier abime ne doit pas rendre un fil invisible : la couleur

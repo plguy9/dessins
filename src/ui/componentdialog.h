@@ -55,6 +55,8 @@ private:
     QLineEdit *m_value = nullptr;
     QLineEdit *m_installation = nullptr;
     QLineEdit *m_location = nullptr;
+    QLineEdit *m_sector = nullptr;
+    QLineEdit *m_loop = nullptr;
     QLineEdit *m_manufacturer = nullptr;
     QLineEdit *m_partNumber = nullptr;
     QComboBox *m_parent = nullptr;

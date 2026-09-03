@@ -33,7 +33,7 @@ SymbolInstance *placeModule(Project &project, Folio *folio, const PlcModuleDef &
                             int slot, int firstPoint, const QPointF &at)
 {
     auto symbol = std::make_unique<SymbolInstance>();
-    PlcModule::configure(*symbol, def, rack, slot, firstPoint);
+    PlcModule::configure(*symbol, def, 0, rack, slot, firstPoint);
     project.library.insert(PlcModule::buildSymbol(def, PlcModule::points(*symbol, PlcDatabase::builtin())));
     symbol->definitionId = PlcModule::symbolId(def);
     symbol->placement.position = at;
@@ -68,34 +68,78 @@ TEST_CASE("L'adressage suit le format du constructeur", "[plc]")
     // un dessin d'automate d'un dessin qui sert a programmer.
 
     // Allen-Bradley SLC : emplacement/point, le point sur deux chiffres.
-    CHECK(PlcAddress::format(QStringLiteral("I:%S/%2P"), 0, 3, 0) == QLatin1String("I:3/00"));
-    CHECK(PlcAddress::format(QStringLiteral("I:%S/%2P"), 0, 3, 12) == QLatin1String("I:3/12"));
+    CHECK(PlcAddress::format(QStringLiteral("I:%S/%2P"), 0, 0, 3, 0) == QLatin1String("I:3/00"));
+    CHECK(PlcAddress::format(QStringLiteral("I:%S/%2P"), 0, 0, 3, 12) == QLatin1String("I:3/12"));
 
     // Allen-Bradley ControlLogix : le point sans remplissage.
-    CHECK(PlcAddress::format(QStringLiteral("Local:%S:I.Data.%P"), 0, 4, 7)
+    CHECK(PlcAddress::format(QStringLiteral("Local:%S:I.Data.%P"), 0, 0, 4, 7)
           == QLatin1String("Local:4:I.Data.7"));
 
     // Siemens : octet.bit, groupe par huit. Le point 9 est donc le bit 1 de
     // l'octet 1 — c'est ce groupement qui fait toute la difference.
-    CHECK(PlcAddress::format(QStringLiteral("%%I%B.%b"), 0, 0, 0, 8) == QLatin1String("%I0.0"));
-    CHECK(PlcAddress::format(QStringLiteral("%%I%B.%b"), 0, 0, 7, 8) == QLatin1String("%I0.7"));
-    CHECK(PlcAddress::format(QStringLiteral("%%I%B.%b"), 0, 0, 8, 8) == QLatin1String("%I1.0"));
-    CHECK(PlcAddress::format(QStringLiteral("%%I%B.%b"), 0, 0, 9, 8) == QLatin1String("%I1.1"));
+    CHECK(PlcAddress::format(QStringLiteral("%%I%B.%b"), 0, 0, 0, 0, 8) == QLatin1String("%I0.0"));
+    CHECK(PlcAddress::format(QStringLiteral("%%I%B.%b"), 0, 0, 0, 7, 8) == QLatin1String("%I0.7"));
+    CHECK(PlcAddress::format(QStringLiteral("%%I%B.%b"), 0, 0, 0, 8, 8) == QLatin1String("%I1.0"));
+    CHECK(PlcAddress::format(QStringLiteral("%%I%B.%b"), 0, 0, 0, 9, 8) == QLatin1String("%I1.1"));
 
     // Omron groupe par seize, avec le bit sur deux chiffres.
-    CHECK(PlcAddress::format(QStringLiteral("%B.%2b"), 0, 0, 17, 16) == QLatin1String("1.01"));
+    CHECK(PlcAddress::format(QStringLiteral("%B.%2b"), 0, 0, 0, 17, 16) == QLatin1String("1.01"));
 
     // Schneider : rack.emplacement.point.
-    CHECK(PlcAddress::format(QStringLiteral("%%I%R.%S.%P"), 0, 2, 5) == QLatin1String("%I0.2.5"));
+    CHECK(PlcAddress::format(QStringLiteral("%%I%R.%S.%P"), 0, 0, 2, 5) == QLatin1String("%I0.2.5"));
 
     // Sans groupement, %B reste a zero et %b vaut le rang : c'est le cas des
     // constructeurs qui numerotent leurs points a la file.
-    CHECK(PlcAddress::format(QStringLiteral("%B.%b"), 0, 0, 12) == QLatin1String("0.12"));
+    CHECK(PlcAddress::format(QStringLiteral("%B.%b"), 0, 0, 0, 12) == QLatin1String("0.12"));
 
     // Un jeton inconnu est recopie tel quel plutot que de disparaitre : une
     // adresse fausse et silencieuse serait pire qu'un format visiblement
     // incomplet.
-    CHECK(PlcAddress::format(QStringLiteral("%Z%P"), 0, 0, 3) == QLatin1String("%Z3"));
+    CHECK(PlcAddress::format(QStringLiteral("%Z%P"), 0, 0, 0, 3) == QLatin1String("%Z3"));
+}
+
+TEST_CASE("L'adresse porte le noeud quand le format le demande", "[plc][noeud]")
+{
+    // « %N04R07S07C016 » : noeud, chassis, emplacement, canal. Le noeud est
+    // ecrit en toutes lettres a cote de chaque carte sur les planches reelles,
+    // et pour une raison : deux cartes de deux automates portent le meme rack
+    // et le meme emplacement. Sans le noeud, deux adresses identiques
+    // designent deux bornes differentes — et c'est le cableur qui le
+    // decouvre, une fois le fil tire.
+    const QString format = QStringLiteral("%%N%2NR%2RS%2SC%3P");
+    CHECK(PlcAddress::format(format, 4, 7, 7, 16) == QLatin1String("%N04R07S07C016"));
+    CHECK(PlcAddress::format(format, 4, 7, 7, 17) == QLatin1String("%N04R07S07C017"));
+
+    // Un format sans %N n'ecrit pas le noeud, meme quand l'automate en a un :
+    // le format du constructeur reste maitre de ce qui s'affiche.
+    CHECK(PlcAddress::format(QStringLiteral("%%R%2RS%2SC%3P"), 4, 4, 6, 1)
+          == QLatin1String("%R04S06C001"));
+}
+
+TEST_CASE("Le noeud se pose sur le module et readresse ses points", "[plc][noeud]")
+{
+    // Le noeud suit la meme regle que le rack et l'emplacement : il est range
+    // dans les champs de l'instance, et l'adresse se RECALCULE. Changer de
+    // noeud readresse les seize points d'un coup, sans risque d'en oublier un.
+    const PlcDatabase database = PlcDatabase::builtin();
+    const PlcModuleDef *def = database.find(QStringLiteral("generique:noeud-e-ana-16"));
+    REQUIRE(def);
+
+    Project project = onePage();
+    Folio *folio = project.folioAt(0);
+    auto *module = placeModule(project, folio, *def, 7, 7, 0, QPointF(80, 80));
+    module->fields.insert(PlcModule::nodeKey(), QStringLiteral("4"));
+    CHECK(PlcModule::node(*module) == 4);
+
+    const QVector<PlcPoint> points = PlcModule::points(*module, database);
+    REQUIRE(points.size() == 16);
+    CHECK(points.first().address == QLatin1String("%N04R07S07C000"));
+    CHECK(points.last().address == QLatin1String("%N04R07S07C015"));
+
+    // Le module part sur un autre noeud : rien n'est stocke, tout suit.
+    module->fields.insert(PlcModule::nodeKey(), QStringLiteral("12"));
+    CHECK(PlcModule::points(*module, database).first().address
+          == QLatin1String("%N12R07S07C000"));
 }
 
 TEST_CASE("Un module pose adresse ses points depuis son emplacement", "[plc]")
@@ -152,7 +196,7 @@ TEST_CASE("Le symbole d'un module a une broche par point", "[plc]")
     const PlcModuleDef *analog = database.find(QStringLiteral("ab:1746-NI4"));
     REQUIRE(analog);
     SymbolInstance probe;
-    PlcModule::configure(probe, *analog, 0, 1, 0);
+    PlcModule::configure(probe, *analog, 0, 0, 1, 0);
     const SymbolDefinition small =
             PlcModule::buildSymbol(*analog, PlcModule::points(probe, database));
     CHECK(small.bounds().height() < definition->bounds().height());
@@ -160,7 +204,7 @@ TEST_CASE("Le symbole d'un module a une broche par point", "[plc]")
     // Les entrees se cablent a gauche, les sorties a droite : c'est le sens
     // de lecture d'un folio, de l'amont vers l'aval.
     SymbolInstance out;
-    PlcModule::configure(out, *output, 0, 4, 0);
+    PlcModule::configure(out, *output, 0, 0, 4, 0);
     const SymbolDefinition outDef =
             PlcModule::buildSymbol(*output, PlcModule::points(out, database));
     CHECK(definition->pins.first().direction == Direction::Left);
@@ -269,7 +313,7 @@ TEST_CASE("Le titre d'une carte tient dans son bandeau", "[plc]")
 
     for (const PlcModuleDef &def : database.modules()) {
         SymbolInstance probe;
-        PlcModule::configure(probe, def, 0, 0, 0);
+        PlcModule::configure(probe, def, 0, 0, 0, 0);
         const SymbolDefinition symbol =
                 PlcModule::buildSymbol(def, PlcModule::points(probe, database));
         CAPTURE(def.id, symbol.name);

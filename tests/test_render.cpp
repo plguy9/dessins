@@ -467,6 +467,64 @@ TEST_CASE("Le numéro d'une borne se lit sur le schéma", "[render][borne]")
     CHECK(avecNumero > sansNumero);
 }
 
+TEST_CASE("Le code couleur d'un fil se lit sur le schéma", "[render][nommage]")
+{
+    // Invariant : ce que le rapport imprime, le dessin le montre. La liste
+    // des fils porte désormais « N » dans sa colonne Couleur ; si la planche
+    // ne le montrait pas, les deux documents se contrediraient — et c'est la
+    // planche que le câbleur a en main.
+    Project project;
+    WireType noir;
+    noir.id = QStringLiteral("noir");
+    noir.name = QStringLiteral("Noir");
+    noir.rgb = 0x202020u;
+    project.wireTypes.insert(noir);
+
+    Folio *folio = project.addFolio(QStringLiteral("Boucle"));
+    folio->sheet = sheetFormatById(QStringLiteral("A3"));
+    auto fil = std::make_unique<Wire>();
+    fil->points = { QPointF(30, 40), QPointF(90, 40) };
+    fil->number = QStringLiteral("101");
+    fil->wireType = noir.id;
+    folio->addEntity(std::move(fil));
+
+    auto encrePour = [&](const QString &code) {
+        Project copie(project);
+        WireType type = noir;
+        type.colorCode = code;
+        copie.wireTypes.insert(type);
+
+        RenderStyle style = RenderStyle::screen();
+        style.showGrid = false;
+        style.showFrame = false;
+        style.showTitleBlock = false;
+        style.showUnconnectedPins = false;
+
+        QImage image(600, 400, QImage::Format_ARGB32);
+        image.fill(Qt::white);
+        QPainter painter(&image);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.scale(5.0, 5.0);
+        FolioPainter(copie, style).paint(painter, *copie.folioAt(0));
+        painter.end();
+
+        int encre = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                if (image.pixel(x, y) != qRgb(255, 255, 255))
+                    ++encre;
+        return encre;
+    };
+
+    const int sansCode = encrePour(QString());
+    const int avecCode = encrePour(QStringLiteral("N"));
+    REQUIRE(sansCode > 0);
+    // « (N) » de plus a cote du repere, c'est de l'encre en plus. Verifier la
+    // seule presence du champ n'aurait rien prouve : c'est l'affichage qui
+    // manquait.
+    CHECK(avecCode > sansCode);
+}
+
 TEST_CASE("La grille s'espace au lieu de disparaître", "[render][grille]")
 {
     // Une grille dont les marques tombent à trois pixels l'une de l'autre

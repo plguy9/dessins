@@ -85,6 +85,11 @@ PlcDialog::PlcDialog(const PlcDatabase &database, const SymbolInstance *existing
         box->addWidget(*target);
         addressRow->addLayout(box);
     };
+    // Le noeud d'abord : c'est l'ordre de la hierarchie, et celui dans lequel
+    // l'adresse s'ecrit — noeud, chassis, emplacement, canal.
+    addSpin(tr("Nœud"), &m_node, 255,
+            tr("Rang de l'automate sur son réseau. Zéro pour un automate isolé : "
+               "un format d'adresse sans %N ne l'écrit pas."));
     addSpin(tr("Rack"), &m_rack, 63, tr("Numéro de châssis, quand le constructeur l'adresse."));
     addSpin(tr("Emplacement"), &m_slot, 63, tr("Position de la carte dans le rack."));
     addSpin(tr("Premier point"), &m_firstPoint, 4095,
@@ -133,6 +138,7 @@ PlcDialog::PlcDialog(const PlcDatabase &database, const SymbolInstance *existing
     QString wanted;
     if (existing) {
         wanted = PlcModule::moduleId(*existing);
+        m_node->setValue(PlcModule::node(*existing));
         m_rack->setValue(PlcModule::rack(*existing));
         m_slot->setValue(PlcModule::slot(*existing));
         m_firstPoint->setValue(PlcModule::firstPoint(*existing));
@@ -174,7 +180,7 @@ PlcDialog::PlcDialog(const PlcDatabase &database, const SymbolInstance *existing
         captureDescriptions();
         refreshPreview();
     });
-    for (QSpinBox *spin : { m_rack, m_slot, m_firstPoint }) {
+    for (QSpinBox *spin : { m_node, m_rack, m_slot, m_firstPoint }) {
         connect(spin, &QSpinBox::valueChanged, this, [this] {
             captureDescriptions();
             refreshPreview();
@@ -208,6 +214,7 @@ const PlcModuleDef *PlcDialog::module() const
     return id.isEmpty() ? nullptr : m_database.find(id);
 }
 
+int PlcDialog::node() const { return m_node->value(); }
 int PlcDialog::rack() const { return m_rack->value(); }
 int PlcDialog::slot() const { return m_slot->value(); }
 int PlcDialog::firstPoint() const { return m_firstPoint->value(); }
@@ -255,8 +262,8 @@ void PlcDialog::refreshPreview()
     const QFont mono = Theme::monoFont();
     for (int i = 0; i < def->points; ++i) {
         const QString terminal = QStringLiteral("%1").arg(i, 2, 10, QLatin1Char('0'));
-        const QString address = PlcAddress::format(def->addressFormat, m_rack->value(),
-                                                   m_slot->value(),
+        const QString address = PlcAddress::format(def->addressFormat, m_node->value(),
+                                                   m_rack->value(), m_slot->value(),
                                                    m_firstPoint->value() + i, def->bitsPerByte);
 
         auto *terminalItem = new QTableWidgetItem(terminal);
@@ -278,7 +285,7 @@ void PlcDialog::applyTo(SymbolInstance &symbol) const
     const PlcModuleDef *def = module();
     if (!def)
         return;
-    PlcModule::configure(symbol, *def, rack(), slot(), firstPoint());
+    PlcModule::configure(symbol, *def, node(), rack(), slot(), firstPoint());
     if (!designation().isEmpty()) {
         symbol.setDesignation(designation());
         // Un repere saisi a la main n'est jamais repris par le reperage

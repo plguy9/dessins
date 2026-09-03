@@ -89,6 +89,11 @@ struct WireLine {
     // Type de fil et section : c'est ce qu'on commande, la liste des fils
     // serait incomplete sans.
     QString wireTypeName;
+    // LE CODE COULEUR, PAS LA TEINTE. « N », « B », « R » : c'est la lettre
+    // qui s'imprime sur la planche et que le cableur cherche dans le faisceau.
+    // Vide quand le type n'en porte pas — la plupart des schemas de commande
+    // n'en ont pas besoin.
+    QString colorCode;
     QString crossSection;
     int conductorCount = 1;
     double length = 0.0;   // somme des longueurs tracees, en millimetres
@@ -118,7 +123,10 @@ struct WireRunLine {
     QString toLocation;
 
     QString wireTypeName;
-    QString colorName;     // « #rrggbb », la couleur du type
+    // Le CODE couleur du type quand il en porte un (« N », « B »), sa teinte
+    // hexadecimale sinon. Un « #202020 » n'apprend rien a un cableur, mais il
+    // vaut mieux que du vide tant que personne n'a regle de code.
+    QString colorName;
     QString crossSection;
 
     // Vrai quand les deux extremites ne sont pas sur le meme folio : la

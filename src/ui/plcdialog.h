@@ -39,6 +39,7 @@ public:
 
     // Le module choisi, ou nullptr si la base est vide.
     const PlcModuleDef *module() const;
+    int node() const;
     int rack() const;
     int slot() const;
     int firstPoint() const;
@@ -65,6 +66,7 @@ private:
     QLineEdit *m_search = nullptr;
     QComboBox *m_moduleBox = nullptr;
     QLabel *m_details = nullptr;
+    QSpinBox *m_node = nullptr;
     QSpinBox *m_rack = nullptr;
     QSpinBox *m_slot = nullptr;
     QSpinBox *m_firstPoint = nullptr;

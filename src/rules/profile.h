@@ -42,6 +42,17 @@ struct DesignationContext {
     QString lineReference;   // %X — reference de ligne, ex. 104
     QString installation;    // %I — code d'installation
     QString location;        // %L — code d'emplacement
+
+    // LE REPERE D'INSTRUMENT : secteur + fonction + boucle + suffixe.
+    //
+    // « 022TT8917A » se lit secteur 022, transmetteur de temperature, boucle
+    // 8917, premier instrument de la boucle. Ni le secteur ni la boucle ne se
+    // deduisent de la position : le secteur est l'aire de l'usine, la boucle
+    // est ce qui relie un capteur a sa carte a travers tout le dossier. Sans
+    // ces deux champs, `tagFormat` ne sait pas ecrire le repere qu'un schema
+    // de boucle porte sur chaque instrument.
+    QString sector;          // %C — code de secteur, ex. 022
+    QString loop;            // %B — numero de boucle, ex. 8917
 };
 
 // Attribution des designations d'appareil.
@@ -62,7 +73,8 @@ struct DesignationRule {
     // Format a parametres remplacables, comme le « Component TAG Format »
     // d'AutoCAD. Vide = le format par defaut du mode. Jetons reconnus :
     // %F famille, %N numero, %S folio, %X reference de ligne,
-    // %I installation, %L emplacement, %% un pour cent litteral.
+    // %I installation, %L emplacement, %C secteur, %B boucle,
+    // %% un pour cent litteral.
     QString tagFormat;
 
     // Prefixe impose par famille d'appareil, prioritaire sur celui du symbole.
@@ -70,6 +82,16 @@ struct DesignationRule {
 
     // Format effectif : celui qui est regle, ou celui du mode.
     QString effectiveFormat() const;
+
+    // Le format compte-t-il sur un numero pour distinguer deux appareils ?
+    //
+    // « %C%F%B » n'en porte pas : deux transmetteurs de la meme boucle y
+    // donneraient le meme repere, et un compteur qui tourne ne changerait
+    // rien au texte produit. Le repérage doit alors departager par une
+    // LETTRE, comme il le fait deja en mode reference de ligne — sans cette
+    // question, la boucle « tant que le repere est pris, incremente » ne
+    // s'arreterait jamais.
+    bool usesNumber() const;
 
     QString format(const DesignationContext &context) const;
     // Confort : repere sequentiel simple, sans contexte de position.

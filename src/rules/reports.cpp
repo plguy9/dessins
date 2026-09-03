@@ -562,6 +562,88 @@ ReportTable Reports::toTable(const QVector<WireLine> &lines)
     return table;
 }
 
+// LA LISTE DES CABLES.
+//
+// Elle se construit sur les FILS, pas sur la netlist : un cable est un groupe
+// de conducteurs traces, pas un potentiel. Deux paires d'un meme cable
+// portent deux potentiels differents et restent un seul cable — c'est meme
+// tout l'interet de la chose.
+QVector<CableLine> Reports::cableList(const Project &project, const ReportScope &scope)
+{
+    QMap<QString, CableLine> parNom;
+    QMap<QString, QPointF> premierPoint;
+    QMap<QString, QPointF> dernierPoint;
+    QMap<QString, QString> folioDuPremier;
+    QMap<QString, QString> folioDuDernier;
+
+    for (const Folio *folio : project.folios()) {
+        if (!scope.includes(folio->id()))
+            continue;
+        for (const Wire *wire : folio->entitiesOfType<Wire>()) {
+            if (wire->cable.isEmpty() || wire->points.size() < 2)
+                continue;
+            CableLine &line = parNom[wire->cable];
+            line.name = wire->cable;
+            const WireType &type = project.wireTypes.resolve(wire->wireType);
+            // Le code vient du TYPE : un cable dont deux conducteurs
+            // annonceraient deux codes differents serait une faute de saisie,
+            // et le premier rencontre est celui qui a ete pose en premier.
+            if (line.code.isEmpty()) {
+                line.code = type.cableCode();
+                line.pairs = type.pairs;
+                line.shielded = type.shielded;
+            }
+            line.conductors += wire->conductorCount();
+            line.length += wire->length();
+            if (!line.folios.contains(folio->number))
+                line.folios.append(folio->number);
+
+            if (!premierPoint.contains(wire->cable)) {
+                premierPoint.insert(wire->cable, wire->start());
+                folioDuPremier.insert(wire->cable, folio->id());
+            }
+            dernierPoint.insert(wire->cable, wire->end());
+            folioDuDernier.insert(wire->cable, folio->id());
+        }
+    }
+
+    QVector<CableLine> lines;
+    for (auto it = parNom.begin(); it != parNom.end(); ++it) {
+        CableLine line = it.value();
+        // Les deux bouts, dits par leur BANDE de localisation : c'est ce qu'un
+        // cableur cherche — d'ou a ou, pas dans quelle case du cadre.
+        if (const Folio *f = project.folio(folioDuPremier.value(it.key())))
+            line.fromLocation = f->bandAt(premierPoint.value(it.key()));
+        if (const Folio *f = project.folio(folioDuDernier.value(it.key())))
+            line.toLocation = f->bandAt(dernierPoint.value(it.key()));
+        lines.append(line);
+    }
+    std::sort(lines.begin(), lines.end(), [](const CableLine &a, const CableLine &b) {
+        return naturalLess(a.name, b.name);
+    });
+    return lines;
+}
+
+ReportTable Reports::toTable(const QVector<CableLine> &lines)
+{
+    ReportTable table;
+    table.title = QStringLiteral("Câbles");
+    table.headers = { QStringLiteral("Câble"),       QStringLiteral("Type"),
+                      QStringLiteral("Paires"),      QStringLiteral("Blindé"),
+                      QStringLiteral("Conducteurs"), QStringLiteral("De"),
+                      QStringLiteral("Vers"),        QStringLiteral("Folios"),
+                      QStringLiteral("Longueur (m)") };
+    for (const CableLine &line : lines) {
+        table.rows.append({ line.name, line.code,
+                            line.pairs > 0 ? QString::number(line.pairs) : QString(),
+                            line.shielded ? QStringLiteral("oui") : QString(),
+                            QString::number(line.conductors), line.fromLocation,
+                            line.toLocation, line.folios.join(QStringLiteral(", ")),
+                            QString::number(line.length / 1000.0, 'f', 2) });
+    }
+    return table;
+}
+
 ReportTable Reports::toTable(const QVector<WireRunLine> &lines)
 {
     // Les colonnes de LOCALISATION n'apparaissent que si le dossier en porte.

@@ -24,6 +24,18 @@ void WireType::setColorName(const QString &text)
         rgb = quint32(value);
 }
 
+QString WireType::cableCode() const
+{
+    if (!isCable())
+        return crossSection;
+    // « 2PR#16CU » : le nombre de paires colle au reste, sans espace — c'est
+    // ainsi que le code est ecrit sur les planches et lu au magasin.
+    QString code = QStringLiteral("%1PR%2").arg(pairs).arg(crossSection);
+    if (shielded)
+        code += QStringLiteral(" BLINDE");
+    return code;
+}
+
 QJsonObject WireType::toJson() const
 {
     QJsonObject o;
@@ -39,6 +51,10 @@ QJsonObject WireType::toJson() const
         o[QStringLiteral("style")] = style;
     if (!note.isEmpty())
         o[QStringLiteral("note")] = note;
+    if (pairs > 0)
+        o[QStringLiteral("pairs")] = pairs;
+    if (shielded)
+        o[QStringLiteral("shielded")] = true;
     return o;
 }
 
@@ -54,6 +70,8 @@ WireType WireType::fromJson(const QJsonValue &value)
     t.layer = o.value(QStringLiteral("layer")).toString();
     t.style = o.value(QStringLiteral("style")).toString();
     t.note = o.value(QStringLiteral("note")).toString();
+    t.pairs = o.value(QStringLiteral("pairs")).toInt(0);
+    t.shielded = o.value(QStringLiteral("shielded")).toBool(false);
     return t;
 }
 

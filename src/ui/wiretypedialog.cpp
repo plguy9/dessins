@@ -1,5 +1,7 @@
 #include "wiretypedialog.h"
 
+#include <algorithm>
+
 #include "render/foliopainter.h"
 
 #include <QColorDialog>
@@ -17,7 +19,11 @@ namespace dsn {
 namespace {
 
 // Colonnes du tableau. Les nommer evite les indices magiques disperses.
-enum Column { ColName = 0, ColColor, ColSection, ColLayer, ColStyle, ColWidth, ColCount };
+// « Paires » et « Blindé » font d'un type de fil un CABLE : c'est ce qu'on
+// commande, et rien d'autre dans la table ne le dit. Zéro paire = un
+// conducteur ordinaire, le cas de tout schéma de commande.
+enum Column { ColName = 0, ColColor, ColSection, ColPairs, ColShield, ColLayer, ColStyle,
+              ColWidth, ColCount };
 
 QString styleLabel(const QString &style)
 {
@@ -49,8 +55,9 @@ WireTypeDialog::WireTypeDialog(const WireTypeSet &types, QWidget *parent)
 
     m_table = new QTableWidget(this);
     m_table->setColumnCount(ColCount);
-    m_table->setHorizontalHeaderLabels({ tr("Nom"), tr("Couleur"), tr("Section"), tr("Calque"),
-                                         tr("Style"), tr("Épaisseur (mm)") });
+    m_table->setHorizontalHeaderLabels({ tr("Nom"), tr("Couleur"), tr("Section"), tr("Paires"),
+                                         tr("Blindé"), tr("Calque"), tr("Style"),
+                                         tr("Épaisseur (mm)") });
     m_table->horizontalHeader()->setStretchLastSection(false);
     m_table->horizontalHeader()->setSectionResizeMode(ColName, QHeaderView::Stretch);
     m_table->verticalHeader()->setVisible(false);
@@ -115,6 +122,12 @@ void WireTypeDialog::reload()
         m_table->setItem(row, ColColor, color);
 
         m_table->setItem(row, ColSection, new QTableWidgetItem(t.crossSection));
+        m_table->setItem(row, ColPairs,
+                         new QTableWidgetItem(t.pairs > 0 ? QString::number(t.pairs) : QString()));
+        auto *shield = new QTableWidgetItem;
+        shield->setFlags((shield->flags() | Qt::ItemIsUserCheckable) & ~Qt::ItemIsEditable);
+        shield->setCheckState(t.shielded ? Qt::Checked : Qt::Unchecked);
+        m_table->setItem(row, ColShield, shield);
         m_table->setItem(row, ColLayer, new QTableWidgetItem(t.layer));
 
         auto *style = new QTableWidgetItem(styleLabel(t.style));
@@ -158,6 +171,10 @@ void WireTypeDialog::commitRow(int row)
     t.name = name->text();
     if (QTableWidgetItem *item = m_table->item(row, ColSection))
         t.crossSection = item->text().trimmed();
+    if (QTableWidgetItem *item = m_table->item(row, ColPairs))
+        t.pairs = std::max(0, item->text().trimmed().toInt());
+    if (QTableWidgetItem *item = m_table->item(row, ColShield))
+        t.shielded = item->checkState() == Qt::Checked;
     if (QTableWidgetItem *item = m_table->item(row, ColLayer))
         t.layer = item->text().trimmed();
     if (auto *combo = qobject_cast<QComboBox *>(m_table->cellWidget(row, ColStyle)))

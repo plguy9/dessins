@@ -1478,7 +1478,8 @@ TEST_CASE("Le panneau des rapports sort les onglets de cablage et de composants"
     // Les onglets attendus existent, dans l'ordre annonce.
     const QStringList expected{ QStringLiteral("Récapitulatif"), QStringLiteral("Nomenclature"),
                                 QStringLiteral("Composants"),    QStringLiteral("Bornier"),
-                                QStringLiteral("Fils"),          QStringLiteral("Câblage De/Vers") };
+                                QStringLiteral("Fils"),          QStringLiteral("Câbles"),
+                                QStringLiteral("Câblage De/Vers") };
     auto *tabs = panel.findChild<QTabWidget *>();
     REQUIRE(tabs);
     for (int i = 0; i < expected.size(); ++i)

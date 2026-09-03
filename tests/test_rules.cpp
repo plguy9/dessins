@@ -2,6 +2,7 @@
 
 #include "rules/catalog.h"
 #include "rules/findreplace.h"
+#include "core/wiretype.h"
 #include "rules/numbering.h"
 #include "rules/reports.h"
 #include "symbols/librarystore.h"
@@ -974,4 +975,72 @@ TEST_CASE("On ne cherche que dans les gisements demandés", "[rules][findreplace
     const auto hits = FindReplace::find(project, query);
     REQUIRE(hits.size() == 1);
     CHECK(hits.at(0).where == QStringLiteral("Repere"));
+}
+
+// --------------------------------------------------------------------------
+// Les câbles
+
+TEST_CASE("Un câble n'est pas un fil : il groupe ses conducteurs",
+          "[rules][cables]")
+{
+    // C'est toute la raison d'être de ce rapport. Deux paires d'un même câble
+    // portent deux potentiels différents et restent UN SEUL câble — et c'est
+    // le câble qu'on commande, qu'on tire et qu'on repère sur le chemin de
+    // câbles. Une liste de fils sur un dossier d'instrumentation compte trois
+    // cents lignes ; la liste des câbles en compte quarante.
+    Project project;
+    WireType type;
+    type.id = QStringLiteral("instrum");
+    type.name = QStringLiteral("Instrumentation");
+    type.crossSection = QStringLiteral("#16CU");
+    type.pairs = 2;
+    type.shielded = true;
+    project.wireTypes.insert(type);
+    CHECK(type.cableCode().startsWith(QStringLiteral("2PR#16CU")));
+
+    Folio *folio = project.addFolio(QStringLiteral("Boucle"));
+    folio->number = QStringLiteral("1");
+    folio->bands = { { QStringLiteral("CHAMP"), 200.0 },
+                     { QStringLiteral("CABINET"), 100.0 } };
+    const QRectF fr = folio->frameRect();
+    const double yA = fr.top() + 40.0;
+    const double yB = fr.top() + 60.0;
+    for (double y : { yA, yB }) {
+        Wire *w = drawWire(folio, { QPointF(fr.left() + 30.0, y),
+                                    QPointF(fr.left() + 250.0, y) });
+        w->wireType = type.id;
+        w->cable = QStringLiteral("022TT8917A");
+    }
+    // Un fil sans câble ne doit pas entrer dans la liste : tout ce qui est
+    // tracé n'est pas tiré dans une gaine.
+    drawWire(folio, { QPointF(fr.left() + 30.0, fr.top() + 90.0),
+                      QPointF(fr.left() + 90.0, fr.top() + 90.0) });
+
+    const auto cables = Reports::cableList(project);
+    REQUIRE(cables.size() == 1);
+    CHECK(cables.first().name == QStringLiteral("022TT8917A"));
+    CHECK(cables.first().pairs == 2);
+    CHECK(cables.first().shielded);
+    CHECK(cables.first().conductors == 2);
+    // Les deux bouts sont dits par leur BANDE : c'est ce qu'un câbleur
+    // cherche — d'où à où, pas dans quelle case du cadre.
+    CHECK(cables.first().fromLocation == QStringLiteral("CHAMP"));
+    CHECK(cables.first().toLocation == QStringLiteral("CABINET"));
+    CHECK(cables.first().length > 400.0);
+}
+
+TEST_CASE("Le code d'un câble se compose, il ne se saisit pas", "[rules][cables]")
+{
+    // Sinon un type à deux paires pourrait s'appeler « 3PR » sans que rien ne
+    // le relève, et c'est le bon de commande qui serait faux.
+    WireType simple;
+    simple.crossSection = QStringLiteral("1,5 mm²");
+    CHECK_FALSE(simple.isCable());
+    CHECK(simple.cableCode() == QStringLiteral("1,5 mm²"));
+
+    WireType cable;
+    cable.crossSection = QStringLiteral("#16CU");
+    cable.pairs = 12;
+    CHECK(cable.isCable());
+    CHECK(cable.cableCode() == QStringLiteral("12PR#16CU"));
 }

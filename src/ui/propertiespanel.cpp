@@ -345,6 +345,19 @@ void PropertiesPanel::buildWireForm(QFormLayout *form, Wire *wire)
         modify(wire, tr("Verrouiller le repère"), [on](Wire *w) { w->numberLocked = on; });
     });
 
+    // LE CABLE auquel ce conducteur appartient — son nom, pas son type.
+    // « 2PR#16CU » dit ce qu'on commande, « 022TT8917A » dit LEQUEL. Le
+    // premier est le type de fil, juste en dessous ; le second est ici, et
+    // c'est lui qui groupe les conducteurs dans la liste des câbles.
+    auto *cable = new QLineEdit(wire->cable, parent);
+    cable->setPlaceholderText(tr("nom du câble, ex. 022TT8917A"));
+    form->addRow(tr("Câble"), cable);
+    connect(cable, &QLineEdit::editingFinished, this, [this, wire, cable] {
+        if (wire->cable == cable->text())
+            return;
+        modify(wire, tr("Modifier le câble"), [&](Wire *w) { w->cable = cable->text(); });
+    });
+
     // Type de fil : c'est lui qui porte la couleur, la section et le calque.
     // Le choix se fait ici, pas fil par fil couleur par couleur.
     auto *type = new QComboBox(parent);
@@ -352,8 +365,12 @@ void PropertiesPanel::buildWireForm(QFormLayout *form, Wire *wire)
         QPixmap swatch(14, 14);
         swatch.fill(FolioPainter::wireTypeColor(t));
         QString label = t.name.isEmpty() ? t.id : t.name;
-        if (!t.crossSection.isEmpty())
-            label += QStringLiteral(" — %1").arg(t.crossSection);
+        // Le code du câble plutôt que la seule section quand c'en est un :
+        // « 2PR#16CU » se reconnaît, « #16CU » tout seul ne dit pas combien
+        // de paires on tire.
+        const QString detail = t.isCable() ? t.cableCode() : t.crossSection;
+        if (!detail.isEmpty())
+            label += QStringLiteral(" — %1").arg(detail);
         type->addItem(QIcon(swatch), label, t.id);
     }
     const int typeIndex = type->findData(wire->wireType.isEmpty() ? WireTypeSet::defaultId()

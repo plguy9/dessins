@@ -35,6 +35,7 @@ ReportPanel::ReportPanel(Document *document, QWidget *parent)
     m_components = addTab(tr("Composants"));
     m_terminals = addTab(tr("Bornier"));
     m_wires = addTab(tr("Fils"));
+    m_cables = addTab(tr("Câbles"));
     m_runs = addTab(tr("Câblage De/Vers"));
     m_plc = addTab(tr("E/S automate"));
     m_checks = addTab(tr("Contrôles"));
@@ -128,6 +129,7 @@ void ReportPanel::refresh()
     m_tables.append(Reports::toTable(Reports::componentList(project, netlist, current)));
     m_tables.append(Reports::toTable(Reports::terminalList(project, netlist, current)));
     m_tables.append(Reports::toTable(Reports::wireList(project, netlist, current)));
+    m_tables.append(Reports::toTable(Reports::cableList(project, current)));
     m_tables.append(Reports::toTable(Reports::wireFromTo(project, netlist, current)));
     m_tables.append(Reports::toTable(Reports::plcIoList(project, netlist, m_plcDatabase, current)));
     m_tables.append(Reports::diagnostics(netlist, current));
@@ -137,14 +139,23 @@ void ReportPanel::refresh()
     fill(m_components, m_tables.at(2));
     fill(m_terminals, m_tables.at(3));
     fill(m_wires, m_tables.at(4));
-    fill(m_runs, m_tables.at(5));
-    fill(m_plc, m_tables.at(6));
-    fill(m_checks, m_tables.at(7));
+    fill(m_cables, m_tables.at(5));
+    fill(m_runs, m_tables.at(6));
+    fill(m_plc, m_tables.at(7));
+    fill(m_checks, m_tables.at(8));
 
     // Le nombre d'anomalies reste visible sans ouvrir l'onglet : c'est
     // l'information qu'on veut voir sans la chercher.
-    const int problems = m_tables.at(7).rowCount();
-    m_tabs->setTabText(7, problems == 0 ? tr("Contrôles") : tr("Contrôles (%1)").arg(problems));
+    //
+    // Le rang de l'onglet est DEMANDE, jamais ecrit en dur : il l'etait deux
+    // fois, et ajouter un onglet avant lui affichait le compte d'anomalies sur
+    // le mauvais — sans que rien ne le signale.
+    const int checksTab = m_tabs->indexOf(m_checks);
+    const int problems = checksTab >= 0 && checksTab < m_tables.size()
+            ? m_tables.at(checksTab).rowCount()
+            : 0;
+    m_tabs->setTabText(checksTab,
+                       problems == 0 ? tr("Contrôles") : tr("Contrôles (%1)").arg(problems));
     m_dirty = false;
 }
 

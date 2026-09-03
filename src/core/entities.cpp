@@ -145,6 +145,8 @@ QJsonObject Wire::toJson() const
         o[QStringLiteral("style")] = style;
     if (!wireType.isEmpty())
         o[QStringLiteral("wireType")] = wireType;
+    if (!cable.isEmpty())
+        o[QStringLiteral("cable")] = cable;
     return o;
 }
 
@@ -157,6 +159,7 @@ bool Wire::readJson(const QJsonObject &object)
     numberLocked = object.value(QStringLiteral("numberLocked")).toBool(false);
     style = object.value(QStringLiteral("style")).toString();
     wireType = object.value(QStringLiteral("wireType")).toString();
+    cable = object.value(QStringLiteral("cable")).toString();
     return points.size() >= 2;
 }
 

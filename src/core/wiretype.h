@@ -33,10 +33,30 @@ struct WireType {
     QString name;            // « L1 — phase 1 »
     quint32 rgb = 0x0A5C9Eu; // couleur 0xRRGGBB, sans QColor
     double width = 0.35;     // epaisseur de trait, en millimetres
-    QString crossSection;    // « 1,5 mm² » ou « 14 AWG »
+    QString crossSection;    // « 1,5 mm² », « #16CU »…
     QString layer;           // calque d'export DXF
     QString style;           // vide = plein ; voir WireStyle
     QString note;
+
+    // CE QUI FAIT UN CABLE PLUTOT QU'UN CONDUCTEUR.
+    //
+    // Sur un schema de boucle, on ne commande pas des fils : on commande du
+    // « 2PR#16CU » — deux paires, calibre 16, cuivre, blinde. Le nombre de
+    // paires et le blindage ne se deduisent d'aucun des champs precedents, et
+    // ce sont eux qu'on lit sur un bon de commande.
+    //
+    // `pairs` a zero veut dire « ce type n'est pas un cable » : un conducteur
+    // ordinaire, comme tous ceux d'un schema de commande. C'est le cas par
+    // defaut, et il ne coute rien a personne.
+    int pairs = 0;
+    bool shielded = false;
+
+    bool isCable() const { return pairs > 0; }
+
+    // Le code qu'on ecrit sur la planche et qu'on porte au catalogue :
+    // « 2PR#16CU ». Il se COMPOSE, il n'est jamais saisi — sinon un type a
+    // deux paires pourrait s'appeler « 3PR » sans que rien ne le releve.
+    QString cableCode() const;
 
     bool isValid() const { return !id.isEmpty(); }
 

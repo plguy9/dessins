@@ -367,3 +367,21 @@ TEST_CASE("Le DXF exporte le dessin de la cote, sur son calque", "[io][dxf][cote
     CHECK(dxf.contains(QStringLiteral("150")));   // la mesure, écrite
     CHECK_FALSE(dxf.contains(QStringLiteral("DIMENSION")));
 }
+
+TEST_CASE("Le câble d'un fil traverse le fichier", "[io][dsn][cables]")
+{
+    // Le nom du câble est porté par le conducteur, pas par une entité : un
+    // câble n'a pas de tracé propre. Il doit donc voyager avec le fil — sinon
+    // la liste des câbles se vide à la première réouverture, sans un mot.
+    Project source;
+    Folio *folio = source.addFolio(QStringLiteral("Boucle"));
+    Wire *wire = drawWire(folio, { QPointF(40, 60), QPointF(180, 60) });
+    wire->cable = QStringLiteral("022TT8917A");
+    wire->wireType = QStringLiteral("instrum");
+
+    Project restored;
+    REQUIRE(DsnFile::fromArchive(DsnFile::toArchive(source), restored).ok);
+    const auto fils = restored.folioAt(0)->entitiesOfType<Wire>();
+    REQUIRE(fils.size() == 1);
+    CHECK(fils.front()->cable == QStringLiteral("022TT8917A"));
+}

@@ -88,6 +88,18 @@ public:
     // un fil ancien, ou pose sans choix explicite, reste tracable.
     QString wireType;
 
+    // LE CABLE AUQUEL CE CONDUCTEUR APPARTIENT — son nom, pas son type.
+    //
+    // « 2PR#16CU » dit ce qu'on commande ; « 022TT8917A » dit LEQUEL, dans
+    // cette armoire-la. Le premier est le type de fil, le second est ici.
+    //
+    // Le cable n'est pas une entite : il n'a pas de trace propre, c'est un
+    // groupe de conducteurs qui vont du meme point au meme point. Lui donner
+    // une entite obligerait a la tenir synchronisee avec ses fils — et un
+    // cable qui ne suit pas ses conducteurs est faux des le premier
+    // deplacement.
+    QString cable;
+
     int conductorCount() const { return conductors.isEmpty() ? 1 : int(conductors.size()); }
     QString conductorName(int index) const;
 

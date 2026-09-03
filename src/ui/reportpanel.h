@@ -47,6 +47,7 @@ private:
     QTableWidget *m_components = nullptr;
     QTableWidget *m_terminals = nullptr;
     QTableWidget *m_wires = nullptr;
+    QTableWidget *m_cables = nullptr;
     QTableWidget *m_plc = nullptr;
     // La base des modules sert a retrouver le format d'adressage : sans elle,
     // les cartes posees restent lisibles mais leurs adresses ne peuvent plus

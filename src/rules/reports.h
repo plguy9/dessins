@@ -58,6 +58,26 @@ struct TerminalLine {
     QString targetPin;
 };
 
+// UNE LIGNE DE LA LISTE DES CABLES.
+//
+// Ce n'est pas la liste des fils, et la difference est la raison d'etre de ce
+// rapport : un cable regroupe n conducteurs qui vont du meme point au meme
+// point, et c'est LUI qu'on commande, qu'on tire et qu'on repere sur le
+// chemin de cables. Une liste de fils sur un dossier d'instrumentation
+// compte trois cents lignes ; la liste des cables en compte quarante, et
+// c'est celle-la qu'on emmene au magasin.
+struct CableLine {
+    QString name;          // « 022TT8917A » — CE cable-la
+    QString code;          // « 2PR#16CU » — ce qu'on commande
+    int pairs = 0;
+    bool shielded = false;
+    int conductors = 0;    // nombre de conducteurs reellement traces
+    QStringList folios;
+    QString fromLocation;  // les bandes de localisation, quand le folio en a
+    QString toLocation;
+    double length = 0.0;   // somme des longueurs tracees, en millimetres
+};
+
 struct WireLine {
     QString number;
     QString netName;
@@ -151,6 +171,12 @@ public:
     // Bornier : une ligne par borne, avec le fil et l'appareil raccordes.
     static QVector<TerminalLine> terminalList(const Project &project, const Netlist &netlist,
                                               const ReportScope &scope = {});
+
+    // Liste des CABLES : un cable par ligne, avec ses conducteurs comptes et
+    // ses deux bouts. Elle ne se deduit pas de la liste des fils — un cable
+    // est un groupe, pas un potentiel.
+    static QVector<CableLine> cableList(const Project &project, const ReportScope &scope = {});
+    static ReportTable toTable(const QVector<CableLine> &lines);
 
     // Liste des fils : un potentiel par ligne, avec ses extremites.
     static QVector<WireLine> wireList(const Project &project, const Netlist &netlist,

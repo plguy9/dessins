@@ -101,6 +101,7 @@ private:
     void editComponent(const QString &entityId, bool insertion);
     void editSelectedComponent();
     void surfSelection();
+    void editTitleBlock();
     void showFindReplace(const QString &needle = QString());
     void swapSelectedSymbol();
     void editTerminalStrips();

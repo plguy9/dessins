@@ -41,9 +41,14 @@ Folio::Folio(QString id) : m_id(std::move(id)) {}
 
 Folio::~Folio() = default;
 
+// ATTENTION : la copie est ecrite a la main (les entites sont clonees une a
+// une, un unique_ptr ne se copiant pas). TOUT CHAMP AJOUTE A `Folio` DOIT
+// ETRE REPRIS ICI ET DANS `operator=`. L'oublier ne casse rien visiblement :
+// le champ se perd a la premiere copie — une annulation, un collage, un
+// apercu — et on cherche longtemps pourquoi. Paye sur `tables`.
 Folio::Folio(const Folio &other)
     : number(other.number), title(other.title), sheet(other.sheet), frame(other.frame),
-      titleBlock(other.titleBlock), m_id(other.m_id)
+      titleBlock(other.titleBlock), tables(other.tables), m_id(other.m_id)
 {
     m_entities.reserve(other.m_entities.size());
     for (const EntityPtr &e : other.m_entities)
@@ -60,6 +65,7 @@ Folio &Folio::operator=(const Folio &other)
     sheet = other.sheet;
     frame = other.frame;
     titleBlock = other.titleBlock;
+    tables = other.tables;
     m_entities.clear();
     m_entities.reserve(other.m_entities.size());
     for (const EntityPtr &e : other.m_entities)
@@ -206,6 +212,16 @@ QJsonObject Folio::toJson() const
     o[QStringLiteral("frame")] = frame.toJson();
     if (!titleBlock.isEmpty())
         o[QStringLiteral("titleBlock")] = stringMapToJson(titleBlock);
+    if (!tables.isEmpty()) {
+        QJsonObject tabs;
+        for (auto it = tables.cbegin(); it != tables.cend(); ++it) {
+            QJsonArray rows;
+            for (const QStringList &row : it.value())
+                rows.append(stringListToJson(row));
+            tabs[it.key()] = rows;
+        }
+        o[QStringLiteral("tables")] = tabs;
+    }
 
     QJsonArray items;
     for (const EntityPtr &e : m_entities)
@@ -231,6 +247,14 @@ bool Folio::readJson(const QJsonObject &object)
 
     frame = SheetFrame::fromJson(object.value(QStringLiteral("frame")));
     titleBlock = stringMapFromJson(object.value(QStringLiteral("titleBlock")));
+    tables.clear();
+    const QJsonObject tabs = object.value(QStringLiteral("tables")).toObject();
+    for (auto it = tabs.begin(); it != tabs.end(); ++it) {
+        QVector<QStringList> rows;
+        for (const QJsonValue &r : it.value().toArray())
+            rows.append(stringListFromJson(r));
+        tables.insert(it.key(), rows);
+    }
 
     m_entities.clear();
     const QJsonArray items = object.value(QStringLiteral("entities")).toArray();

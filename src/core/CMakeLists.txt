@@ -11,6 +11,7 @@ add_library(arcus_core STATIC
     symbollibrary.h   symbollibrary.cpp
     folio.h           folio.cpp
     project.h         project.cpp
+    titleblock.h      titleblock.cpp
     netlist.h         netlist.cpp
     snapengine.h      snapengine.cpp
     wiretools.h       wiretools.cpp

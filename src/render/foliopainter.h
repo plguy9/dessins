@@ -15,6 +15,7 @@
 
 #include <QFont>
 #include <QHash>
+#include <QMap>
 #include <QPainter>
 #include <QSet>
 
@@ -25,6 +26,7 @@ class SymbolInstance;
 class Wire;
 class Label;
 class DimensionItem;
+struct TitleBlockCell;
 struct WireType;
 
 class FolioPainter
@@ -128,6 +130,10 @@ private:
     void paintWire(QPainter &painter, const Wire &wire) const;
     void paintLabel(QPainter &painter, const Label &label) const;
     void paintDimension(QPainter &painter, const DimensionItem &dimension) const;
+    void paintTitleBlockCell(QPainter &painter, const TitleBlockCell &cell,
+                             const QMap<QString, QString> &values, const Folio &folio) const;
+    void paintTitleBlockTable(QPainter &painter, const TitleBlockCell &cell,
+                              const Folio &folio) const;
     QColor colorFor(const Entity &entity, const QColor &base) const;
 
     const Project &m_project;

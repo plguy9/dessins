@@ -26,6 +26,8 @@
 #include "symbols/librarystore.h"
 #include "ui/dockrail.h"
 #include "ui/findreplacedialog.h"
+#include "ui/titleblockeditor.h"
+#include "core/titleblock.h"
 #include "ui/docktitle.h"
 #include "ui/document.h"
 #include "ui/folioview.h"
@@ -410,6 +412,70 @@ TEST_CASE("Une cote refuse de se poser sur deux points confondus",
     clickAt(view, QPointF(100, 100));
     clickAt(view, QPointF(120, 130));
     CHECK(folio->entityCount() == 0);
+}
+
+TEST_CASE("Composer un cartouche s'applique au dossier et s'annule",
+          "[ui][cartouche]")
+{
+    // « Nous devons pouvoir créer une cartouche perso. » Le geste complet :
+    // partir d'un gabarit livré, ajouter une case, appliquer — et Ctrl+Z si
+    // on s'est trompé sur un dossier de quarante planches.
+    Document document;
+    document.newProject(builtinLibrary());
+    document.project().addFolio(QStringLiteral("Second"));
+    const double avant = document.currentFolio()->frame.titleBlockWidth;
+
+    TitleBlockEditor editor(&document);
+    editor.setTemplate(TitleBlock::loopSheet());
+    const int cases = int(editor.edited().cells.size());
+    editor.apply();
+
+    CHECK(document.project().titleBlock.id == QStringLiteral("boucle"));
+    CHECK(int(document.project().titleBlock.cells.size()) == cases);
+    // La taille réservée sur CHAQUE folio suit le gabarit : les séparer
+    // laisserait un cartouche de 330 mm serré dans un cadre qui n'en réserve
+    // que 180, et le peintre devrait le rétrécir sans que rien ne le dise.
+    for (const Folio *folio : document.project().folios()) {
+        CHECK(folio->frame.titleBlockWidth == document.project().titleBlock.width);
+        CHECK(folio->frame.titleBlockHeight == document.project().titleBlock.height);
+    }
+
+    document.undo();
+    CHECK(document.project().titleBlock.isEmpty());
+    CHECK(document.currentFolio()->frame.titleBlockWidth == avant);
+}
+
+TEST_CASE("Une case ajoutée au cartouche se retrouve dans le dossier",
+          "[ui][cartouche]")
+{
+    // Ce que veut dire « perso » : ajouter SON champ, pas choisir parmi les
+    // nôtres. Une clef libre est acceptée — la refuser figerait le cartouche
+    // une seconde fois.
+    Document document;
+    document.newProject(builtinLibrary());
+
+    TitleBlockEditor editor(&document);
+    editor.setTemplate(TitleBlock::standard());
+    const int avant = int(editor.edited().cells.size());
+    // On ajoute une case par le même chemin que le bouton « + Champ ».
+    TitleBlockTemplate gabarit = editor.edited();
+    TitleBlockCell maison;
+    maison.rect = QRectF(4, 30, 60, 6);
+    maison.label = QStringLiteral("Atelier");
+    maison.key = QStringLiteral("atelier");
+    gabarit.cells.append(maison);
+    editor.setTemplate(gabarit);
+    editor.apply();
+
+    REQUIRE(int(document.project().titleBlock.cells.size()) == avant + 1);
+    CHECK(document.project().titleBlock.cells.last().key == QStringLiteral("atelier"));
+
+    // Et la valeur se renseigne par folio, comme tout champ de cartouche.
+    document.currentFolio()->titleBlock.insert(QStringLiteral("atelier"),
+                                               QStringLiteral("Montage 3"));
+    const QMap<QString, QString> v =
+            TitleBlock::values(document.project(), *document.currentFolio());
+    CHECK(v.value(QStringLiteral("atelier")) == QStringLiteral("Montage 3"));
 }
 
 TEST_CASE("La rotation depuis le canevas est annulable", "[ui][view]")

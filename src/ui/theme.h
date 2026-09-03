@@ -107,6 +107,7 @@ public:
         Quit, Ladder, ZoomPrevious, DuplicateEdit, Terminals,
         CommandLine, CommandPalette, MatchProps, StartPage, ProjectInfo,
         PageSetup, ObjectSnap, TextH1, TextH2, TextH3, TextH4,
+        TitleBlock,
 
         // Sentinelle : elle permet de parcourir tous les glyphes sans en
         // tenir la liste a jour ailleurs. Un test s'en sert pour verifier

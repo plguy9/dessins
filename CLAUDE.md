@@ -1002,7 +1002,14 @@ leur suppression. C'est en soi le signe qu'on avait construit large et plat.
     se déduit de ses deux points d'attache et n'est jamais stockée — comme la
     netlist et les renvois. `override` est le seul échappatoire, et il se
     déclare.
-13. **Ce que le rapport imprime, le dessin le montre.** Un champ qu'une boîte
+13. **Le peintre ne connaît aucun champ de cartouche par son nom.** Il pose
+    des cases et demande leur valeur à `TitleBlock::values()`. Écrire un champ
+    en dur ici rendrait le cartouche non modifiable, ce qui est le défaut
+    qu'on vient de corriger.
+14. **Tout champ ajouté à `Folio` doit être repris dans son constructeur de
+    copie ET dans `operator=`.** Ils sont écrits à la main ; l'oublier perd le
+    champ à la première copie, en silence (payé sur `Folio::tables`).
+15. **Ce que le rapport imprime, le dessin le montre.** Un champ qu'une boîte
     de dialogue renseigne et qu'un rapport publie doit être lisible sur la
     planche — sinon le plan et le rapport se contredisent, et c'est le plan
     que le câbleur a en main (payé sur le numéro de borne).
@@ -1112,6 +1119,9 @@ la planche et la bibliothèque.
 
 Les cinq manques, dans l'ordre de valeur (bloc D proposé, `docs/BOUCLES.md`) :
 
+**D2 est fait** (voir « D2 — Le cartouche est une structure de données »).
+Restent :
+
 1. **Les bandes de localisation.** La feuille est coupée en bandes verticales
    nommées (`CHAMP` | `CABINET 037BJ0151`), chacune avec son bandeau. La bande
    est à un schéma de boucle ce que l'échelle est à un schéma de commande, et
@@ -1141,6 +1151,79 @@ Les cinq manques, dans l'ordre de valeur (bloc D proposé, `docs/BOUCLES.md`) :
    d'automate est `%N04R07S07C016` (Nœud/Rack/Slot/Canal) — `rules/plc.*` n'a
    pas la notion de **nœud**, pourtant écrite en toutes lettres à côté de
    chaque carte.
+
+### D2 — Le cartouche est une structure de données (2026-09-03)
+
+**Décision utilisateur** : *« La cartouche doit être améliorée et modifiable.
+Nous devons pouvoir créer une cartouche perso. »* Et sur la part des schémas de
+boucle : *« Je dirais 50/50 et voir plus… AutoCAD font les deux, tu peux tout
+faire ça. »* — donc les deux documents, pas l'un à la place de l'autre.
+
+Le cartouche était dessiné en dur dans le peintre : trois bandes, six textes,
+aucune prise. C'est pourtant ce qu'un bureau d'études regarde en premier, et le
+seul endroit du dessin qui porte **son** identité.
+
+`core/titleblock.*` — quatre décisions :
+
+1. **Le gabarit vit dans le projet et voyage dans le fichier**, comme la
+   bibliothèque de symboles et les types de fils. Un dossier rouvert ailleurs
+   garde son cartouche, même si le poste ne connaît pas le gabarit du bureau
+   qui l'a tiré. Vide = le gabarit standard : un ancien fichier se tire comme
+   avant.
+2. **Une cellule ne connaît qu'une CLEF, jamais une donnée.** Elle dit « écris
+   ici la valeur de `client` » ; `TitleBlock::values()` sait où la prendre.
+   **Le peintre ne connaît plus aucun champ par son nom** — sans cela, ajouter
+   un champ demanderait de toucher le peintre, et le gabarit ne serait pas
+   modifiable par l'utilisateur.
+3. **Une clef inconnue écrit du vide, jamais son nom.** Un cartouche qui
+   affiche « projectTitle » en toutes lettres part à l'impression sans que
+   personne ne le remarque : c'est pire qu'une case vide (test dédié).
+4. **Le gabarit porte sa taille, et le cadre la suit.** Changer de cartouche
+   repose sa taille sur *chaque* folio, dans la même commande : les séparer
+   laisserait un cartouche de 330 mm serré dans un cadre qui n'en réserve que
+   180. Le peintre garde un facteur d'échelle **uniforme** comme garde-fou —
+   il vaut 1 en usage normal, et n'existe que pour qu'un ancien fichier serre
+   son cartouche au lieu de déborder sur le dessin.
+
+**Les tables grandissent vers le haut.** L'intitulé des colonnes est en bas, la
+révision 0 juste au-dessus, la 1 encore au-dessus : c'est l'ordre dans lequel on
+relit l'historique d'une planche, et ce que font les trois planches relevées.
+Une table est **une clef et des lignes de texte** (`Folio::tables`) ; c'est le
+gabarit qui dit ses colonnes. Ce choix rend une table maison gratuite — ajouter
+« ESSAIS EN USINE » à son cartouche ne demande pas une ligne de code.
+
+**Les images sont embarquées**, jamais référencées par un chemin : un logo
+pointé sur le disque disparaît dès que le fichier change de poste, et personne
+ne s'en aperçoit avant l'impression.
+
+**`ui/titleblockeditor.*`** — l'éditeur. Deux choses le distinguent d'un
+formulaire :
+- **l'aperçu est peint par le VRAI peintre** (`FolioPainter::paintTitleBlock`)
+  sur une copie du projet : régler sur un dessin approché rouvrirait l'écart
+  entre l'écran et le papier que tout ce logiciel existe pour fermer ;
+- **on déplace les cases à la souris**, au demi-millimètre (un cartouche se
+  compose sur une trame ; une case posée à 12,37 mm ne s'aligne avec rien). Le
+  formulaire reste, pour poser un chiffre exact quand on le veut.
+
+L'aperçu prend toute la largeur, au-dessus du reste : un cartouche est un objet
+large et plat — 330 mm sur 35 — et le mettre dans une colonne le réduisait à un
+timbre.
+
+Deux gabarits sont livrés : le standard (l'ancien tracé en dur, transposé case
+par case) et **Schéma de boucle**, calqué sur les planches relevées. Le second
+ne sert pas qu'à offrir un choix : il **prouve que le mécanisme suffit à
+décrire un cartouche réel**. Si un gabarit réel n'y rentrait pas, ce serait le
+mécanisme qu'il faudrait reprendre.
+
+**Ce que ça a trouvé au passage.** `Folio` a un constructeur de copie écrit à la
+main — les entités se clonent une à une, un `unique_ptr` ne se copiant pas. Il
+ne reprenait pas le champ neuf : les tables du cartouche se perdaient à la
+première copie (une annulation, un collage, un aperçu) sans que rien ne le dise.
+**Tout champ ajouté à `Folio` doit être repris dans `Folio(const Folio&)` ET
+dans `operator=`** — un commentaire le dit maintenant à cet endroit, et un test
+le tient.
+
+Menu Projet ▸ Cartouche du dossier, commande `CARTOUCHE` (alias `CA`).
 
 ## Prochaines étapes envisagées (dans l'ordre de valeur)
 

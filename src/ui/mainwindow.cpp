@@ -24,6 +24,7 @@
 #include "symbolpalette.h"
 #include "componentdialog.h"
 #include "surferdialog.h"
+#include "titleblockeditor.h"
 #include "symbolswapdialog.h"
 #include "appearance.h"
 #include "dockrail.h"
@@ -970,6 +971,11 @@ void MainWindow::createActions()
                              QKeySequence(Qt::CTRL | Qt::Key_P),
                              tr("Format de feuille, cadre, zones de repérage, cartouche"),
                              &MainWindow::editPageSetup);
+    // Le cartouche : le seul endroit du dessin qui porte l'identite du bureau
+    // d'etudes. Il etait dessine en dur ; il se compose maintenant.
+    make(projectMenu, G::TitleBlock, tr("&Cartouche du dossier…"), QKeySequence(),
+         tr("Composer le cartouche : champs, tables, logo — et l'appliquer à tout le dossier"),
+         &MainWindow::editTitleBlock, Need::Always);
     make(projectMenu, G::ProjectInfo, tr("&Informations du projet…"), QKeySequence(),
          tr("Titre, client, référence — ce que porte le cartouche"),
          &MainWindow::editProjectInfo);
@@ -1137,6 +1143,17 @@ void MainWindow::surfSelection()
         return;
     }
     dialog.exec();
+}
+
+void MainWindow::editTitleBlock()
+{
+    TitleBlockEditor editor(m_document, this);
+    if (editor.exec() != QDialog::Accepted)
+        return;
+    report(tr("Cartouche appliqué au dossier — %n case(s).", "",
+              int(editor.edited().cells.size())));
+    m_view->update();
+    m_navigator->refresh();
 }
 
 void MainWindow::showFindReplace(const QString &needle)
@@ -2003,6 +2020,8 @@ void MainWindow::registerCommands()
     simple(QStringLiteral("REPARTIR"), { QStringLiteral("REP") },
            tr("Répartir la sélection horizontalement, à pas égal"),
            [this] { alignSelection(AlignMode::DistributeHorizontally); });
+    simple(QStringLiteral("CARTOUCHE"), { QStringLiteral("CA"), QStringLiteral("TITRE") },
+           tr("Composer le cartouche du dossier"), [this] { editTitleBlock(); });
     simple(QStringLiteral("RECHERCHER"),
            { QStringLiteral("RH"), QStringLiteral("REMPLACER"), QStringLiteral("RP") },
            tr("Chercher un texte dans tout le dossier, et le remplacer"),
@@ -2466,6 +2485,7 @@ void MainWindow::createRibbon()
         { "Projet", "Fichier", false, "Enregistrer sous", "" },
         { "Projet", "Dossier", true, "Mise en page", "Mise en page" },
         { "Projet", "Dossier", false, "Informations du projet", "" },
+        { "Projet", "Dossier", false, "Cartouche du dossier", "" },
         { "Projet", "Contrôle", true, "Audit électrique", "Audit" },
         { "Projet", "Contrôle", false, "Repérage automatique", "" },
         { "Projet", "Sortie", true, "Exporter en PDF", "PDF" },

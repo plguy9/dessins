@@ -4,6 +4,7 @@
 
 #include "folio.h"
 #include "symbollibrary.h"
+#include "titleblock.h"
 #include "wiretype.h"
 
 #include <QDate>
@@ -56,6 +57,20 @@ public:
     // le document : un dossier rouvert ailleurs garde ses couleurs. Un projet
     // neuf part du jeu de sa norme, pas d'une liste vide.
     WireTypeSet wireTypes = WireTypeSet::forNorm(QStringLiteral("iec"));
+
+    // LE CARTOUCHE DU DOSSIER.
+    //
+    // Il vit ici et voyage dans le fichier, comme la bibliotheque et les types
+    // de fils : un dossier rouvert ailleurs garde SON cartouche, meme si le
+    // poste ne connait pas le gabarit du bureau qui l'a tire. Vide = le
+    // gabarit standard, pour qu'un ancien fichier se tire comme avant.
+    TitleBlockTemplate titleBlock;
+
+    // Les images du cartouche — logo, sceau d'ingenieur — par clef, en PNG.
+    // EMBARQUEES, jamais referencees par un chemin : un logo pointe sur le
+    // disque disparait des que le fichier change de poste, et personne ne
+    // s'en apercoit avant l'impression.
+    QMap<QString, QByteArray> images;
 
     // Definitions embarquees dans le document. Un dossier archive se rouvre
     // ainsi a l'identique, meme si la bibliotheque du poste a change depuis.

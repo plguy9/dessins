@@ -5,6 +5,7 @@
 #include <QPainter>
 #include <QTemporaryDir>
 
+#include "core/titleblock.h"
 #include "render/foliopainter.h"
 #include "symbols/librarystore.h"
 #include "render/pdfexport.h"
@@ -141,8 +142,12 @@ TEST_CASE("Le cadre et le cartouche sont traces", "[render]")
 
     const QRectF block = folio->titleBlockRect();
     CHECK(hasInkNear(image, block.topLeft(), ppm));
-    // Le titre du projet est inscrit dans la premiere bande du cartouche.
-    CHECK(hasInkNear(image, block.topLeft() + QPointF(12, 10), ppm, 6));
+    // Le titre du projet est inscrit dans la première bande du cartouche.
+    // On vise la bande, pas un pixel : le cartouche vient d'un gabarit, et
+    // ses cases se centrent — figer une position au dixième de millimètre
+    // ferait échouer le test au premier gabarit modifié, ce qui n'apprendrait
+    // rien sur ce qu'on veut vraiment (le titre est écrit, et il est là).
+    CHECK(hasInkNear(image, block.topLeft() + QPointF(12, 6.5), ppm, 6));
 }
 
 TEST_CASE("La hauteur de texte est respectee en millimetres", "[render]")
@@ -591,4 +596,77 @@ TEST_CASE("Le texte d'une cote se lit toujours dans le bon sens", "[render][cote
     // haut (ISO 129), c'est-à-dire en tournant la planche d'un quart de tour
     // à droite — jamais à gauche.
     CHECK(g.angleDegrees == -90.0);
+}
+
+// --------------------------------------------------------------------------
+// Le cartouche piloté par un gabarit
+
+TEST_CASE("Une table de cartouche grandit vers le haut", "[render][cartouche]")
+{
+    // L'intitulé des colonnes est en bas, la révision 0 juste au-dessus, la 1
+    // encore au-dessus. C'est l'ordre dans lequel on relit l'historique d'une
+    // planche — la dernière révision tombe sous l'œil en premier — et c'est
+    // ce que font toutes les planches relevées.
+    Project project;
+    project.titleBlock = TitleBlock::loopSheet();
+    Folio *folio = project.addFolio(QStringLiteral("Boucle"));
+    folio->sheet = sheetFormatById(QStringLiteral("A2"));
+    folio->frame.titleBlockWidth = project.titleBlock.width;
+    folio->frame.titleBlockHeight = project.titleBlock.height;
+
+    // La case « revisions » du gabarit, pour viser ses lignes sans compter
+    // des pixels au jugé.
+    QRectF zone;
+    for (const TitleBlockCell &cell : project.titleBlock.cells) {
+        if (cell.kind == TitleBlockCell::Kind::Table
+            && cell.key == QStringLiteral("revisions")) {
+            zone = cell.rect;
+        }
+    }
+    REQUIRE(!zone.isNull());
+
+    const double ppm = 6.0;
+    const QRectF bloc = folio->titleBlockRect();
+    const QPointF origine = bloc.topLeft() + zone.topLeft();
+    const double rowHeight = 1.8 * 1.6;                 // cf. FolioPainter
+    const double headerY = origine.y() + zone.height() - rowHeight / 2.0;
+    const double x = origine.x() + zone.width() * 0.55; // la colonne DESCRIPTION
+
+    // Sans ligne : l'intitulé est là, rien au-dessus.
+    QImage vide = PdfExport::renderFolio(project, *folio, RenderStyle::print(), ppm);
+    CHECK(hasInkNear(vide, QPointF(x, headerY), ppm, 8));
+    CHECK_FALSE(hasInkNear(vide, QPointF(x, headerY - rowHeight), ppm, 3));
+
+    // Une ligne : elle se pose AU-DESSUS de l'intitulé, pas en dessous.
+    folio->tables.insert(QStringLiteral("revisions"),
+                         { { QStringLiteral("0"), {}, QStringLiteral("26.09.03"),
+                             QStringLiteral("EMISSION") } });
+    QImage une = PdfExport::renderFolio(project, *folio, RenderStyle::print(), ppm);
+    CHECK(hasInkNear(une, QPointF(x, headerY - rowHeight), ppm, 5));
+}
+
+TEST_CASE("Une clef de cartouche inconnue n'écrit rien", "[render][cartouche]")
+{
+    // Un cartouche qui affiche « projectTitle » en toutes lettres part à
+    // l'impression sans que personne ne le remarque : c'est pire que vide.
+    Project project;
+    TitleBlockTemplate gabarit;
+    gabarit.id = QStringLiteral("essai");
+    gabarit.width = 120.0;
+    gabarit.height = 30.0;
+    TitleBlockCell cell;
+    cell.rect = QRectF(4, 4, 100, 10);
+    cell.key = QStringLiteral("clefQuiNexistePas");
+    cell.border = false;
+    gabarit.cells.append(cell);
+    project.titleBlock = gabarit;
+
+    Folio *folio = project.addFolio();
+    folio->frame.titleBlockWidth = gabarit.width;
+    folio->frame.titleBlockHeight = gabarit.height;
+
+    const double ppm = 6.0;
+    const QImage image = PdfExport::renderFolio(project, *folio, RenderStyle::print(), ppm);
+    const QRectF bloc = folio->titleBlockRect();
+    CHECK_FALSE(hasInkNear(image, bloc.topLeft() + QPointF(20, 9), ppm, 4));
 }

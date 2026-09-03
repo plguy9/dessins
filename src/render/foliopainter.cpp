@@ -1,5 +1,7 @@
 #include "foliopainter.h"
 
+#include "core/titleblock.h"
+
 #include "core/entities.h"
 
 #include <QFontMetricsF>
@@ -484,6 +486,13 @@ void FolioPainter::paintFrame(QPainter &painter, const Folio &folio) const
     painter.restore();
 }
 
+// LE CARTOUCHE EST LU, PLUS DESSINE EN DUR.
+//
+// Il portait trois bandes et six textes ecrits ici meme : aucune prise pour
+// qui veut le sien. Il se lit maintenant dans un gabarit range dans le projet
+// (voir core/titleblock.h). Le peintre ne connait plus AUCUN champ par son
+// nom — il pose des cases, et demande leur valeur a `TitleBlock::values`.
+// C'est ce qui rend le cartouche modifiable sans toucher une ligne de code.
 void FolioPainter::paintTitleBlock(QPainter &painter, const Folio &folio) const
 {
     if (!m_style.showTitleBlock)
@@ -493,48 +502,200 @@ void FolioPainter::paintTitleBlock(QPainter &painter, const Folio &folio) const
     if (block.width() < 40.0 || block.height() < 16.0)
         return;
 
+    TitleBlockTemplate gabarit = m_project.titleBlock;
+    if (gabarit.isEmpty())
+        gabarit = TitleBlock::standard();
+    if (gabarit.width <= 0.0 || gabarit.height <= 0.0)
+        return;
+
     painter.save();
     painter.setBrush(Qt::NoBrush);
     painter.setPen(pen(m_style.frame, m_style.frameWidth));
     painter.drawRect(block);
 
-    // Trois bandes : titre du projet, folio, mentions administratives.
-    const double rowHeight = block.height() / 3.0;
-    painter.setPen(pen(m_style.frame, m_style.frameWidth * 0.5));
-    for (int i = 1; i < 3; ++i) {
-        const double y = block.top() + i * rowHeight;
-        painter.drawLine(QPointF(block.left(), y), QPointF(block.right(), y));
-    }
-    const double splitX = block.left() + block.width() * 0.62;
-    painter.drawLine(QPointF(splitX, block.top() + rowHeight), QPointF(splitX, block.bottom()));
+    // Le gabarit se dessine a SA taille. Le facteur vaut 1 en usage normal —
+    // choisir un gabarit repose sa taille sur les folios. Il n'existe que
+    // comme garde-fou : un ancien fichier dont le cadre ne reserve pas la
+    // meme place doit serrer son cartouche, jamais deborder sur le dessin.
+    // Il est UNIFORME : un cartouche aplati n'est plus lisible.
+    const double facteur = std::min(block.width() / gabarit.width,
+                                    block.height() / gabarit.height);
+    painter.translate(block.topLeft());
+    painter.scale(facteur, facteur);
 
-    const ProjectInfo &info = m_project.info;
-    const double pad = 2.0;
-    painter.setPen(m_style.text);
-
-    drawTextMm(painter, QPointF(block.left() + pad, block.top() + rowHeight - 2.4),
-               info.title.isEmpty() ? QStringLiteral("Projet sans titre") : info.title, 3.6);
-
-    drawTextMm(painter, QPointF(block.left() + pad, block.top() + 2 * rowHeight - 5.0),
-               folio.title, 2.6);
-    drawTextMm(painter, QPointF(block.left() + pad, block.top() + 2 * rowHeight - 1.4),
-               info.client, 2.2);
-
-    drawTextMm(painter, QPointF(splitX + pad, block.top() + 2 * rowHeight - 5.0),
-               QStringLiteral("Folio ") + folio.number, 2.6);
-    drawTextMm(painter, QPointF(splitX + pad, block.top() + 2 * rowHeight - 1.4),
-               QStringLiteral("Réf. ") + info.reference, 2.2);
-
-    drawTextMm(painter, QPointF(block.left() + pad, block.bottom() - 4.4), info.author, 2.2);
-    drawTextMm(painter, QPointF(block.left() + pad, block.bottom() - 1.2),
-               info.date.isValid() ? info.date.toString(QStringLiteral("dd/MM/yyyy")) : QString(),
-               2.2);
-
-    drawTextMm(painter, QPointF(splitX + pad, block.bottom() - 4.4),
-               QStringLiteral("Indice ") + info.revision, 2.2);
-    drawTextMm(painter, QPointF(splitX + pad, block.bottom() - 1.2), folio.sheet.id, 2.2);
+    const QMap<QString, QString> valeurs = TitleBlock::values(m_project, folio);
+    for (const TitleBlockCell &cell : gabarit.cells)
+        paintTitleBlockCell(painter, cell, valeurs, folio);
 
     painter.restore();
+}
+
+void FolioPainter::paintTitleBlockCell(QPainter &painter, const TitleBlockCell &cell,
+                                       const QMap<QString, QString> &values,
+                                       const Folio &folio) const
+{
+    const QRectF r = cell.rect;
+    if (r.width() <= 0.0 || r.height() <= 0.0)
+        return;
+
+    const QPen filet = pen(m_style.frame, m_style.frameWidth * 0.5);
+    if (cell.border) {
+        painter.setPen(filet);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRect(r);
+    }
+
+    const double pad = 1.2;
+
+    switch (cell.kind) {
+    case TitleBlockCell::Kind::Image: {
+        // Le logo et le sceau viennent du PROJET, jamais d'un chemin sur le
+        // disque : une image pointee disparait des que le fichier change de
+        // poste, et personne ne s'en apercoit avant l'impression.
+        const QByteArray octets = m_project.images.value(cell.key);
+        if (octets.isEmpty())
+            return;
+        QImage img;
+        if (!img.loadFromData(octets))
+            return;
+        // A proportions gardees et centree : un logo etire est pire que pas
+        // de logo — c'est l'image de marque d'un bureau d'etudes.
+        const QSizeF cible = QSizeF(img.size()).scaled(r.size(), Qt::KeepAspectRatio);
+        const QRectF ou(r.center().x() - cible.width() / 2.0,
+                        r.center().y() - cible.height() / 2.0, cible.width(), cible.height());
+        painter.drawImage(ou, img);
+        return;
+    }
+
+    case TitleBlockCell::Kind::Text: {
+        painter.setPen(m_style.text);
+        const double x = cell.align == Primitive::Align::Center ? r.center().x()
+                : cell.align == Primitive::Align::Right         ? r.right() - pad
+                                                                : r.left() + pad;
+        drawTextMm(painter, QPointF(x, r.center().y() + cell.textHeight * 0.4), cell.text,
+                   cell.textHeight, cell.align);
+        return;
+    }
+
+    case TitleBlockCell::Kind::Table: {
+        paintTitleBlockTable(painter, cell, folio);
+        return;
+    }
+
+    case TitleBlockCell::Kind::Field:
+        break;
+    }
+
+    // Une clef inconnue ecrit du VIDE, jamais son nom : un cartouche qui
+    // affiche « projectTitle » en toutes lettres part a l'impression sans que
+    // personne ne le remarque.
+    const QString valeur = values.value(cell.key);
+
+    if (cell.layout == TitleBlockCell::Layout::Stacked) {
+        if (!cell.label.isEmpty()) {
+            painter.setPen(m_style.text);
+            drawTextMm(painter, QPointF(r.left() + pad, r.top() + cell.labelHeight + pad * 0.6),
+                       cell.label.toUpper(), cell.labelHeight);
+        }
+        const double baseline = r.bottom() - pad;
+        const double x = cell.align == Primitive::Align::Center ? r.center().x()
+                : cell.align == Primitive::Align::Right         ? r.right() - pad
+                                                                : r.left() + pad;
+        painter.setPen(m_style.text);
+        drawTextMm(painter, QPointF(x, baseline), valeur, cell.textHeight, cell.align);
+        return;
+    }
+
+    // En ligne : le libelle, puis la valeur a sa suite. Le libelle est mesure
+    // pour de vrai — une largeur estimee decalerait la valeur d'un champ a
+    // l'autre, et une colonne de valeurs qui ondule se voit tout de suite.
+    double x = r.left() + pad;
+    const double baseline = r.center().y() + cell.textHeight * 0.4;
+    painter.setPen(m_style.text);
+    if (!cell.label.isEmpty()) {
+        const QString libelle = cell.label.toUpper() + QLatin1Char(':');
+        drawTextMm(painter, QPointF(x, baseline), libelle, cell.labelHeight);
+        x += textWidthMm(painter.font(), libelle, cell.labelHeight) + pad;
+    }
+    if (cell.align == Primitive::Align::Center)
+        x = r.center().x();
+    else if (cell.align == Primitive::Align::Right)
+        x = r.right() - pad;
+    drawTextMm(painter, QPointF(x, baseline), valeur, cell.textHeight, cell.align);
+}
+
+// Une table du cartouche : les revisions, les references, le cheminement.
+//
+// LES LIGNES GRANDISSENT VERS LE HAUT. L'intitule des colonnes est en bas, la
+// premiere ligne juste au-dessus, la suivante encore au-dessus. C'est l'ordre
+// dans lequel on relit l'historique d'une planche — la derniere revision
+// tombe sous l'oeil en premier — et c'est ce que font les planches relevees.
+void FolioPainter::paintTitleBlockTable(QPainter &painter, const TitleBlockCell &cell,
+                                        const Folio &folio) const
+{
+    const QRectF r = cell.rect;
+    if (cell.columns.isEmpty())
+        return;
+
+    const double rowHeight = std::max(2.6, cell.textHeight * 1.6);
+    const int rowsThatFit = int(r.height() / rowHeight) - 1; // moins l'intitule
+    if (rowsThatFit < 0)
+        return;
+
+    // Largeurs : celles du gabarit si elles sont donnees, sinon a parts
+    // egales. Elles sont RELATIVES, donc une table qui change de largeur
+    // garde ses proportions.
+    QVector<double> poids = cell.widths;
+    while (poids.size() < cell.columns.size())
+        poids.append(1.0);
+    double total = 0.0;
+    for (int i = 0; i < cell.columns.size(); ++i)
+        total += poids.at(i);
+    if (total <= 0.0)
+        return;
+
+    const QPen filet = pen(m_style.frame, m_style.frameWidth * 0.5);
+    painter.setPen(filet);
+    painter.setBrush(Qt::NoBrush);
+
+    const double headerTop = r.bottom() - rowHeight;
+    QVector<double> bornes;
+    double x = r.left();
+    bornes.append(x);
+    for (int i = 0; i < cell.columns.size(); ++i) {
+        x += r.width() * poids.at(i) / total;
+        bornes.append(x);
+    }
+
+    const QVector<QStringList> lignes = folio.tables.value(cell.key);
+    const int montrees = std::min(int(lignes.size()), rowsThatFit);
+
+    // Le trait du haut de l'intitule, et un trait par ligne reellement ecrite.
+    painter.drawLine(QPointF(r.left(), headerTop), QPointF(r.right(), headerTop));
+    for (int i = 0; i < montrees; ++i) {
+        const double y = headerTop - (i + 1) * rowHeight;
+        painter.drawLine(QPointF(r.left(), y), QPointF(r.right(), y));
+    }
+    // Les separateurs de colonnes descendent jusqu'en bas, sur toute la table.
+    const double top = headerTop - montrees * rowHeight;
+    for (int i = 0; i < bornes.size(); ++i)
+        painter.drawLine(QPointF(bornes.at(i), top), QPointF(bornes.at(i), r.bottom()));
+
+    auto ecrire = [&](const QStringList &cellules, double rowTop) {
+        for (int i = 0; i < cell.columns.size() && i < cellules.size(); ++i) {
+            const QString texte = cellules.at(i);
+            if (texte.isEmpty())
+                continue;
+            const double cx = (bornes.at(i) + bornes.at(i + 1)) / 2.0;
+            drawTextMm(painter, QPointF(cx, rowTop + rowHeight * 0.72), texte, cell.textHeight,
+                       Primitive::Align::Center);
+        }
+    };
+
+    painter.setPen(m_style.text);
+    ecrire(cell.columns, headerTop);
+    for (int i = 0; i < montrees; ++i)
+        ecrire(lignes.at(i), headerTop - (i + 1) * rowHeight);
 }
 
 void FolioPainter::paintWire(QPainter &painter, const Wire &wire) const

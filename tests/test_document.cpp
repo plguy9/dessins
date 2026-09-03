@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "core/netlist.h"
+#include "core/titleblock.h"
 #include "testhelpers.h"
 
 using namespace dsn;
@@ -192,4 +193,76 @@ TEST_CASE("La recherche dans la bibliotheque couvre nom, categorie et mots-cles"
     CHECK(library.search(QStringLiteral("Commande")).size() == 1);
     CHECK(library.search(QStringLiteral("transformateur")).isEmpty());
     CHECK(library.categories() == QStringList{ QStringLiteral("Commande") });
+}
+
+TEST_CASE("Un folio copié garde ses tables de cartouche", "[document][cartouche]")
+{
+    // La copie d'un folio est écrite à la main — les entités se clonent une à
+    // une. Un champ ajouté au folio et oublié là ne casse rien visiblement :
+    // il se perd à la première copie (une annulation, un collage, un aperçu),
+    // et on cherche longtemps pourquoi. Payé sur les tables du cartouche.
+    Folio source;
+    source.number = QStringLiteral("3");
+    source.tables.insert(QStringLiteral("revisions"),
+                         { { QStringLiteral("0"), QStringLiteral("2026-09-03"),
+                             QStringLiteral("CONCEPTION INITIALE") } });
+
+    const Folio copie(source);
+    CHECK(copie.tables.value(QStringLiteral("revisions")).size() == 1);
+
+    Folio affecte;
+    affecte = source;
+    REQUIRE(affecte.tables.value(QStringLiteral("revisions")).size() == 1);
+    CHECK(affecte.tables.value(QStringLiteral("revisions")).first().at(2)
+          == QStringLiteral("CONCEPTION INITIALE"));
+}
+
+TEST_CASE("Le cartouche traverse le fichier, images comprises",
+          "[document][cartouche][io]")
+{
+    // Le gabarit voyage avec le dossier, comme la bibliothèque et les types
+    // de fils : un dossier rouvert ailleurs garde SON cartouche, même si le
+    // poste ne connaît pas le gabarit du bureau qui l'a tiré. Et le logo est
+    // embarqué, pas pointé sur le disque — une image référencée disparaît au
+    // premier changement de poste, sans que personne ne le remarque.
+    Project source;
+    source.titleBlock = TitleBlock::loopSheet();
+    TitleBlockCell maison;
+    maison.kind = TitleBlockCell::Kind::Field;
+    maison.rect = QRectF(10, 10, 30, 6);
+    maison.label = QStringLiteral("Atelier");
+    maison.key = QStringLiteral("atelier");
+    source.titleBlock.cells.append(maison);
+    source.images.insert(QStringLiteral("logo"), QByteArray("\x89PNG-faux-logo"));
+    Folio *folio = source.addFolio(QStringLiteral("Essai"));
+    folio->tables.insert(QStringLiteral("revisions"),
+                         { { QStringLiteral("0"), {}, QStringLiteral("2026-09-03"),
+                             QStringLiteral("ÉMISSION") } });
+
+    Project relu;
+    REQUIRE(relu.readJson(source.toJson()));
+    CHECK(relu.titleBlock.id == QStringLiteral("boucle"));
+    CHECK(relu.titleBlock.cells.size() == source.titleBlock.cells.size());
+    CHECK(relu.titleBlock.cells.last().label == QStringLiteral("Atelier"));
+    CHECK(relu.images.value(QStringLiteral("logo")) == QByteArray("\x89PNG-faux-logo"));
+    REQUIRE(relu.folioCount() == 1);
+    CHECK(relu.folioAt(0)->tables.value(QStringLiteral("revisions")).size() == 1);
+}
+
+TEST_CASE("Le champ du folio l'emporte sur celui du projet", "[document][cartouche]")
+{
+    // Un champ posé sur une planche est plus précis que le réglage du
+    // dossier : c'est la planche qu'on a sous les yeux quand on le saisit.
+    Project project;
+    project.info.author = QStringLiteral("Bureau");
+    project.info.extra.insert(QStringLiteral("sector"), QStringLiteral("000"));
+    Folio *folio = project.addFolio(QStringLiteral("Commande"));
+    folio->titleBlock.insert(QStringLiteral("sector"), QStringLiteral("039"));
+
+    const QMap<QString, QString> v = TitleBlock::values(project, *folio);
+    CHECK(v.value(QStringLiteral("sector")) == QStringLiteral("039"));
+    CHECK(v.value(QStringLiteral("author")) == QStringLiteral("Bureau"));
+    // Une clef inconnue n'a pas de valeur — surtout pas son propre nom.
+    CHECK(v.value(QStringLiteral("nexistePas")).isEmpty());
+    CHECK_FALSE(v.contains(QStringLiteral("nexistePas")));
 }

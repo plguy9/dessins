@@ -233,6 +233,8 @@ void Project::clear()
     wireTypes = WireTypeSet::forNorm(profileId);
     designationFormat.clear();
     designationMode.clear();
+    titleBlock = TitleBlockTemplate();
+    images.clear();
     info = ProjectInfo();
 }
 
@@ -253,6 +255,14 @@ QJsonObject Project::toJson() const
         o[QStringLiteral("designationFormat")] = designationFormat;
     if (!designationMode.isEmpty())
         o[QStringLiteral("designationMode")] = designationMode;
+    if (!titleBlock.isEmpty())
+        o[QStringLiteral("titleBlock")] = titleBlock.toJson();
+    if (!images.isEmpty()) {
+        QJsonObject imgs;
+        for (auto it = images.cbegin(); it != images.cend(); ++it)
+            imgs[it.key()] = QString::fromLatin1(it.value().toBase64());
+        o[QStringLiteral("images")] = imgs;
+    }
 
     QJsonArray folioArray;
     for (const auto &f : m_folios)
@@ -271,6 +281,13 @@ bool Project::readJson(const QJsonObject &object)
     profileId = object.value(QStringLiteral("profile")).toString(QStringLiteral("iec"));
     designationFormat = object.value(QStringLiteral("designationFormat")).toString();
     designationMode = object.value(QStringLiteral("designationMode")).toString();
+    titleBlock = object.contains(QStringLiteral("titleBlock"))
+            ? TitleBlockTemplate::fromJson(object.value(QStringLiteral("titleBlock")))
+            : TitleBlockTemplate();
+    images.clear();
+    const QJsonObject imgs = object.value(QStringLiteral("images")).toObject();
+    for (auto it = imgs.begin(); it != imgs.end(); ++it)
+        images.insert(it.key(), QByteArray::fromBase64(it.value().toString().toLatin1()));
     // Un document anterieur aux types de fils n'a pas la cle : on repart alors
     // du jeu de la norme, plutot que du seul type par defaut.
     if (object.contains(QStringLiteral("wireTypes")))

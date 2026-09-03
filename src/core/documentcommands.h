@@ -10,6 +10,7 @@
 #include "folio.h"
 #include "edittools.h"
 #include "project.h"
+#include "titleblock.h"
 
 #include <QPair>
 #include <QStringList>
@@ -285,6 +286,35 @@ private:
     Project &m_project;
     WireTypeSet m_before;
     WireTypeSet m_after;
+};
+
+// LE CARTOUCHE DU DOSSIER.
+//
+// Le gabarit ET la taille reservee sur chaque folio changent ensemble : ce
+// sont deux faces d'une meme decision, et les separer laisserait un cartouche
+// de 330 mm serre dans un cadre qui n'en reserve que 180. C'est aussi ce qui
+// garde une seule source de verite — le gabarit dit sa taille, le cadre la
+// suit.
+class ChangeTitleBlockCommand : public Command
+{
+public:
+    ChangeTitleBlockCommand(Project &project, TitleBlockTemplate after,
+                            QMap<QString, QByteArray> images);
+    void redo() override;
+    void undo() override;
+    QString text() const override;
+
+private:
+    void apply(const TitleBlockTemplate &gabarit, const QMap<QString, QByteArray> &images);
+
+    Project &m_project;
+    TitleBlockTemplate m_before;
+    TitleBlockTemplate m_after;
+    QMap<QString, QByteArray> m_imagesBefore;
+    QMap<QString, QByteArray> m_imagesAfter;
+    // La taille reservee par folio, figee a la construction : la recalculer a
+    // l'annulation la chercherait dans un cadre deja modifie.
+    QMap<QString, QPointF> m_sizesBefore;
 };
 
 // ECHELLE (SCALE). Grossir ou reduire une selection autour d'un point de

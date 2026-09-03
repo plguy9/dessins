@@ -6,6 +6,8 @@
 
 #include <QMap>
 #include <QString>
+#include <QStringList>
+#include <QVector>
 
 #include <vector>
 
@@ -45,6 +47,13 @@ public:
     SheetFormat sheet = sheetFormatById(QStringLiteral("A3"));
     SheetFrame frame;
     QMap<QString, QString> titleBlock; // champs propres au folio
+
+    // LES TABLES DU CARTOUCHE, par clef : « revisions », « references »,
+    // « routing »… et n'importe quelle table qu'un gabarit maison declare.
+    // Une table est une clef et des lignes de texte ; c'est le gabarit qui
+    // dit ses colonnes. Ce choix rend une table maison gratuite : ajouter
+    // « ESSAIS EN USINE » a son cartouche ne demande pas une ligne de code.
+    QMap<QString, QVector<QStringList>> tables;
 
     // ---- entites -------------------------------------------------------
     const std::vector<EntityPtr> &entities() const noexcept { return m_entities; }

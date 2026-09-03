@@ -490,6 +490,59 @@ void ChangeWireTypesCommand::undo() { m_project.wireTypes = m_before; }
 QString ChangeWireTypesCommand::text() const { return QStringLiteral("Modifier les types de fils"); }
 
 // --------------------------------------------------------------------------
+// LE CARTOUCHE
+
+ChangeTitleBlockCommand::ChangeTitleBlockCommand(Project &project, TitleBlockTemplate after,
+                                                 QMap<QString, QByteArray> images)
+    : m_project(project), m_before(project.titleBlock), m_after(std::move(after)),
+      m_imagesBefore(project.images), m_imagesAfter(std::move(images))
+{
+    for (const Folio *folio : m_project.folios()) {
+        m_sizesBefore.insert(folio->id(),
+                             QPointF(folio->frame.titleBlockWidth, folio->frame.titleBlockHeight));
+    }
+}
+
+void ChangeTitleBlockCommand::apply(const TitleBlockTemplate &gabarit,
+                                    const QMap<QString, QByteArray> &images)
+{
+    m_project.titleBlock = gabarit;
+    m_project.images = images;
+    for (Folio *folio : m_project.folios()) {
+        if (gabarit.isEmpty()) {
+            // Retour au gabarit standard : on rend a chaque folio la taille
+            // qu'il avait, pas une taille moyenne.
+            const QPointF avant = m_sizesBefore.value(folio->id());
+            if (avant.x() > 0.0 && avant.y() > 0.0) {
+                folio->frame.titleBlockWidth = avant.x();
+                folio->frame.titleBlockHeight = avant.y();
+            }
+            continue;
+        }
+        folio->frame.titleBlockWidth = gabarit.width;
+        folio->frame.titleBlockHeight = gabarit.height;
+    }
+}
+
+void ChangeTitleBlockCommand::redo() { apply(m_after, m_imagesAfter); }
+
+void ChangeTitleBlockCommand::undo()
+{
+    apply(m_before, m_imagesBefore);
+    // L'annulation restaure la taille figee, folio par folio : le gabarit
+    // d'avant ne la porte pas forcement (un ancien dossier n'en avait pas).
+    for (Folio *folio : m_project.folios()) {
+        const QPointF avant = m_sizesBefore.value(folio->id());
+        if (avant.x() > 0.0 && avant.y() > 0.0) {
+            folio->frame.titleBlockWidth = avant.x();
+            folio->frame.titleBlockHeight = avant.y();
+        }
+    }
+}
+
+QString ChangeTitleBlockCommand::text() const { return QStringLiteral("Modifier le cartouche"); }
+
+// --------------------------------------------------------------------------
 // ECHELLE
 
 ScaleEntitiesCommand::ScaleEntitiesCommand(Project &project, QString folioId,

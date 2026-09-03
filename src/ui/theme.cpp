@@ -1175,6 +1175,14 @@ QIcon Icons::icon(Glyph glyph, const QColor &color)
         p.drawPolyline(QPolygonF({ { 16.5, base - 1.6 }, { 18, base }, { 19.5, base - 1.6 } }));
         break;
     }
+    case Glyph::TitleBlock:
+        // Une feuille et son cartouche, en bas a droite : c'est a cette
+        // silhouette qu'on reconnait une planche avant meme de la lire.
+        p.drawRect(QRectF(3, 3, 18, 18));
+        p.drawRect(QRectF(11, 14, 10, 7));
+        p.drawLine(QPointF(11, 17.5), QPointF(21, 17.5));
+        p.drawLine(QPointF(16, 14), QPointF(16, 21));
+        break;
     case Glyph::Find:
         // La loupe, et son manche. C'est le seul dessin qu'on reconnaisse
         // sans le lire.

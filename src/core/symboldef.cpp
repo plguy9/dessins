@@ -117,6 +117,8 @@ QJsonObject SymbolDefinition::toJson() const
         o[QStringLiteral("prefix")] = designationPrefix;
     if (!deviceKind.isEmpty())
         o[QStringLiteral("deviceKind")] = deviceKind;
+    if (noConnections)
+        o[QStringLiteral("noConnections")] = true;
 
     QJsonArray g;
     for (const Primitive &p : graphics)
@@ -149,6 +151,7 @@ SymbolDefinition SymbolDefinition::fromJson(const QJsonValue &v)
     d.keywords = stringListFromJson(o.value(QStringLiteral("keywords")));
     d.designationPrefix = o.value(QStringLiteral("prefix")).toString();
     d.deviceKind = o.value(QStringLiteral("deviceKind")).toString();
+    d.noConnections = o.value(QStringLiteral("noConnections")).toBool(false);
 
     const QJsonArray g = o.value(QStringLiteral("graphics")).toArray();
     d.graphics.reserve(g.size());

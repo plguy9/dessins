@@ -71,6 +71,21 @@ public:
 
     QVector<Primitive> graphics;
     QVector<Pin> pins;
+
+    // CE SYMBOLE NE SE RACCORDE PAS, et c'est voulu.
+    //
+    // Un symbole sans broche est normalement une faute — c'est un appareil
+    // qu'on ne pourra jamais cabler, et rien ne le dirait avant l'usage. Mais
+    // quelques-uns n'en portent legitimement aucune : une boite de jonction
+    // est une enveloppe, une etiquette de cable est une annotation, un
+    // serpentin est un element de procede. Leur donner une broche factice
+    // serait pire : elles entreraient dans la netlist et dans le rapport de
+    // cablage, et un fil pose dessus se ferait couper.
+    //
+    // Le declarer vaut mieux que de relacher le controle : le test exige
+    // toujours des broches, mais il accepte celles qui disent ne pas en
+    // vouloir.
+    bool noConnections = false;
     QMap<QString, QString> defaultFields;
 
     // Emplacements des textes attaches (designation, valeur), en local.

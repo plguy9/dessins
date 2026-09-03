@@ -244,8 +244,15 @@ TEST_CASE("Tous les symboles integres sont coherents", "[symbols]")
             problems.append(definition->id + QStringLiteral(" : sans nom"));
         if (definition->category.isEmpty())
             problems.append(definition->id + QStringLiteral(" : sans categorie"));
-        if (definition->pins.isEmpty())
+        // Un symbole sans broche est une faute — sauf s'il DIT n'en pas
+        // vouloir : une enveloppe, une étiquette de câble, un élément de
+        // procédé n'ont rien à raccorder, et une broche factice les ferait
+        // entrer dans la netlist et couper les fils posés dessus.
+        if (definition->pins.isEmpty() && !definition->noConnections)
             problems.append(definition->id + QStringLiteral(" : sans broche"));
+        if (!definition->pins.isEmpty() && definition->noConnections)
+            problems.append(definition->id
+                            + QStringLiteral(" : se dit sans raccordement mais porte des broches"));
         if (definition->bounds().isNull())
             problems.append(definition->id + QStringLiteral(" : boite vide"));
 

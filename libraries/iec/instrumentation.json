@@ -1,0 +1,1412 @@
+{
+  "format": "dessins-symbol-library",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "iec:isa-field",
+      "logicalId": "isa-field",
+      "norm": "IEC",
+      "name": "Instrument au champ (ISA)",
+      "category": "Instrumentation",
+      "keywords": [
+        "instrument",
+        "bulle",
+        "champ",
+        "isa",
+        "transmetteur"
+      ],
+      "prefix": "I",
+      "deviceKind": "instrument",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 6.0,
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10.0
+          ],
+          "dir": 270,
+          "length": 4.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10.0
+          ],
+          "dir": 90,
+          "length": 4.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -0.6
+      ],
+      "valueAnchor": [
+        0.0,
+        3.6
+      ]
+    },
+    {
+      "id": "iec:isa-panel",
+      "logicalId": "isa-panel",
+      "norm": "IEC",
+      "name": "Instrument en façade de panneau (ISA)",
+      "category": "Instrumentation",
+      "keywords": [
+        "instrument",
+        "bulle",
+        "panneau",
+        "facade",
+        "isa"
+      ],
+      "prefix": "I",
+      "deviceKind": "instrument",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 6.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -6.0,
+              0
+            ],
+            [
+              6.0,
+              0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10.0
+          ],
+          "dir": 270,
+          "length": 4.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10.0
+          ],
+          "dir": 90,
+          "length": 4.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -0.6
+      ],
+      "valueAnchor": [
+        0.0,
+        3.6
+      ]
+    },
+    {
+      "id": "iec:isa-rear",
+      "logicalId": "isa-rear",
+      "norm": "IEC",
+      "name": "Instrument derrière le panneau (ISA)",
+      "category": "Instrumentation",
+      "keywords": [
+        "instrument",
+        "bulle",
+        "panneau",
+        "arriere",
+        "isa"
+      ],
+      "prefix": "I",
+      "deviceKind": "instrument",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 6.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -6.0,
+              0
+            ],
+            [
+              6.0,
+              0
+            ]
+          ],
+          "stroke": "dashed",
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10.0
+          ],
+          "dir": 270,
+          "length": 4.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            10.0
+          ],
+          "dir": 90,
+          "length": 4.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -0.6
+      ],
+      "valueAnchor": [
+        0.0,
+        3.6
+      ]
+    },
+    {
+      "id": "iec:isa-shared",
+      "logicalId": "isa-shared",
+      "norm": "IEC",
+      "name": "Fonction partagée — affichage (ISA)",
+      "category": "Instrumentation",
+      "keywords": [
+        "instrument",
+        "partage",
+        "dcs",
+        "affichage",
+        "isa"
+      ],
+      "prefix": "I",
+      "deviceKind": "instrument",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -7.5,
+              -7.5
+            ],
+            [
+              7.5,
+              7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 7.5,
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -12.5
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            12.5
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -0.6
+      ],
+      "valueAnchor": [
+        0.0,
+        3.6
+      ]
+    },
+    {
+      "id": "iec:isa-plc",
+      "logicalId": "isa-plc",
+      "norm": "IEC",
+      "name": "Fonction d'automate (ISA)",
+      "category": "Instrumentation",
+      "keywords": [
+        "instrument",
+        "automate",
+        "plc",
+        "logique",
+        "isa"
+      ],
+      "prefix": "I",
+      "deviceKind": "instrument",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -7.5,
+              -7.5
+            ],
+            [
+              7.5,
+              7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              0,
+              -7.5
+            ],
+            [
+              7.5,
+              0
+            ],
+            [
+              0,
+              7.5
+            ],
+            [
+              -7.5,
+              0
+            ],
+            [
+              0,
+              -7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -12.5
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            12.5
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -0.6
+      ],
+      "valueAnchor": [
+        0.0,
+        3.6
+      ]
+    },
+    {
+      "id": "iec:screw-terminal",
+      "logicalId": "screw-terminal",
+      "norm": "IEC",
+      "name": "Borne à vis",
+      "category": "Bornes",
+      "keywords": [
+        "borne",
+        "vis",
+        "bornier",
+        "raccordement"
+      ],
+      "prefix": "X",
+      "deviceKind": "terminal",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -6.25,
+              -2.5
+            ],
+            [
+              6.25,
+              2.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "circle",
+          "points": [
+            [
+              -3.75,
+              0
+            ]
+          ],
+          "radius": 1.5,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -4.85,
+              1.1
+            ],
+            [
+              -2.65,
+              -1.1
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -10.0,
+            0
+          ],
+          "dir": 180,
+          "length": 3.75
+        },
+        {
+          "number": "2",
+          "at": [
+            10.0,
+            0
+          ],
+          "dir": 0,
+          "length": 3.75
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -4.5
+      ],
+      "valueAnchor": [
+        2.5,
+        1.0
+      ]
+    },
+    {
+      "id": "iec:junction-box",
+      "logicalId": "junction-box",
+      "norm": "IEC",
+      "name": "Boîte de jonction",
+      "category": "Bornes",
+      "keywords": [
+        "boite",
+        "jonction",
+        "bj",
+        "enveloppe",
+        "coffret"
+      ],
+      "prefix": "BJ",
+      "deviceKind": "enclosure",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -25,
+              -20
+            ],
+            [
+              25,
+              20
+            ]
+          ],
+          "stroke": "dashed",
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -22.5
+      ],
+      "valueAnchor": [
+        0.0,
+        24.0
+      ],
+      "noConnections": true
+    },
+    {
+      "id": "iec:control-valve",
+      "logicalId": "control-valve",
+      "norm": "IEC",
+      "name": "Vanne de réglage",
+      "category": "Instrumentation",
+      "keywords": [
+        "vanne",
+        "reglage",
+        "fcv",
+        "servomoteur",
+        "membrane"
+      ],
+      "prefix": "FCV",
+      "deviceKind": "valve",
+      "graphics": [
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -7.5,
+              -2.5
+            ],
+            [
+              -7.5,
+              2.5
+            ],
+            [
+              7.5,
+              -2.5
+            ],
+            [
+              7.5,
+              2.5
+            ],
+            [
+              -7.5,
+              -2.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              -7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              0,
+              -7.5
+            ]
+          ],
+          "radius": 5.0,
+          "startAngle": 0,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              -7.5
+            ],
+            [
+              5,
+              -7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -12.5,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            12.5,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -15.0
+      ],
+      "valueAnchor": [
+        0.0,
+        7.5
+      ]
+    },
+    {
+      "id": "iec:valve-positioner",
+      "logicalId": "valve-positioner",
+      "norm": "IEC",
+      "name": "Positionneur de vanne",
+      "category": "Instrumentation",
+      "keywords": [
+        "positionneur",
+        "pos",
+        "vanne"
+      ],
+      "prefix": "ZT",
+      "deviceKind": "positioner",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -7.5,
+              -5
+            ],
+            [
+              7.5,
+              5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.5
+            ]
+          ],
+          "text": "POS",
+          "textHeight": 3.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -12.5,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            12.5,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -7.5
+      ],
+      "valueAnchor": [
+        0.0,
+        9.0
+      ]
+    },
+    {
+      "id": "iec:ip-converter",
+      "logicalId": "ip-converter",
+      "norm": "IEC",
+      "name": "Convertisseur I/P",
+      "category": "Instrumentation",
+      "keywords": [
+        "convertisseur",
+        "i/p",
+        "ip",
+        "courant",
+        "pression"
+      ],
+      "prefix": "IY",
+      "deviceKind": "converter",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -6.25,
+              -5
+            ],
+            [
+              6.25,
+              5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.5
+            ]
+          ],
+          "text": "I/P",
+          "textHeight": 3.0,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -11.25,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            11.25,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -7.5
+      ],
+      "valueAnchor": [
+        0.0,
+        9.0
+      ]
+    },
+    {
+      "id": "iec:filter-regulator",
+      "logicalId": "filter-regulator",
+      "norm": "IEC",
+      "name": "Filtre-régulateur d'air",
+      "category": "Instrumentation",
+      "keywords": [
+        "filtre",
+        "regulateur",
+        "f.r.",
+        "air",
+        "instrument"
+      ],
+      "prefix": "FR",
+      "deviceKind": "regulator",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -6.25,
+              -5
+            ],
+            [
+              6.25,
+              5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "text",
+          "points": [
+            [
+              0,
+              1.5
+            ]
+          ],
+          "text": "F.R.",
+          "textHeight": 2.5,
+          "align": "center"
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            -11.25,
+            0
+          ],
+          "dir": 180,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            11.25,
+            0
+          ],
+          "dir": 0,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -7.5
+      ],
+      "valueAnchor": [
+        0.0,
+        9.0
+      ]
+    },
+    {
+      "id": "iec:pressure-gauge",
+      "logicalId": "pressure-gauge",
+      "norm": "IEC",
+      "name": "Manomètre",
+      "category": "Instrumentation",
+      "keywords": [
+        "manometre",
+        "pression",
+        "jauge",
+        "psi",
+        "kpa"
+      ],
+      "prefix": "PI",
+      "deviceKind": "gauge",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 5.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              3.2,
+              -3.2
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              5.0
+            ],
+            [
+              0,
+              10.0
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            10.0
+          ],
+          "dir": 90,
+          "length": 0.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -7.5,
+        -2.0
+      ],
+      "valueAnchor": [
+        7.5,
+        -2.0
+      ]
+    },
+    {
+      "id": "iec:flow-meter-mag",
+      "logicalId": "flow-meter-mag",
+      "norm": "IEC",
+      "name": "Débitmètre électromagnétique",
+      "category": "Instrumentation",
+      "keywords": [
+        "debitmetre",
+        "electromagnetique",
+        "debit",
+        "fe",
+        "mag"
+      ],
+      "prefix": "FE",
+      "deviceKind": "flowmeter",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -10,
+              -5
+            ],
+            [
+              10,
+              5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -10,
+              -7.5
+            ],
+            [
+              -10,
+              7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              10,
+              -7.5
+            ],
+            [
+              10,
+              7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 3.0,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              0,
+              -5
+            ],
+            [
+              0,
+              -10
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -10.0
+          ],
+          "dir": 270,
+          "length": 0.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        -12.5
+      ],
+      "valueAnchor": [
+        0.0,
+        10.0
+      ]
+    },
+    {
+      "id": "iec:cable-tag",
+      "logicalId": "cable-tag",
+      "norm": "IEC",
+      "name": "Étiquette de câble",
+      "category": "Câbles",
+      "keywords": [
+        "cable",
+        "etiquette",
+        "repere",
+        "paire"
+      ],
+      "prefix": "W",
+      "deviceKind": "cabletag",
+      "graphics": [
+        {
+          "kind": "arc",
+          "points": [
+            [
+              -10,
+              0
+            ]
+          ],
+          "radius": 2.5,
+          "startAngle": 90,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "arc",
+          "points": [
+            [
+              10,
+              0
+            ]
+          ],
+          "radius": 2.5,
+          "startAngle": -90,
+          "spanAngle": 180,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -10,
+              -2.5
+            ],
+            [
+              10,
+              -2.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -10,
+              2.5
+            ],
+            [
+              10,
+              2.5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [],
+      "defaultFields": {},
+      "designationAnchor": [
+        0.0,
+        1.0
+      ],
+      "valueAnchor": [
+        0.0,
+        -5.0
+      ],
+      "noConnections": true
+    },
+    {
+      "id": "iec:hvac-fan",
+      "logicalId": "hvac-fan",
+      "norm": "IEC",
+      "name": "Ventilateur",
+      "category": "CVC",
+      "keywords": [
+        "ventilateur",
+        "cvc",
+        "soufflage",
+        "hvac"
+      ],
+      "prefix": "M",
+      "deviceKind": "fan",
+      "graphics": [
+        {
+          "kind": "circle",
+          "points": [
+            [
+              0,
+              0
+            ]
+          ],
+          "radius": 7.5,
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -5,
+              -2.5
+            ],
+            [
+              5,
+              0
+            ],
+            [
+              -5,
+              2.5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -12.5
+          ],
+          "dir": 270,
+          "length": 5.0
+        },
+        {
+          "number": "2",
+          "at": [
+            0,
+            12.5
+          ],
+          "dir": 90,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -10.0,
+        -8.0
+      ],
+      "valueAnchor": [
+        10.0,
+        -8.0
+      ]
+    },
+    {
+      "id": "iec:hvac-damper",
+      "logicalId": "hvac-damper",
+      "norm": "IEC",
+      "name": "Volet de réglage",
+      "category": "CVC",
+      "keywords": [
+        "volet",
+        "registre",
+        "damper",
+        "cvc"
+      ],
+      "prefix": "TCV",
+      "deviceKind": "damper",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -7.5,
+              -10
+            ],
+            [
+              7.5,
+              10
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              -7.5
+            ],
+            [
+              5,
+              -2.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              -2.5
+            ],
+            [
+              5,
+              2.5
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              2.5
+            ],
+            [
+              5,
+              7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [
+        {
+          "number": "1",
+          "at": [
+            0,
+            -15.0
+          ],
+          "dir": 270,
+          "length": 5.0
+        }
+      ],
+      "defaultFields": {},
+      "designationAnchor": [
+        -10.0,
+        -12.0
+      ],
+      "valueAnchor": [
+        10.0,
+        -12.0
+      ]
+    },
+    {
+      "id": "iec:hvac-coil",
+      "logicalId": "hvac-coil",
+      "norm": "IEC",
+      "name": "Serpentin",
+      "category": "CVC",
+      "keywords": [
+        "serpentin",
+        "batterie",
+        "coil",
+        "cvc",
+        "chauffage"
+      ],
+      "prefix": "HC",
+      "deviceKind": "coil-hvac",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -7.5,
+              -10
+            ],
+            [
+              7.5,
+              10
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            [
+              -5,
+              -7.5
+            ],
+            [
+              5,
+              -2.5
+            ],
+            [
+              -5,
+              2.5
+            ],
+            [
+              5,
+              7.5
+            ]
+          ],
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [],
+      "defaultFields": {},
+      "designationAnchor": [
+        -10.0,
+        -12.0
+      ],
+      "valueAnchor": [
+        10.0,
+        -12.0
+      ],
+      "noConnections": true
+    },
+    {
+      "id": "iec:hvac-filter",
+      "logicalId": "hvac-filter",
+      "norm": "IEC",
+      "name": "Filtre à air",
+      "category": "CVC",
+      "keywords": [
+        "filtre",
+        "air",
+        "cvc",
+        "hvac"
+      ],
+      "prefix": "F",
+      "deviceKind": "filter-hvac",
+      "graphics": [
+        {
+          "kind": "rect",
+          "points": [
+            [
+              -5,
+              -10
+            ],
+            [
+              5,
+              10
+            ]
+          ],
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              -5
+            ],
+            [
+              5,
+              -5
+            ]
+          ],
+          "stroke": "dashed",
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              0
+            ],
+            [
+              5,
+              0
+            ]
+          ],
+          "stroke": "dashed",
+          "lineWidth": 0.25
+        },
+        {
+          "kind": "line",
+          "points": [
+            [
+              -5,
+              5
+            ],
+            [
+              5,
+              5
+            ]
+          ],
+          "stroke": "dashed",
+          "lineWidth": 0.25
+        }
+      ],
+      "pins": [],
+      "defaultFields": {},
+      "designationAnchor": [
+        -7.5,
+        -12.0
+      ],
+      "valueAnchor": [
+        7.5,
+        -12.0
+      ],
+      "noConnections": true
+    }
+  ]
+}

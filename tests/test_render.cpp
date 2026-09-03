@@ -694,3 +694,62 @@ TEST_CASE("Les bandes de localisation sont tracées sur toute la hauteur",
     // Et le nom est écrit dans le bandeau.
     CHECK(hasInkNear(image, QPointF(folio->bandRect(0).center().x(), fr.top() + 4.0), ppm, 6));
 }
+
+TEST_CASE("Les variantes de bulle ISA se distinguent au trait", "[render][isa]")
+{
+    // Les formes sont NORMATIVES, comme les marqueurs d'accrochage : cercle nu
+    // = au champ, cercle barré = façade de panneau, trait pointillé = derrière
+    // le panneau, carré = fonction partagée, losange = automate. Deux variantes
+    // qui se ressemblent font poser la mauvaise, et le lecteur croit qu'un
+    // relevé est accessible à l'opérateur alors qu'il est dans une armoire.
+    SymbolLibrary library;
+    LibraryStore::loadBuiltin(library);
+
+    const QStringList ids = { QStringLiteral("iec:isa-field"), QStringLiteral("iec:isa-panel"),
+                              QStringLiteral("iec:isa-rear"), QStringLiteral("iec:isa-shared"),
+                              QStringLiteral("iec:isa-plc") };
+    QVector<QByteArray> empreintes;
+    for (const QString &id : ids) {
+        const SymbolDefinition *def = library.definition(id);
+        INFO(id.toStdString());
+        REQUIRE(def);
+
+        QImage image(120, 120, QImage::Format_RGB32);
+        image.fill(Qt::white);
+        QPainter painter(&image);
+        painter.translate(60, 60);
+        painter.scale(4.0, 4.0);
+        FolioPainter::paintDefinition(painter, *def, RenderStyle::print(), false);
+        painter.end();
+
+        // Le contrôle mesure l'IMAGE, pas la liste des primitives : deux
+        // symboles peuvent différer sur le papier et se rendre pareil.
+        empreintes.append(QByteArray(reinterpret_cast<const char *>(image.constBits()),
+                                     int(image.sizeInBytes())));
+    }
+    for (int i = 0; i < empreintes.size(); ++i) {
+        for (int j = i + 1; j < empreintes.size(); ++j) {
+            INFO(ids.at(i).toStdString() << " et " << ids.at(j).toStdString());
+            CHECK(empreintes.at(i) != empreintes.at(j));
+        }
+    }
+}
+
+TEST_CASE("Une étiquette de câble ne coupe pas le fil qu'elle nomme",
+          "[render][isa]")
+{
+    // Elle n'a AUCUNE broche, et c'est voulu : une broche factice la ferait
+    // entrer dans la netlist et couper le fil posé dessous — on annoterait un
+    // câble en le débranchant.
+    SymbolLibrary library;
+    LibraryStore::loadBuiltin(library);
+    const SymbolDefinition *tag = library.definition(QStringLiteral("iec:cable-tag"));
+    REQUIRE(tag);
+    CHECK(tag->pins.isEmpty());
+    CHECK(tag->noConnections);
+
+    // Et une boîte de jonction non plus : c'est une enveloppe.
+    const SymbolDefinition *bj = library.definition(QStringLiteral("iec:junction-box"));
+    REQUIRE(bj);
+    CHECK(bj->noConnections);
+}

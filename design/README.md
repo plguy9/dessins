@@ -12,9 +12,7 @@ design/
 ├─ contexte.md               à quoi sert le logiciel, qui s'en sert, ce qui est
 │                            déjà tranché — le brief donné à Claude Design
 ├─ *.dc.html                 LES MAQUETTES (à déposer ici)
-├─ etapes/                   les étapes de refonte, numérotées, une par sujet
-│  ├─ 03-ruban.md
-│  └─ 04-ligne-de-commande.md
+├─ etapes/                   LES ÉTAPES DE REFONTE (à déposer ici), numérotées
 └─ etat-actuel/              ce à quoi l'interface ressemble AUJOURD'HUI
    ├─ *.png                  captures de l'application réelle
    └─ arcus-*.html           l'interface transposée en HTML, avec les vrais
@@ -82,9 +80,11 @@ Le reste des décisions déjà prises — le ruban reste, pas de panneau de
 propriétés ancré, pas de boîte modale à chaque pose, la palette en grille —
 est dans `contexte.md` et dans `CLAUDE.md`.
 
-## Relu contre le code — ce qui est à corriger dans `etapes/03-ruban.md`
+## Relu contre le code — l'étape « ruban »
 
-La table d'alias de l'étape 03 a été comparée au registre de commandes
+L'étape 03, qui imprime l'alias de chaque commande dans le coin de son
+bouton, a été relue contre le code avant d'être implémentée. Sa table d'alias
+a été comparée au registre de commandes
 (`src/ui/mainwindow.cpp`) : **57 alias sur 60 sont exacts**, et `RESOL` n'a
 bien aucun alias. Mais l'étape dit d'afficher le **premier** alias de la
 table, et pour trois commandes le premier alias du code n'est pas celui
@@ -110,6 +110,9 @@ Deux façons de s'en sortir, au choix :
   visible : le premier alias est aussi celui que la ligne de commande
   suggère.
 
-L'étape 03 écrit elle-même la bonne consigne — *« ne jamais inventer un
+L'étape écrit elle-même la bonne consigne — *« ne jamais inventer un
 alias »* : c'est pour cela que l'écart est relevé ici plutôt que tranché tout
 seul.
+
+*(Vérification refaite à volonté : lire les appels `simple(...)` de
+`src/ui/mainwindow.cpp` et comparer le premier alias de chaque commande.)*

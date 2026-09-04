@@ -25,6 +25,8 @@
 #include "componentdialog.h"
 #include "surferdialog.h"
 #include "titleblockeditor.h"
+
+#include "core/titleblock.h"
 #include "symbolswapdialog.h"
 #include "appearance.h"
 #include "dockrail.h"
@@ -52,6 +54,7 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QFormLayout>
+#include <QFrame>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -62,6 +65,9 @@
 #include <QPrintDialog>
 #include <QPrinter>
 #include <QPushButton>
+#include <QResizeEvent>
+#include <QLayout>
+#include <QFontMetrics>
 #include <QVBoxLayout>
 #include <QSettings>
 #include <QSpinBox>
@@ -187,10 +193,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         updateActions();
     });
     connect(m_view, &FolioView::cursorMoved, this, [this](const QPointF &mm, const QString &zone) {
-        m_cursorLabel->setText(QStringLiteral("X %1   Y %2 mm")
-                                       .arg(mm.x(), 0, 'f', 1)
-                                       .arg(mm.y(), 0, 'f', 1));
-        m_zoneLabel->setText(zone.isEmpty() ? tr("hors cadre") : tr("zone %1").arg(zone));
+        // Deux decimales : le pas de grille est a 2,5 mm et l'accrochage
+        // travaille au dixieme. Un affichage a une decimale cachait de
+        // l'information que le dessinateur allait chercher ailleurs.
+        // Le point median separe X de Y : la case s'appelle POSITION, l'ordre
+        // est evident, et deux libelles de plus feraient trois niveaux
+        // d'encre dans une bande de trente pixels.
+        m_cellPosition->setText(QStringLiteral("%1 \u00b7 %2 mm")
+                                        .arg(mm.x(), 0, 'f', 2)
+                                        .arg(mm.y(), 0, 'f', 2));
+        m_cellZone->setText(zone.isEmpty() ? QStringLiteral("\u2014") : zone);
     });
     connect(m_view, &FolioView::statusMessage, this,
             [this](const QString &message) { report(message); });
@@ -2600,26 +2612,135 @@ void MainWindow::createRibbon()
     });
 }
 
+namespace {
+// Le rembourrage que la feuille de style pose autour d'une valeur de case
+// (9 px a droite, 5 a gauche). Il entre dans la largeur minimale : Qt
+// mesurerait sinon le texte seul, et la case se retrecirait d'un caractere.
+constexpr int kStatusValuePadding = 16;
+}
+
+QFrame *MainWindow::addStatusRule()
+{
+    auto *rule = new QFrame(this);
+    rule->setFrameShape(QFrame::VLine);
+    rule->setFrameShadow(QFrame::Plain);
+    rule->setLineWidth(1);
+    rule->setProperty("cellRule", true);
+    rule->setFixedWidth(1);
+    statusBar()->addPermanentWidget(rule);
+    return rule;
+}
+
+QLabel *MainWindow::addStatusCell(const QString &label, const QString &initialValue,
+                                  const QString &gabarit, QLabel **labelOut)
+{
+    auto *name = new QLabel(label, this);
+    name->setProperty("cellLabel", true);
+    // Les capitales et l'espacement viennent de la fonte gravee : Qt n'a ni
+    // « text-transform » ni « letter-spacing » en feuille de style.
+    Theme::engrave(name);
+    statusBar()->addPermanentWidget(name);
+    if (labelOut)
+        *labelOut = name;
+
+    auto *value = new QLabel(initialValue, this);
+    value->setProperty("cellValue", true);
+    // La chasse fixe evite qu'un chiffre qui change en deplace un autre DANS
+    // la case. Elle ne suffit pas a tenir la case elle-meme : « 0,00 » et
+    // « 184,50 » n'ont pas le meme nombre de caracteres, et la case pousserait
+    // ses voisines a chaque mouvement de souris. D'ou le gabarit — la valeur
+    // la plus large que cette case aura a porter — qui fige la largeur une
+    // fois pour toutes.
+    const QFont mono = Theme::monoFont(8);
+    value->setFont(mono);
+    const QFontMetrics metrics(mono);
+    value->setMinimumWidth(metrics.horizontalAdvance(gabarit) + kStatusValuePadding);
+    statusBar()->addPermanentWidget(value);
+    return value;
+}
+
+void MainWindow::createRevisionCell()
+{
+    // La marque de la fenetre : deux lignes dans une case en creux, comme la
+    // case REV. en bas a droite d'un cartouche. C'est le seul element peint
+    // de la barre — le creux vient de la palette du widget, pas d'un aplat de
+    // feuille de style, parce qu'un QWidget nu n'en porte pas.
+    m_revisionCell = new QWidget(this);
+    m_revisionCell->setProperty("revisionCell", true);
+    // Le creux vient de la FEUILLE DE STYLE, pas d'une QPalette. Une palette
+    // est figee au moment ou on la pose : la case garderait le gris de l'autre
+    // theme au premier basculement — et c'est le seul element peint de la
+    // barre, donc le seul qui pourrait mentir sans qu'aucune valeur soit
+    // fausse. Qt pose WA_StyledBackground de lui-meme quand une regle de fond
+    // s'applique a un QWidget nu ; on l'ecrit quand meme, parce que sans cet
+    // attribut un QWidget ne peint rien du tout et que rien ne le signale.
+    m_revisionCell->setAttribute(Qt::WA_StyledBackground, true);
+    // Le creux prend toute la hauteur de la bande : une case de cartouche va
+    // d'un filet a l'autre, elle ne flotte pas au milieu.
+    m_revisionCell->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+
+    auto *layout = new QVBoxLayout(m_revisionCell);
+    layout->setContentsMargins(Theme::space(3), 0, Theme::space(3), 0);
+    layout->setSpacing(0);
+
+    auto *label = new QLabel(tr("RÉV"), m_revisionCell);
+    label->setProperty("cellLabel", true);
+    label->setContentsMargins(0, 0, 0, 0);
+    Theme::engrave(label);
+    layout->addWidget(label, 0, Qt::AlignHCenter);
+
+    m_cellRevision = new QLabel(QStringLiteral("\u2014"), m_revisionCell);
+    m_cellRevision->setProperty("cellValue", true);
+    m_cellRevision->setFont(Theme::monoFont(8));
+    m_cellRevision->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(m_cellRevision, 0, Qt::AlignHCenter);
+
+    statusBar()->addPermanentWidget(m_revisionCell);
+}
+
 void MainWindow::createStatusBar()
 {
-    m_cursorLabel = new QLabel(this);
-    m_zoneLabel = new QLabel(this);
-    m_zoomLabel = new QLabel(this);
-    m_selectionLabel = new QLabel(this);
-    // Les mesures sont a chasse fixe : le curseur bouge en permanence, et des
-    // chiffres a chasse variable feraient danser toute la barre d'etat.
-    const QFont readout = Theme::monoFont();
-    for (QLabel *label : { m_cursorLabel, m_zoneLabel, m_zoomLabel, m_selectionLabel }) {
-        label->setMinimumWidth(118);
-        label->setFont(readout);
-        label->setProperty("readout", true);
-        statusBar()->addPermanentWidget(label);
-    }
-    m_cursorLabel->setText(QStringLiteral("X 0,0   Y 0,0 mm"));
+    statusBar()->setSizeGripEnabled(false);
+
+    // Les cases, dans l'ordre de lecture. addPermanentWidget pose a DROITE :
+    // on construit donc de gauche a droite, et on laisse le message
+    // temporaire de statusBar() occuper la gauche — c'est la que le logiciel
+    // parle quand le bandeau de commande est replie, et il ne doit rien avoir
+    // a bousculer.
+    //
+    // Les valeurs perdent leur prefixe : le libelle est grave a cote, et une
+    // case de cartouche porte une valeur, pas une phrase.
+    m_cellPosition = addStatusCell(tr("POSITION"), QStringLiteral("0,00 \u00b7 0,00 mm"),
+                                   QStringLiteral("-234,56 \u00b7 -234,56 mm"));
+
+    // La zone du cadre. Elle etait la avant la refonte et elle reste : c'est
+    // la position dite dans la grammaire du cadre, et c'est ce qu'un renvoi
+    // imprime. La perdre aurait ete une fonction en moins, pas un allegement.
+    QLabel *zoneLabel = nullptr;
+    QFrame *zoneRule = addStatusRule();
+    m_cellZone = addStatusCell(tr("ZONE"), QStringLiteral("\u2014"), QStringLiteral("A12"),
+                               &zoneLabel);
+
+    QLabel *zoomLabel = nullptr;
+    QFrame *zoomRule = addStatusRule();
+    m_cellZoom = addStatusCell(tr("ZOOM"), QStringLiteral("100 %"), QStringLiteral("1234 %"),
+                               &zoomLabel);
+
+    addStatusRule();
+    // Le nombre seul : le libelle dit deja de quoi il s'agit, et une case de
+    // cartouche porte une valeur, pas une phrase. « aucune sélection » tenait
+    // la largeur de trois cases pour dire ce que le tiret dit.
+    m_cellSelection = addStatusCell(tr("SÉLECTION"), QStringLiteral("\u2014"),
+                                    QStringLiteral("9999"));
+
+    addStatusRule();
 
     // Les bascules d'aide au dessin, sous forme d'etiquettes courtes comme
-    // dans la barre d'etat d'AutoCAD : elles s'allument, se cliquent, et
-    // rappellent leur touche de fonction en info-bulle.
+    // dans la barre d'etat d'AutoCAD. Le libelle est le NOM A TAPER, pas le
+    // libelle de menu : un bouton clique enseigne le nom de la commande
+    // (regle 3 de la ligne de commande). setDefaultAction() poserait le
+    // libelle complet — « Résolution — accrochage à la grille » — et les six
+    // bascules doubleraient de largeur.
     for (QAction *action : { m_gridSnapAction, m_gridAction, m_orthoAction, m_polarAction,
                              m_osnapAction, m_trackingAction }) {
         if (!action)
@@ -2632,6 +2753,8 @@ void MainWindow::createStatusBar()
         button->setCheckable(true);
         button->setChecked(action->isChecked());
         button->setAutoRaise(true);
+        // Sans cela les six bascules entrent dans la chaine de tabulation et
+        // volent le focus au canevas : on tape une cote, elle part ailleurs.
         button->setFocusPolicy(Qt::NoFocus);
         button->setProperty("statusToggle", true);
         connect(button, &QToolButton::clicked, action, &QAction::trigger);
@@ -2639,6 +2762,116 @@ void MainWindow::createStatusBar()
         statusBar()->addPermanentWidget(button);
         m_statusToggles.insert(button, action);
     }
+
+    QLabel *formatLabel = nullptr;
+    QFrame *formatRule = addStatusRule();
+    m_cellFormat = addStatusCell(tr("FORMAT"), QString(),
+                                 QStringLiteral("ANSI_E \u00b7 1118\u00d7864"), &formatLabel);
+
+    QLabel *folioLabel = nullptr;
+    QFrame *folioRule = addStatusRule();
+    m_cellFolio = addStatusCell(tr("FOLIO"), QString(), QStringLiteral("99/99"), &folioLabel);
+
+    QFrame *revisionRule = addStatusRule();
+    createRevisionCell();
+
+    // L'ordre du sacrifice, du plus dispensable au moins : le format se lit
+    // dans la mise en page, le rang du folio dans la liste des folios et dans
+    // le titre de la fenetre, la zone se deduit de la position, l'indice se
+    // lit au cartouche, le zoom se voit. Ce qui reste toujours — la position,
+    // la selection et les six bascules — n'est nulle part ailleurs sous les
+    // yeux pendant qu'on dessine. Chaque groupe emporte son filet : un filet
+    // orphelin est un trait qui ne separe rien.
+    m_statusOptional = {
+        { formatRule, formatLabel, m_cellFormat },
+        { folioRule, folioLabel, m_cellFolio },
+        { zoneRule, zoneLabel, m_cellZone },
+        { revisionRule, m_revisionCell },
+        { zoomRule, zoomLabel, m_cellZoom },
+    };
+}
+
+void MainWindow::fitStatusBar()
+{
+    // Qt ne dit rien quand une barre d'etat deborde : il rogne la fin, et une
+    // valeur coupee en deux (« 420x29 ») ment au lieu de manquer. On replie
+    // donc nous-meme, dans un ordre declare, et un test verifie qu'aucune case
+    // restee visible n'est rognee.
+    //
+    // Le garde-fou de reentrance n'est pas theorique : cacher un widget
+    // relance la disposition, donc un resizeEvent.
+    if (m_fittingStatusBar || m_statusOptional.isEmpty())
+        return;
+    m_fittingStatusBar = true;
+
+    QStatusBar *bar = statusBar();
+    for (const QVector<QWidget *> &widgets : std::as_const(m_statusOptional)) {
+        for (QWidget *w : widgets) {
+            if (w)
+                w->setVisible(true);
+        }
+    }
+    if (bar->layout())
+        bar->layout()->activate();
+
+    for (const QVector<QWidget *> &widgets : std::as_const(m_statusOptional)) {
+        // Un pixel de marge : sizeHint() et la disposition reelle ne tombent
+        // pas toujours d'accord a l'unite pres, et se tromper du bon cote
+        // coute une case, pas une valeur coupee en deux.
+        if (bar->sizeHint().width() + Theme::space() <= bar->width())
+            break;
+        for (QWidget *w : widgets) {
+            if (w)
+                w->setVisible(false);
+        }
+        if (bar->layout()) {
+            bar->layout()->invalidate();
+            bar->layout()->activate();
+        }
+    }
+
+    m_fittingStatusBar = false;
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    fitStatusBar();
+}
+
+// --------------------------------------------------------------------------
+
+void MainWindow::updateStatusCells()
+{
+    // Format, rang du folio et indice viennent tous les trois de
+    // TitleBlock::values() : c'est le seul endroit qui sait qu'un champ pose
+    // sur la planche l'emporte sur le reglage du dossier. Les lire ailleurs
+    // ferait mentir la barre d'etat des qu'un folio porterait son propre
+    // indice — et c'est le plan que le cableur a en main (invariant 15).
+    const Folio *folio = m_document->currentFolio();
+    if (!folio) {
+        m_cellFormat->setText(QStringLiteral("\u2014"));
+        m_cellFolio->setText(QStringLiteral("\u2014"));
+        m_cellRevision->setText(QStringLiteral("\u2014"));
+        return;
+    }
+
+    const QMap<QString, QString> values = TitleBlock::values(m_document->project(), *folio);
+
+    // « A3 · 420×297 » : l'identifiant seul ne dit pas l'orientation, et les
+    // millimetres seuls ne disent pas le nom du format.
+    m_cellFormat->setText(QStringLiteral("%1 \u00b7 %2\u00d7%3")
+                                  .arg(folio->sheet.id)
+                                  .arg(int(std::lround(folio->sheet.width)))
+                                  .arg(int(std::lround(folio->sheet.height))));
+
+    const QString index = values.value(QStringLiteral("sheetIndex"));
+    const QString count = values.value(QStringLiteral("sheetCount"));
+    m_cellFolio->setText(index.isEmpty() ? QStringLiteral("\u2014")
+                                         : QStringLiteral("%1/%2").arg(index, count));
+
+    const QString revision = values.value(QStringLiteral("revision"));
+    m_cellRevision->setText(revision.isEmpty() ? QStringLiteral("\u2014") : revision);
 }
 
 // --------------------------------------------------------------------------
@@ -2672,12 +2905,14 @@ void MainWindow::updateActions()
     applyNeeds();
 
     const int count = m_view->selection().size();
-    m_selectionLabel->setText(count == 0 ? tr("aucune sélection")
-                                         : tr("%n élément(s)", "", count));
+    m_cellSelection->setText(count == 0 ? QStringLiteral("\u2014")
+                                        : QString::number(count));
     // Cent pour cent, c'est un millimetre du dessin pour un millimetre a
     // l'ecran : le pourcentage se calcule donc contre la resolution reelle.
     const double pixelsPerMm = std::max(1.0, double(logicalDpiX())) / kMmPerInch;
-    m_zoomLabel->setText(tr("zoom %1 %").arg(int(std::lround(m_view->zoom() / pixelsPerMm * 100))));
+    m_cellZoom->setText(QStringLiteral("%1 %").arg(
+            int(std::lround(m_view->zoom() / pixelsPerMm * 100))));
+    updateStatusCells();
     updateTitle();
 }
 

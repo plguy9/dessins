@@ -11,10 +11,12 @@
 #include <QHash>
 #include <QMainWindow>
 #include <QSet>
+#include <QVector>
 
 class QMenuBar;
 
 class QComboBox;
+class QFrame;
 class QLabel;
 class QToolButton;
 
@@ -73,6 +75,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private Q_SLOTS:
     // Invocable : le test de la palette l'ouvre pour verifier qu'elle expose
@@ -91,6 +94,27 @@ private:
     // absente des menus est absente des deux.
     QHash<QString, QAction *> indexMenuActions() const;
     void createStatusBar();
+    // Une case de cartouche : le libelle grave, la valeur en chasse fixe, et
+    // le filet qui la separe de la suivante. Renvoie le QLabel de valeur pour
+    // que l'appelant le garde et le mette a jour.
+    // `gabarit` est la valeur la plus large que la case aura a porter : elle
+    // fixe la largeur, de sorte qu'un nombre qui change ne pousse jamais ses
+    // voisins. La chasse fixe ne suffit pas — « 0,00 » et « 184,50 » n'ont
+    // pas le meme nombre de caracteres.
+    QLabel *addStatusCell(const QString &label, const QString &initialValue,
+                          const QString &gabarit, QLabel **labelOut = nullptr);
+    QFrame *addStatusRule();
+    // Replie les cases les moins necessaires quand la fenetre retrecit. Sans
+    // cela Qt rogne la fin de la barre sans un mot, et une valeur coupee en
+    // deux (« 420x29 ») ment au lieu de manquer.
+    void fitStatusBar();
+    // La case de revision, a droite : la marque empruntee au cartouche, en
+    // creux comme la case REV. d'une planche.
+    void createRevisionCell();
+    // Ce que les cases du document portent — format, rang du folio, indice.
+    // Separe de updateActions() parce que ces trois valeurs ne dependent ni
+    // de la selection ni du zoom : elles suivent le folio courant.
+    void updateStatusCells();
     void updateTitle();
     void updateActions();
 
@@ -215,10 +239,24 @@ private:
     // que la fleche reste pour ramener un panneau ferme.
     DockRail *m_rail = nullptr;
 
-    QLabel *m_cursorLabel = nullptr;
-    QLabel *m_zoneLabel = nullptr;
-    QLabel *m_zoomLabel = nullptr;
-    QLabel *m_selectionLabel = nullptr;
+    // Les cases de la barre d'etat. Chacune ne detient que sa VALEUR : le
+    // libelle grave est pose une fois pour toutes et ne change jamais.
+    QLabel *m_cellPosition = nullptr;
+    QLabel *m_cellZone = nullptr;
+    QLabel *m_cellZoom = nullptr;
+    QLabel *m_cellSelection = nullptr;
+    QLabel *m_cellFormat = nullptr;
+    QLabel *m_cellFolio = nullptr;
+    QLabel *m_cellRevision = nullptr;
+    // La case de revision est peinte : elle porte son fond en creux dans sa
+    // palette, qu'il faut reposer a chaque changement de theme.
+    QWidget *m_revisionCell = nullptr;
+    // Les cases facultatives, DANS L'ORDRE DU SACRIFICE : la premiere part la
+    // premiere. Chaque groupe porte son libelle, sa valeur et son filet, pour
+    // qu'ils disparaissent ensemble — un filet orphelin est un trait qui ne
+    // separe rien.
+    QVector<QVector<QWidget *>> m_statusOptional;
+    bool m_fittingStatusBar = false;
 
     QAction *m_undoAction = nullptr;
     QAction *m_redoAction = nullptr;

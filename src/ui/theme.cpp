@@ -499,40 +499,76 @@ QGroupBox::title {
     color: %MUTED%;
 }
 
-/* --- barre d'etat ------------------------------------------------------ */
+/* --- barre d'etat ------------------------------------------------------
+   Une bande de cartouche. Chaque mesure est une CASE : un libelle grave a
+   gauche, la valeur en chasse fixe a sa droite, un filet de 1 px avant la
+   suivante. Pas de rayon et pas d'aplat — un cartouche n'a ni coin arrondi
+   ni fond colore, et la barre d'etat est le cartouche de la fenetre.
+
+   La gauche reste libre : c'est la que le message temporaire s'affiche
+   quand le bandeau de commande est replie, et il ne doit rien bousculer. */
 QStatusBar {
     background: %WINDOW%;
     border-top: 1px solid %BORDER%;
     color: %MUTED%;
-    padding: 1px 6px;
+    padding: 0 4px;
 }
 QStatusBar::item { border: none; }
-QStatusBar QLabel { color: %MUTED%; padding: 2px 10px; }
+QStatusBar QLabel { color: %MUTED%; padding: 0; }
 
-/* Les mesures : chasse fixe et couleur retenue, pour que le chiffre qui
-   change ne fasse pas sauter la ligne. */
-QLabel[readout="true"] {
-    color: %MUTED%;
-    padding: 2px 12px;
-    border-left: 1px solid %BORDER%;
+/* Le libelle est au troisieme niveau d'encre, en capitales gravees : il se
+   lit quand on le cherche et disparait quand on lit la valeur. Les capitales
+   et l'espacement viennent de Theme::engrave() — Qt n'a ni « text-transform »
+   ni « letter-spacing » en feuille de style. */
+QStatusBar QLabel[cellLabel="true"] {
+    color: %FAINT%;
+    padding: 0 0 0 9px;
 }
+QStatusBar QLabel[cellValue="true"] {
+    color: %TEXT%;
+    padding: 0 9px 0 5px;
+}
+QStatusBar QFrame[cellRule="true"] { color: %BORDER%; }
 
-/* Bascules d'aide au dessin, facon barre d'etat AutoCAD : eteintes elles
-   s'effacent, allumees elles portent l'accent. */
+/* La case de revision, en CREUX : le plan `canvas` est le plus profond des
+   quatre, et c'est ce que fait la case REV. d'un cartouche — un renfoncement
+   dans la bande, pas une case de plus. Elle est peinte par la feuille de
+   style et non par une QPalette : une palette est figee au moment ou on la
+   pose et ne suivrait pas un changement de theme. Un QWidget nu n'accepte un
+   fond de feuille de style qu'avec Qt::WA_StyledBackground. */
+QStatusBar QWidget[revisionCell="true"] { background: %CANVAS%; }
+
+/* Regle 3 tenue : la bascule eteinte est au troisieme niveau d'encre et ne
+   porte AUCUN aplat. En marche elle prend le meme filet de 2 px que l'onglet
+   de ruban actif — un seul motif a apprendre pour deux endroits. L'aplat
+   permanent d'avant disait « actif » sans interruption : il ne renseignait
+   plus, et il criait dans le coin le plus visible de la fenetre.
+
+   Pas de font-weight ici : Qt calcule la taille du bouton dans son etat
+   normal et le texte se rogne a l'etat coche. Piege deja paye trois fois
+   dans ce depot ; la distinction se fait par le filet et par la couleur. */
 QToolButton[statusToggle="true"] {
     color: %FAINT%;
     background: transparent;
     border: none;
-    border-radius: 5px;
-    padding: 4px 10px;
-    margin: 0 1px;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 3px 8px 1px 8px;
+    margin: 0;
     font-size: 8pt;
-    font-weight: 700;
 }
-QToolButton[statusToggle="true"]:hover { background: %HOVER%; color: %TEXT%; }
+QToolButton[statusToggle="true"]:hover {
+    background: transparent;
+    color: %TEXT%;
+}
 QToolButton[statusToggle="true"]:checked {
-    background: %ACCENTSOFT%;
-    color: %ACCENT%;
+    background: transparent;
+    color: %TEXT%;
+    border-bottom: 2px solid %ACCENT%;
+}
+QToolButton[statusToggle="true"]:checked:hover {
+    color: %TEXT%;
+    border-bottom: 2px solid %ACCENTHOVER%;
 }
 
 /* --- ruban -------------------------------------------------------------
@@ -621,6 +657,7 @@ QProgressBar {
 }
 QProgressBar::chunk { background: %ACCENT%; border-radius: 3px; }
 )")
+            .replace(QStringLiteral("%CANVAS%"), hex(c.canvas))
             .replace(QStringLiteral("%WINDOW%"), hex(c.window))
             .replace(QStringLiteral("%SURFACE%"), hex(c.surface))
             .replace(QStringLiteral("%ELEVATED%"), hex(c.elevated))

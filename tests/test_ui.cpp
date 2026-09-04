@@ -12,6 +12,7 @@
 #include <QAbstractButton>
 #include <QToolButton>
 #include <QSettings>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QFontMetricsF>
@@ -4065,4 +4066,483 @@ TEST_CASE("Un panneau tassé revient avec de la largeur", "[ui][docks]")
     CHECK(dock->isVisible());
     // C'est CE point qui manquait : visible ne suffit pas, il faut de la place.
     CHECK(dock->width() > 40);
+}
+
+namespace {
+
+// Compte les pixels d'une zone qui S'ECARTENT d'une couleur de reference.
+// Mesurer l'encre deposee est la seule verification qui distingue un aplat
+// d'un filet : la presence d'une regle dans la feuille de style ne prouve
+// rien — Qt ignore en silence une declaration qu'il ne comprend pas.
+int pixelsHorsFond(const QImage &image, const QColor &fond, const QRect &zone,
+                   int tolerance = 14)
+{
+    int compte = 0;
+    for (int y = zone.top(); y <= zone.bottom(); ++y) {
+        if (y < 0 || y >= image.height())
+            continue;
+        for (int x = zone.left(); x <= zone.right(); ++x) {
+            if (x < 0 || x >= image.width())
+                continue;
+            const QColor c = image.pixelColor(x, y);
+            if (std::abs(c.red() - fond.red()) > tolerance
+                || std::abs(c.green() - fond.green()) > tolerance
+                || std::abs(c.blue() - fond.blue()) > tolerance)
+                ++compte;
+        }
+    }
+    return compte;
+}
+
+// Compte les pixels PROCHES d'une couleur donnee — l'inverse du precedent.
+int pixelsProches(const QImage &image, const QColor &cible, const QRect &zone,
+                  int tolerance = 14)
+{
+    int compte = 0;
+    for (int y = zone.top(); y <= zone.bottom(); ++y) {
+        if (y < 0 || y >= image.height())
+            continue;
+        for (int x = zone.left(); x <= zone.right(); ++x) {
+            if (x < 0 || x >= image.width())
+                continue;
+            const QColor c = image.pixelColor(x, y);
+            if (std::abs(c.red() - cible.red()) <= tolerance
+                && std::abs(c.green() - cible.green()) <= tolerance
+                && std::abs(c.blue() - cible.blue()) <= tolerance)
+                ++compte;
+        }
+    }
+    return compte;
+}
+
+// L'epaisseur du filet du bas : le nombre de rangees consecutives, en partant
+// du bas, dont le milieu porte la couleur cherchee.
+int epaisseurDuFilet(const QImage &image, const QColor &cible, const QRect &zone,
+                     int tolerance = 14)
+{
+    const int x = zone.center().x();
+    int epaisseur = 0;
+    for (int y = zone.bottom(); y >= zone.top(); --y) {
+        if (y < 0 || y >= image.height() || x < 0 || x >= image.width())
+            break;
+        const QColor c = image.pixelColor(x, y);
+        if (std::abs(c.red() - cible.red()) > tolerance
+            || std::abs(c.green() - cible.green()) > tolerance
+            || std::abs(c.blue() - cible.blue()) > tolerance)
+            break;
+        ++epaisseur;
+    }
+    return epaisseur;
+}
+
+// L'etendue horizontale de l'encre dans une zone : la premiere et la derniere
+// colonne qui portent autre chose que le fond. C'est ce qui mesure vraiment un
+// texte dessine — une taille de widget ne dit rien de ce qui a ete peint
+// dedans, et c'est precisement la ou le piege du font-weight se cache.
+QPair<int, int> etendueDeLEncre(const QImage &image, const QColor &fond, const QRect &zone,
+                                int tolerance = 14)
+{
+    int gauche = -1;
+    int droite = -1;
+    for (int x = zone.left(); x <= zone.right(); ++x) {
+        if (x < 0 || x >= image.width())
+            continue;
+        bool encre = false;
+        for (int y = zone.top(); y <= zone.bottom() && !encre; ++y) {
+            if (y < 0 || y >= image.height())
+                continue;
+            const QColor c = image.pixelColor(x, y);
+            encre = std::abs(c.red() - fond.red()) > tolerance
+                    || std::abs(c.green() - fond.green()) > tolerance
+                    || std::abs(c.blue() - fond.blue()) > tolerance;
+        }
+        if (!encre)
+            continue;
+        if (gauche < 0)
+            gauche = x;
+        droite = x;
+    }
+    return { gauche, droite };
+}
+
+QToolButton *bascule(QStatusBar *bar, const QString &nom)
+{
+    for (QToolButton *button : bar->findChildren<QToolButton *>()) {
+        if (button->property("statusToggle").toBool() && button->text() == nom)
+            return button;
+    }
+    return nullptr;
+}
+
+QLabel *valeurDeCase(QStatusBar *bar, const QString &libelle)
+{
+    // Le libelle precede immediatement sa valeur : c'est l'ordre de pose.
+    QLabel *precedent = nullptr;
+    for (QWidget *w : bar->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
+        auto *label = qobject_cast<QLabel *>(w);
+        if (!label)
+            continue;
+        if (precedent && precedent->text() == libelle && label->property("cellValue").toBool())
+            return label;
+        precedent = label;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+TEST_CASE("Une bascule allumée porte un filet, pas un aplat", "[ui][barre-etat]")
+{
+    // LE PIRE DEFAUT DU CHROME, et il tenait en une regle de feuille de style.
+    // Six bascules portaient un aplat d'accent EN PERMANENCE, dans le coin le
+    // plus visible de la fenetre. La regle 3 du theme dit que l'accent ne
+    // designe que ce qui est actif ; ici il disait « actif » sans
+    // interruption, donc il n'informait plus de rien et il criait la ou rien
+    // d'important ne se passe.
+    //
+    // Le test compte l'encre. Verifier que la feuille de style contient la
+    // bonne regle ne prouverait rien : Qt ignore sans un mot une declaration
+    // qu'il ne comprend pas — un jeton mal ecrit (%ACCENT_HOVER% au lieu de
+    // %ACCENTHOVER%) passerait le test et pas l'oeil.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+
+    QStatusBar *bar = window.statusBar();
+    QToolButton *ortho = bascule(bar, QStringLiteral("ORTHO"));
+    REQUIRE(ortho);
+    // Invariant 9 : ortho est allume par defaut, un schema se trace droit.
+    REQUIRE(ortho->isChecked());
+
+    const QImage image = bar->grab().toImage();
+    const QRect zone = ortho->geometry();
+    REQUIRE(zone.width() > 20);
+
+    const QColor fond = Theme::colors().window;
+    const QRect corps(zone.x(), zone.y(), zone.width(), zone.height() - 3);
+    const QRect filet(zone.x(), zone.bottom() - 1, zone.width(), 2);
+
+    // Le filet court sur toute la largeur du bouton.
+    CHECK(pixelsProches(image, Theme::colors().accent, filet) > zone.width());
+    // Et le corps ne porte que du texte : sans le correctif, l'aplat couvrait
+    // les neuf dixiemes de la surface.
+    const int encre = pixelsHorsFond(image, fond, corps);
+    CAPTURE(encre, corps.width() * corps.height());
+    CHECK(encre < corps.width() * corps.height() / 3);
+}
+
+TEST_CASE("Le filet d'une bascule est celui de l'onglet de ruban actif", "[ui][barre-etat]")
+{
+    // Un seul motif a apprendre pour deux endroits : le meme trait, de la
+    // meme epaisseur, de la meme couleur, dit « ceci est actif ». Deux
+    // marques differentes pour la meme idee obligent a apprendre deux fois.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+
+    QStatusBar *bar = window.statusBar();
+    QToolButton *ortho = bascule(bar, QStringLiteral("ORTHO"));
+    REQUIRE(ortho);
+    REQUIRE(ortho->isChecked());
+
+    QTabBar *onglets = nullptr;
+    for (QTabBar *candidate : window.findChildren<QTabBar *>()) {
+        if (candidate->property("ribbon").toBool())
+            onglets = candidate;
+    }
+    REQUIRE(onglets);
+    REQUIRE(onglets->count() > 1);
+
+    const QColor accent = Theme::colors().accent;
+    const QImage barre = bar->grab().toImage();
+    const QImage ruban = onglets->grab().toImage();
+    const QRect ongletActif = onglets->tabRect(onglets->currentIndex());
+
+    const int filetBascule = epaisseurDuFilet(barre, accent, ortho->geometry());
+    const int filetOnglet = epaisseurDuFilet(ruban, accent, ongletActif);
+    CAPTURE(filetBascule, filetOnglet);
+    CHECK(filetBascule == 2);
+    CHECK(filetOnglet == 2);
+    CHECK(filetBascule == filetOnglet);
+}
+
+TEST_CASE("Cocher une bascule ne rogne pas son texte", "[ui][barre-etat]")
+{
+    // Le piege paye trois fois dans ce depot : un font-weight pose sur l'etat
+    // coche fait grossir le texte, mais Qt a calcule la taille du bouton dans
+    // son etat NORMAL — le texte se retrouve rogne des qu'on l'allume. La
+    // distinction se fait par le filet et par la couleur, jamais par la
+    // graisse.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+
+    QStatusBar *bar = window.statusBar();
+    const QColor fond = Theme::colors().window;
+
+    for (QToolButton *button : bar->findChildren<QToolButton *>()) {
+        if (!button->property("statusToggle").toBool())
+            continue;
+        CAPTURE(button->text());
+
+        // Le corps, sans les deux rangees du filet : elles sont encrees a
+        // l'etat coche par definition, et elles fausseraient la mesure.
+        const QRect zone = button->geometry();
+        const QRect corps(zone.x(), zone.y(), zone.width(), zone.height() - 3);
+
+        const bool etat = button->isChecked();
+        button->setChecked(false);
+        for (int i = 0; i < 2; ++i)
+            QCoreApplication::processEvents();
+        const QPair<int, int> eteinte = etendueDeLEncre(bar->grab().toImage(), fond, corps);
+
+        button->setChecked(true);
+        for (int i = 0; i < 2; ++i)
+            QCoreApplication::processEvents();
+        const QPair<int, int> allumee = etendueDeLEncre(bar->grab().toImage(), fond, corps);
+
+        button->setChecked(etat);
+        for (int i = 0; i < 2; ++i)
+            QCoreApplication::processEvents();
+
+        REQUIRE(eteinte.first >= 0);
+        REQUIRE(allumee.first >= 0);
+        CAPTURE(eteinte.first, eteinte.second, allumee.first, allumee.second);
+
+        // Le texte occupe EXACTEMENT la meme place dans les deux etats : la
+        // distinction se fait par le filet et par la couleur, jamais par la
+        // graisse. Un font-weight pose sur l'etat coche elargirait le trace
+        // sans que Qt en tienne compte dans la taille du bouton — c'est ainsi
+        // que le texte se rogne, et le bouton n'en dit rien.
+        // Un pixel de tolerance : l'anticrenelage decide differemment selon
+        // la couleur du texte, et la bascule change de couleur d'un etat a
+        // l'autre. Une graisse, elle, deplace le bord de plusieurs pixels.
+        CHECK(std::abs(eteinte.first - allumee.first) <= 1);
+        CHECK(std::abs(eteinte.second - allumee.second) <= 1);
+
+        // Et le trace respire de part et d'autre : il ne touche pas les bords.
+        CHECK(allumee.first - corps.left() >= 3);
+        CHECK(corps.right() - allumee.second >= 3);
+    }
+}
+
+TEST_CASE("Une valeur qui change ne pousse pas ses voisines", "[ui][barre-etat]")
+{
+    // La chasse fixe ne suffit pas : « 0,00 » et « -184,50 » n'ont pas le meme
+    // nombre de caracteres, et la case pousserait ses voisines a chaque
+    // mouvement de souris. Une barre d'etat qui danse sous le curseur est
+    // illisible, et c'est le widget qu'on regarde le plus souvent.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+
+    QStatusBar *bar = window.statusBar();
+    FolioView *view = window.findChild<FolioView *>();
+    REQUIRE(view);
+
+    QHash<QWidget *, int> avant;
+    for (QWidget *w : bar->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (w->isVisible())
+            avant.insert(w, w->x());
+    }
+    REQUIRE(avant.size() > 10);
+
+    // Le curseur parcourt la feuille : la valeur passe de quatre a huit
+    // caracteres, et repasse en negatif hors du cadre.
+    for (const QPointF &point : { QPointF(184.5, 96.25), QPointF(-12.75, -3.5),
+                                  QPointF(0.0, 0.0), QPointF(419.99, 296.5) }) {
+        Q_EMIT view->cursorMoved(point, QStringLiteral("B4"));
+        for (int i = 0; i < 3; ++i)
+            QCoreApplication::processEvents();
+        for (auto it = avant.cbegin(); it != avant.cend(); ++it) {
+            CAPTURE(point.x(), point.y());
+            CHECK(it.key()->x() == it.value());
+        }
+    }
+}
+
+TEST_CASE("La barre d'état se replie plutôt que de se faire rogner", "[ui][barre-etat]")
+{
+    // Qt ne dit rien quand une barre d'etat deborde : il rogne la fin, et une
+    // valeur coupee en deux (« 420x29 ») ment au lieu de manquer. La barre se
+    // replie donc elle-meme, dans un ordre declare — le format d'abord, il se
+    // lit dans la mise en page ; le rang du folio ensuite, il est dans le
+    // titre de la fenetre ; la zone en dernier, elle se deduit de la position.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+
+    QStatusBar *bar = window.statusBar();
+    QLabel *format = valeurDeCase(bar, QStringLiteral("FORMAT"));
+    QLabel *folio = valeurDeCase(bar, QStringLiteral("FOLIO"));
+    QLabel *zone = valeurDeCase(bar, QStringLiteral("ZONE"));
+    QLabel *position = valeurDeCase(bar, QStringLiteral("POSITION"));
+    REQUIRE(format);
+    REQUIRE(folio);
+    REQUIRE(zone);
+    REQUIRE(position);
+
+    CHECK(format->isVisible());
+    CHECK(folio->isVisible());
+
+    for (int largeur : { 1560, 1440, 1280, 1100, 1024, 940, 860 }) {
+        window.resize(largeur, 900);
+        for (int i = 0; i < 6; ++i)
+            QCoreApplication::processEvents();
+        CAPTURE(largeur);
+
+        // Rien de ce qui reste visible ne deborde de la barre.
+        for (QWidget *w : bar->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
+            if (!w->isVisible())
+                continue;
+            CHECK(w->x() >= 0);
+            CHECK(w->x() + w->width() <= bar->width());
+        }
+
+        // Et ce qui n'est nulle part ailleurs sous les yeux reste, toujours :
+        // la position, et les six bascules.
+        CHECK(position->isVisible());
+        for (QToolButton *button : bar->findChildren<QToolButton *>()) {
+            if (button->property("statusToggle").toBool())
+                CHECK(button->isVisible());
+        }
+
+        // L'ordre du sacrifice est tenu : le format part le premier, le rang
+        // du folio ensuite, la zone en dernier. Donc si le format est encore
+        // la, tout ce qui part apres lui l'est aussi.
+        if (format->isVisible())
+            CHECK(folio->isVisible());
+        if (folio->isVisible())
+            CHECK(zone->isVisible());
+    }
+
+    // Et tout revient quand la place revient.
+    window.resize(1560, 980);
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+    CHECK(format->isVisible());
+    CHECK(folio->isVisible());
+    CHECK(zone->isVisible());
+}
+
+TEST_CASE("La case de révision est en creux, et le creux suit le thème", "[ui][barre-etat]")
+{
+    // C'est le seul element PEINT de la barre, donc le seul qui puisse mentir
+    // sans qu'aucune valeur soit fausse. Il a menti une fois : pose par une
+    // QPalette, le creux n'apparaissait pas du tout — un QWidget nu ignore un
+    // fond de feuille de style tant qu'on ne lui donne pas
+    // Qt::WA_StyledBackground, et la palette, elle, aurait fige la couleur du
+    // theme du moment. Le test regarde le pixel.
+    auto *app = qobject_cast<QApplication *>(QCoreApplication::instance());
+    REQUIRE(app);
+
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+
+    for (bool sombre : { true, false }) {
+        Theme::apply(*app, sombre);
+        for (int i = 0; i < 6; ++i)
+            QCoreApplication::processEvents();
+        CAPTURE(sombre);
+
+        QStatusBar *bar = window.statusBar();
+        QWidget *creux = nullptr;
+        for (QWidget *w : bar->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
+            if (w->property("revisionCell").toBool())
+                creux = w;
+        }
+        REQUIRE(creux);
+        REQUIRE(creux->width() > 20);
+
+        const QImage image = bar->grab().toImage();
+        // Un coin de la case, loin du texte : c'est le fond qu'on mesure.
+        const QPoint coin(creux->x() + 2, creux->y() + creux->height() / 2);
+        const QColor peint = image.pixelColor(coin);
+        CHECK(peint == Theme::colors().canvas);
+        // Et le creux est bien un creux : plus profond que la bande.
+        CHECK(peint != Theme::colors().window);
+    }
+    Theme::apply(*app, true);
+}
+
+TEST_CASE("Les cases du cartouche suivent le document", "[ui][barre-etat]")
+{
+    // Invariant 15 : ce que le rapport imprime, le dessin le montre. La barre
+    // d'etat lit FORMAT, FOLIO et RÉV par TitleBlock::values(), c'est-a-dire
+    // par le meme chemin que le cartouche imprime — un champ pose sur la
+    // planche l'emporte sur le reglage du dossier, et la barre ne peut pas
+    // dire autre chose que le papier.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+
+    Document *document = window.findChild<Document *>();
+    REQUIRE(document);
+    QStatusBar *bar = window.statusBar();
+    QLabel *format = valeurDeCase(bar, QStringLiteral("FORMAT"));
+    QLabel *folio = valeurDeCase(bar, QStringLiteral("FOLIO"));
+    REQUIRE(format);
+    REQUIRE(folio);
+
+    const Folio *courant = document->currentFolio();
+    REQUIRE(courant);
+    CHECK(format->text().startsWith(courant->sheet.id));
+    CHECK(format->text().contains(QString::number(int(std::lround(courant->sheet.width)))));
+    CHECK(folio->text() == QStringLiteral("1/1"));
+
+    // Une planche de plus, et le rang suit.
+    auto seconde = std::make_unique<Folio>();
+    seconde->number = QStringLiteral("2");
+    seconde->title = QStringLiteral("Commande");
+    document->push(std::make_unique<AddFolioCommand>(document->project(), std::move(seconde)));
+    for (int i = 0; i < 3; ++i)
+        QCoreApplication::processEvents();
+    CHECK(folio->text().endsWith(QStringLiteral("/2")));
+
+    // L'indice du dossier arrive dans la case RÉV, par le meme chemin que le
+    // cartouche : c'est ProjectInfo::revision que TitleBlock::values publie.
+    ProjectInfo info = document->project().info;
+    info.revision = QStringLiteral("C");
+    document->push(std::make_unique<ChangeProjectInfoCommand>(document->project(), info));
+    for (int i = 0; i < 3; ++i)
+        QCoreApplication::processEvents();
+
+    QLabel *revision = nullptr;
+    for (QWidget *cell : bar->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (qobject_cast<QLabel *>(cell) || cell->property("cellRule").toBool())
+            continue;
+        for (QLabel *inner : cell->findChildren<QLabel *>()) {
+            if (inner->property("cellValue").toBool())
+                revision = inner;
+        }
+    }
+    REQUIRE(revision);
+    CHECK(revision->text() == QStringLiteral("C"));
+
+    // Et le champ pose sur LA PLANCHE l'emporte sur le reglage du dossier :
+    // c'est toute la raison de passer par TitleBlock::values() plutot que de
+    // lire ProjectInfo::revision. Une planche revisee seule porte son propre
+    // indice au cartouche ; la barre d'etat doit dire la meme chose, sinon
+    // elle contredit le papier que le cableur a en main.
+    Folio *planche = document->currentFolio();
+    REQUIRE(planche);
+    planche->titleBlock.insert(QStringLiteral("revision"), QStringLiteral("D"));
+    document->push(std::make_unique<ChangeProjectInfoCommand>(document->project(),
+                                                              document->project().info));
+    for (int i = 0; i < 3; ++i)
+        QCoreApplication::processEvents();
+    CHECK(revision->text() == QStringLiteral("D"));
 }

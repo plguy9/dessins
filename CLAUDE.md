@@ -461,6 +461,62 @@ sont vérifiées par des tests (`[ui][theme]`) : ce ne sont pas des goûts.
 Chiffres et coordonnées passent par `Theme::monoFont()` : un nombre qui
 change ne doit pas déplacer ses voisins.
 
+**La barre d'état est le cartouche de la fenêtre** (refonte 2026-09-04,
+`design/etapes/02-barre-etat.md`). Six bascules — `RESOL` `GRILLE` `ORTHO`
+`POLAIRE` `ACCROBJ` `REPOBJ` — portaient un **aplat d'accent en permanence**,
+dans le coin le plus visible de la fenêtre : la règle 3 dit que l'accent ne
+désigne que ce qui est actif, et là il disait « actif » sans interruption,
+donc il n'informait plus de rien. Elles portent maintenant le **même filet de
+2 px** que l'onglet de ruban actif — un seul motif à apprendre pour deux
+endroits — et rien d'autre. Cinq décisions :
+
+1. **Une case porte une valeur, pas une phrase.** Libellé gravé à gauche,
+   valeur en chasse fixe à droite, filet de 1 px entre deux cases : c'est la
+   grammaire d'un cartouche. `zoom 58 %` devient `58 %`, `aucune sélection`
+   devient `—`, et deux cases apparaissent qui manquaient — `FORMAT` et
+   `FOLIO` — plus la case `RÉV` en creux, empruntée à la case *RÉV.* d'une
+   planche.
+2. **La chasse fixe ne suffit pas à empêcher une case de danser.**
+   « 0,00 » et « -184,50 » n'ont pas le même nombre de caractères : chaque
+   mouvement de souris poussait les voisines. Chaque case déclare donc son
+   **gabarit** — la valeur la plus large qu'elle aura à porter — et la
+   largeur est figée une fois pour toutes.
+3. **La barre se replie plutôt que de se faire rogner.** Qt ne dit rien quand
+   une barre d'état déborde : il coupe la fin, et `420x29` ment au lieu de
+   manquer. `MainWindow::fitStatusBar` cache les cases dans un **ordre
+   déclaré** — format, folio, zone, indice, zoom — jusqu'à ce que le reste
+   tienne. La position, la sélection et les six bascules ne partent jamais :
+   elles ne sont nulle part ailleurs sous les yeux pendant qu'on dessine.
+   Mesuré : 1517 px pour tout montrer, 1560 px à l'ouverture ; rien n'est
+   rogné jusqu'à 860 px.
+4. **`FORMAT`, `FOLIO` et `RÉV` se lisent par `TitleBlock::values()`**, donc
+   par le même chemin que le cartouche imprimé — invariant 15. Lire
+   `ProjectInfo::revision` directement ferait mentir la barre dès qu'une
+   planche porterait son propre indice, et c'est le plan que le câbleur a en
+   main. Un test le tient, et il échoue quand on court-circuite le chemin.
+5. **Le creux vient de la feuille de style, pas d'une QPalette.** La palette
+   **fige** la couleur au moment où on la pose : la case aurait gardé le gris
+   de l'autre thème au premier basculement — et c'est le seul élément peint
+   de la barre, donc le seul qui puisse mentir sans qu'aucune valeur soit
+   fausse. Piège au passage : **un QWidget nu ne peint aucun fond de feuille
+   de style** tant qu'il n'a pas `Qt::WA_StyledBackground`.
+
+Trois choses ont failli partir dans la refonte et sont restées : la **zone du
+cadre** (le pas de bandeau du paquet de design ne la portait pas — c'est la
+position dite dans la grammaire du cadre, et c'est ce qu'un renvoi imprime),
+le **nom court** des bascules (`setDefaultAction` aurait posé le libellé de
+menu — « Résolution — accrochage à la grille » — et doublé la largeur de la
+barre ; le nom court est en plus **le nom à taper**, règle 3 de la ligne de
+commande), et `setFocusPolicy(Qt::NoFocus)` sur les bascules (sans lui elles
+entrent dans la chaîne de tabulation et volent le focus au canevas).
+
+**Les six tests mesurent des pixels, pas des règles de feuille de style.**
+Qt ignore **sans un mot** une déclaration qu'il ne comprend pas : le pas de
+design écrivait `%ACCENT_HOVER%` là où le jeton s'appelle `%ACCENTHOVER%`, et
+vérifier que la règle est présente aurait laissé passer la faute. Les six ont
+été **contre-essayés** en désactivant leur correctif un par un — c'est la
+seule façon de savoir qu'ils ne prouvent pas rien.
+
 **`MainWindow::buildRenderStyle()` est le seul endroit qui construit un style
 de rendu d'écran.** Sept endroits le faisaient chacun à sa façon — le canevas,
 la vignette de folio, l'aperçu de mise en page, la palette, l'éditeur de

@@ -2,6 +2,18 @@
 
 namespace dsn {
 
+void RenderStyle::applyTheme(const QColor &paper, const QColor &ink, const QColor &voidColor)
+{
+    sheet = paper;
+    pageBackground = voidColor;
+    symbol = ink;
+    text = ink;
+    // Le cadre suit l'encre : c'est du trace, pas du chrome. Il etait fixe
+    // dans chaque preset, ce qui le faisait diverger de la feuille des qu'on
+    // changeait l'une des deux.
+    frame = ink;
+}
+
 RenderStyle RenderStyle::screen() { return RenderStyle(); }
 
 RenderStyle RenderStyle::print()

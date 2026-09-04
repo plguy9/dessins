@@ -22,6 +22,8 @@
 #include <QToolBar>
 #include <QTemporaryDir>
 
+#include <cmath>
+
 #include "core/documentcommands.h"
 #include "symbols/librarystore.h"
 #include "ui/dockrail.h"
@@ -787,6 +789,107 @@ TEST_CASE("Le theme couvre les deux modes", "[ui][theme]")
     CHECK_FALSE(Theme::colors().window.isValid() == false);
 
     Theme::apply(*app, true);
+}
+
+TEST_CASE("Règle 6 : aucun plan de chrome n'est blanc pur", "[ui][theme][papier]")
+{
+    // Le papier est le seul blanc pur du logiciel. C'est ce qui le fait
+    // flotter en clair comme en sombre — un panneau de la couleur d'une
+    // feuille fait s'effondrer la hiérarchie au dernier centimètre, là où
+    // l'œil travaille. Et c'est cette règle qui permet au dessin de n'avoir
+    // qu'UNE palette : puisque le papier est blanc des deux côtés, l'encre
+    // est la même des deux côtés.
+    auto *app = qobject_cast<QApplication *>(QCoreApplication::instance());
+    REQUIRE(app);
+
+    for (bool dark : { true, false }) {
+        Theme::apply(*app, dark);
+        const ThemeColors &c = Theme::colors();
+        for (const QColor &plan : { c.canvas, c.window, c.surface, c.elevated })
+            CHECK(plan != QColor(Qt::white));
+        CHECK(c.paper == QColor(Qt::white));
+        // Le vide reste plus profond que le chrome, dans les deux thèmes :
+        // c'est la règle 1, et elle ne s'inverse pas. En clair elle était
+        // cassée — le canevas était plus CLAIR que la fenêtre.
+        CHECK(c.canvas.lightness() < c.window.lightness());
+        // Des filets, pas des boîtes : encore faut-il que le filet se voie.
+        // Deux pour cent d'écart ne font pas une séparation.
+        CHECK(std::abs(c.border.lightness() - c.surface.lightness()) >= 8);
+    }
+
+    Theme::apply(*app, true);
+}
+
+TEST_CASE("La vignette, le canevas et le PDF s'accordent sur le papier",
+          "[ui][theme][papier]")
+{
+    // Le défaut que cette étape corrige était visible à l'écran : la vignette
+    // d'un folio était peinte avec `print()` et le canevas avec `screen()` —
+    // la même page, deux couleurs, à quinze centimètres l'une de l'autre.
+    // Tout ce qui rend à l'écran passe maintenant par un seul endroit.
+    auto *app = qobject_cast<QApplication *>(QCoreApplication::instance());
+    REQUIRE(app);
+
+    QSettings().remove(QStringLiteral("display/darkSheet"));
+    for (bool dark : { true, false }) {
+        Theme::apply(*app, dark);
+        const RenderStyle ecran = MainWindow::buildRenderStyle();
+        const RenderStyle papier = RenderStyle::print();
+        CHECK(ecran.sheet == Theme::colors().paper);
+        CHECK(ecran.sheet == papier.sheet);
+        CHECK(ecran.symbol == Theme::colors().ink);
+        // Le vide autour vient du thème, lui : c'est le seul endroit où
+        // l'interface a de la profondeur.
+        CHECK(ecran.pageBackground == Theme::colors().canvas);
+        // ET LE CADRE SUIT L'ENCRE. C'est l'assertion qui tient réellement la
+        // dérivation : `screen()` porte déjà un papier blanc, donc les trois
+        // lignes précédentes passaient AUSSI sans dérivation — vérifié en la
+        // retirant. Le cadre, lui, valait #222624 dans le préréglage et vaut
+        // l'encre du thème une fois dérivé : lui seul distingue les deux.
+        CHECK(ecran.frame == Theme::colors().ink);
+    }
+
+    // Et le fond sombre reste atteignable — mais par un réglage explicite,
+    // plus par le thème d'interface. Les quatre combinaisons existent.
+    Appearance::setDarkSheet(true);
+    Theme::apply(*app, false);
+    CHECK(MainWindow::buildRenderStyle().sheet != Theme::colors().paper);
+    Appearance::setDarkSheet(false);
+    Theme::apply(*app, true);
+    CHECK(MainWindow::buildRenderStyle().sheet == Theme::colors().paper);
+
+    QSettings().remove(QStringLiteral("display/darkSheet"));
+}
+
+TEST_CASE("Basculer le fond de dessin oublie la couleur épinglée",
+          "[ui][theme][papier]")
+{
+    // Le piège que l'étape ne voyait pas. `Appearance::save` écrit la couleur
+    // de la feuille à CHAQUE validation de la boîte de paramètres, même si
+    // l'utilisateur n'y a pas touché ; et `load` passe en dernier, puisque le
+    // réglage explicite gagne sur le thème. Sans oubli, cocher « fond de
+    // dessin sombre » n'aurait plus aucun effet visible dès la première visite
+    // dans les paramètres — et rien ne l'aurait dit.
+    auto *app = qobject_cast<QApplication *>(QCoreApplication::instance());
+    REQUIRE(app);
+    Theme::apply(*app, true);
+    QSettings().remove(QStringLiteral("display/darkSheet"));
+
+    // L'utilisateur valide la boîte : la couleur du papier est épinglée.
+    RenderStyle epingle = MainWindow::buildRenderStyle();
+    Appearance::save(epingle, true);
+    CHECK(MainWindow::buildRenderStyle().sheet == Theme::colors().paper);
+
+    // Il coche « fond de dessin sombre » : la feuille doit vraiment noircir.
+    Appearance::setDarkSheet(true);
+    CHECK(MainWindow::buildRenderStyle().sheet != Theme::colors().paper);
+
+    // Et le retour marche aussi.
+    Appearance::setDarkSheet(false);
+    CHECK(MainWindow::buildRenderStyle().sheet == Theme::colors().paper);
+
+    Appearance::reset(true);
+    QSettings().remove(QStringLiteral("display/darkSheet"));
 }
 
 TEST_CASE("Le canevas expose son moteur d'accrochage", "[ui][snap]")

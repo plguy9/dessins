@@ -1,6 +1,7 @@
 #include "pagesetupdialog.h"
 
 #include "render/foliopainter.h"
+#include "mainwindow.h"
 #include "theme.h"
 
 #include <QButtonGroup>
@@ -46,7 +47,9 @@ void PagePreview::paintEvent(QPaintEvent *event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
 
-    RenderStyle style = Theme::isDark() ? RenderStyle::screenDark() : RenderStyle::screen();
+    // Le meme style que le canevas : regler une mise en page sur une feuille
+    // d'une autre couleur que celle qu'on dessine n'aide personne.
+    RenderStyle style = MainWindow::buildRenderStyle();
     style.showGrid = false;
     style.showSheetShadow = true;
     style.showWireNumbers = false;

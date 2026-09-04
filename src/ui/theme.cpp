@@ -41,6 +41,11 @@ ThemeColors darkColors()
     c.window = QColor(0x11, 0x15, 0x18);   // le chrome
     c.surface = QColor(0x16, 0x1B, 0x1F);  // les panneaux
     c.elevated = QColor(0x1E, 0x24, 0x29); // ce qui flotte : menus, boutons
+    // Le papier, et son encre. Regle 6 : c'est le seul blanc pur du logiciel,
+    // et il est le meme dans les deux themes — d'ou une seule palette de
+    // dessin au lieu de deux.
+    c.paper = QColor(0xFF, 0xFF, 0xFF);
+    c.ink = QColor(0x15, 0x1A, 0x18);
     c.border = QColor(0x23, 0x2A, 0x30);   // le filet, presque invisible
     c.borderStrong = QColor(0x39, 0x43, 0x4A);
     c.text = QColor(0xE9, 0xEE, 0xF1);
@@ -61,23 +66,34 @@ ThemeColors lightColors()
 {
     ThemeColors c;
     c.dark = false;
-    c.canvas = QColor(0xDF, 0xE3, 0xE6);
-    c.window = QColor(0xF2, 0xF4, 0xF6);
-    c.surface = QColor(0xFF, 0xFF, 0xFF);
-    c.elevated = QColor(0xFF, 0xFF, 0xFF);
-    c.border = QColor(0xE1, 0xE6, 0xEA);
-    c.borderStrong = QColor(0xBF, 0xC8, 0xCE);
-    c.text = QColor(0x0F, 0x15, 0x19);
-    c.textMuted = QColor(0x5B, 0x69, 0x71);
-    c.textFaint = QColor(0x8A, 0x96, 0x9D);
+    // Le vide reste plus sombre que le chrome, comme en sombre : c'est la
+    // regle 1, et elle ne s'inverse pas d'un theme a l'autre.
+    c.canvas = QColor(0xC8, 0xCF, 0xD4);
+    c.window = QColor(0xE8, 0xEC, 0xEF);
+    // Un panneau ne peut pas porter la couleur d'une feuille : sinon la
+    // hierarchie que tout le reste du theme construit s'effondre au dernier
+    // centimetre, la ou l'oeil travaille. Le theme clair n'etait pas le parent
+    // pauvre par manque de reglages — c'etaient ces deux valeurs, qui
+    // annulaient les regles 1 et 2.
+    c.surface = QColor(0xF4, 0xF6, 0xF8);
+    c.elevated = QColor(0xFD, 0xFD, 0xFE); // regle 6 : jamais #ffffff
+    c.paper = QColor(0xFF, 0xFF, 0xFF);    // le meme qu'en sombre
+    c.ink = QColor(0x15, 0x1A, 0x18);      // le meme qu'en sombre
+    // Deux pour cent d'ecart de luminosite ne font pas une separation : en
+    // clair, « des filets, pas des boites » devenait « ni filets ni boites ».
+    c.border = QColor(0xCF, 0xD6, 0xDB);
+    c.borderStrong = QColor(0xA8, 0xB3, 0xBA);
+    c.text = QColor(0x10, 0x16, 0x19);
+    c.textMuted = QColor(0x56, 0x64, 0x6C);
+    c.textFaint = QColor(0x7F, 0x8C, 0x94);
     // En clair, l'accent doit tenir sur du blanc : il descend en luminosite
     // sans changer de teinte, sinon les deux themes n'ont pas la meme marque.
     c.accent = QColor(0x0B, 0x76, 0xB8);
     c.accentHover = QColor(0x0D, 0x8B, 0xD6);
     c.accentText = QColor(0xFF, 0xFF, 0xFF);
-    c.danger = QColor(0xBF, 0x38, 0x2C);
-    c.success = QColor(0x2F, 0x77, 0x36);
-    c.warning = QColor(0x9C, 0x6B, 0x11);
+    c.danger = QColor(0xB2, 0x34, 0x28);
+    c.success = QColor(0x2C, 0x6F, 0x33);
+    c.warning = QColor(0x8F, 0x62, 0x10);
     return c;
 }
 

@@ -595,7 +595,9 @@ private:
     void emitCursor();
 
     Document *m_document = nullptr;
-    RenderStyle m_style = RenderStyle::screen();
+    // Valeur de depart neutre : `MainWindow::applyTheme` pose le vrai style
+    // des la construction de la fenetre.
+    RenderStyle m_style;
     Tool m_tool = Tool::Select;
 
     double m_scale = 3.0;   // pixels par millimetre

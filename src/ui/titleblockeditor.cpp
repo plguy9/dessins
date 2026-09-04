@@ -106,7 +106,11 @@ protected:
         p.setRenderHint(QPainter::Antialiasing, true);
         p.translate(m_origin);
         p.scale(m_scale, m_scale);
-        p.fillRect(QRectF(0, 0, m_template->width, m_template->height), Qt::white);
+        // Le papier vient du theme, comme partout ailleurs : c'est un
+        // aperçu de ce qui s'imprime, donc il porte la meme feuille que le
+        // canevas et que le PDF.
+        p.fillRect(QRectF(0, 0, m_template->width, m_template->height),
+                   Theme::colors().paper);
         // Le peintre pose le cartouche au coin bas-droit du cadre : on ramene
         // ce coin sur notre origine.
         const QRectF bloc = folio->titleBlockRect();

@@ -92,6 +92,7 @@ private:
     QComboBox *m_gridStyle = nullptr;
     QSpinBox *m_gridMajorEvery = nullptr;
     QCheckBox *m_sheetShadow = nullptr;
+    QCheckBox *m_darkSheet = nullptr;
     ColorButton *m_crosshairColor = nullptr;
     ColorButton *m_gridColor = nullptr;
     ColorButton *m_gridMajorColor = nullptr;

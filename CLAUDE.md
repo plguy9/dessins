@@ -448,9 +448,44 @@ sont vérifiées par des tests (`[ui][theme]`) : ce ne sont pas des goûts.
    (un `QProxyStyle`) impose les marges de disposition par le style plutôt
    que boîte par boîte : une disposition qui ne demande rien respire pareil
    partout.
+6. **Le papier est le seul blanc pur du logiciel** (refonte 2026-09-04,
+   `design/etapes/01-jetons.md`). Aucune surface du chrome n'atteint `#ffffff`,
+   dans aucun thème. C'est ce qui fait flotter la feuille en clair comme en
+   sombre — un panneau de la couleur d'une feuille fait s'effondrer la
+   hiérarchie au dernier centimètre, là où l'œil travaille.
+   **Et c'est ce qui permet au dessin de n'avoir qu'UNE palette au lieu de
+   deux** : puisque le papier est blanc des deux côtés, l'encre est la même
+   des deux côtés. `paper` et `ink` sont donc des jetons du thème, au même
+   rang que les quatre plans.
 
 Chiffres et coordonnées passent par `Theme::monoFont()` : un nombre qui
 change ne doit pas déplacer ses voisins.
+
+**`MainWindow::buildRenderStyle()` est le seul endroit qui construit un style
+de rendu d'écran.** Sept endroits le faisaient chacun à sa façon — le canevas,
+la vignette de folio, l'aperçu de mise en page, la palette, l'éditeur de
+symboles — et ils ne tombaient pas d'accord : en thème clair, la vignette
+peignait la feuille avec `print()` pendant que le canevas la peignait avec
+`screen()`. La même page, deux couleurs, à quinze centimètres l'une de l'autre.
+
+Deux conséquences à ne pas défaire :
+
+- **`render/` ne connaît pas le thème.** `RenderStyle::applyTheme(paper, ink,
+  vide)` reçoit les jetons par **injection depuis `ui/`** ; une dépendance
+  montante casserait la règle de couches. C'est le seul point de cette refonte
+  où une implémentation naïve casse l'architecture.
+- **Le fond de dessin sombre est une préférence, pas une conséquence du
+  thème** (`display/darkSheet`, décoché par défaut — décision utilisateur,
+  2026-09-04). Les deux étaient liés : prendre une interface sombre imposait
+  une feuille sombre, pendant que la vignette, l'aperçu et le PDF continuaient
+  de montrer du papier blanc. **Basculer la préférence oublie la couleur de
+  feuille épinglée** : `Appearance::save` l'écrit à chaque validation de la
+  boîte de paramètres, même sans y toucher, et `load` passe en dernier — sans
+  cet oubli, cocher la case n'aurait plus aucun effet visible dès la première
+  visite dans les paramètres.
+- **Une vignette de symbole n'a pas de papier sous elle** : elle est peinte à
+  même le panneau, donc son encre suit le **chrome**, pas le papier. La faire
+  suivre le papier vide la palette sans un message d'erreur — payé une fois.
 
 Deux pièges de Qt, payés une fois :
 

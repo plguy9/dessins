@@ -1613,10 +1613,21 @@ void MainWindow::editDraftingSettings()
         return;
     }
 
+    // Le fond de dessin change de PREREGLAGE, pas seulement de couleur : si la
+    // case a bascule, il faut reconstruire le style depuis l'autre base plutot
+    // que de reposer celui que la boite a montre.
+    const bool fondAvant = Appearance::darkSheet();
     RenderStyle style = dialog.style();
+    Appearance::save(style, m_dark);
+    if (Appearance::darkSheet() != fondAvant) {
+        applyTheme(m_dark);
+        m_view->snapSettingsTouched();
+        syncDraftingToggles();
+        report(tr("Paramètres de dessin appliqués"));
+        return;
+    }
     m_view->setStyle(style);
     m_view->setGridStep(style.gridStep);
-    Appearance::save(style, m_dark);
     m_view->snapSettingsTouched();
     syncDraftingToggles();
     report(tr("Paramètres de dessin appliqués"));
@@ -2705,6 +2716,34 @@ void MainWindow::applyNeeds()
         action->setEnabled(entities > 1);
 }
 
+RenderStyle MainWindow::buildRenderStyle()
+{
+    // LE FOND DE DESSIN SOMBRE EST UNE PREFERENCE, PAS UNE CONSEQUENCE DU
+    // THEME. Les deux etaient lies : choisir une interface sombre imposait
+    // une feuille sombre, et l'apercu comme la vignette continuaient de
+    // montrer du papier blanc. Ils sont maintenant independants — la feuille
+    // est blanche par defaut, comme a l'impression, et qui a le noir dans les
+    // yeux depuis vingt ans coche la case.
+    const bool darkSheet = Appearance::darkSheet();
+
+    RenderStyle style = darkSheet ? RenderStyle::screenDark() : RenderStyle::screen();
+
+    // Le pourtour du canevas est le plan le plus profond du theme, un cran
+    // sous le chrome : la feuille flotte alors dans la fenetre au lieu d'y
+    // etre posee a plat. C'est le seul endroit ou l'interface a de la
+    // profondeur, et c'est celui qui compte — le dessin.
+    const ThemeColors &c = Theme::colors();
+    style.applyTheme(darkSheet ? style.sheet : c.paper,
+                     darkSheet ? style.symbol : c.ink,
+                     c.canvas);
+
+    // En dernier, et seulement en dernier : ce que l'utilisateur a regle pour
+    // son confort. Le theme fournit les defauts, le reglage explicite gagne —
+    // dans l'autre ordre, changer de theme effacerait ses choix.
+    Appearance::load(style, Theme::isDark());
+    return style;
+}
+
 void MainWindow::applyTheme(bool dark)
 {
     m_dark = dark;
@@ -2712,24 +2751,14 @@ void MainWindow::applyTheme(bool dark)
         Theme::apply(*app, dark);
     refreshIcons();
 
-    // La feuille reste blanche en theme clair et gris tres sombre en theme
-    // sombre : le dessin doit rester lisible, mais un rectangle blanc eclatant
-    // au milieu d'une interface sombre fatigue en fin de journee.
-    RenderStyle style = dark ? RenderStyle::screenDark() : RenderStyle::screen();
+    // Le theme ne decide plus de la couleur du papier : il la FOURNIT, et
+    // `buildRenderStyle` la derive. Ce qui etait un pont d'une ligne entre
+    // deux palettes qui s'ignoraient devient une derivation en regle.
+    RenderStyle style = buildRenderStyle();
     style.gridStep = m_view->style().gridStep;
     style.showGrid = m_view->style().showGrid;
     style.showPinNumbers = m_view->style().showPinNumbers;
     style.showUnconnectedPins = m_view->style().showUnconnectedPins;
-    // Le pourtour du canevas est le plan le plus profond du theme, un cran
-    // sous le chrome : la feuille flotte alors dans la fenetre au lieu d'y
-    // etre posee a plat. C'est le seul endroit ou l'interface a de la
-    // profondeur, et c'est celui qui compte — le dessin.
-    style.pageBackground = Theme::colors().canvas;
-
-    // En dernier, et seulement en dernier : ce que l'utilisateur a reglé pour
-    // son confort. Le theme fournit les defauts, le reglage explicite gagne —
-    // dans l'autre ordre, changer de theme effacerait ses choix.
-    Appearance::load(style, dark);
     m_view->setStyle(style);
     m_view->setGridStep(style.gridStep);
 

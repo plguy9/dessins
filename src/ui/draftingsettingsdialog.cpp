@@ -3,6 +3,8 @@
 #include "render/foliopainter.h"
 #include "theme.h"
 
+#include "appearance.h"
+
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
@@ -212,6 +214,22 @@ QWidget *DraftingSettingsDialog::buildDisplayTab()
     m_sheetShadow = new QCheckBox(tr("Ombre portée sous la feuille"), sheet);
     m_sheetShadow->setChecked(m_style.showSheetShadow);
     sheetForm->addRow(m_sheetShadow);
+
+    // FOND DE DESSIN SOMBRE — decorrele du theme d'interface. Les deux etaient
+    // lies : prendre une interface sombre imposait une feuille sombre, pendant
+    // que la vignette, l'apercu et le PDF continuaient de montrer du papier
+    // blanc. C'est une preference, pas une consequence : elle vit donc ici, et
+    // elle est commune aux deux themes.
+    m_darkSheet = new QCheckBox(tr("Fond de dessin sombre"), sheet);
+    m_darkSheet->setChecked(Appearance::darkSheet());
+    m_darkSheet->setToolTip(tr("Pour qui vient d'AutoCAD. La feuille reste blanche "
+                               "à l'impression."));
+    sheetForm->addRow(m_darkSheet);
+    auto *sheetNote = new QLabel(
+            tr("<span style='color:palette(mid)'>la feuille reste blanche à "
+               "l'impression</span>"),
+            sheet);
+    sheetForm->addRow(QString(), sheetNote);
     layout->addWidget(sheet);
 
     auto *note = new QLabel(
@@ -238,6 +256,9 @@ RenderStyle DraftingSettingsDialog::style() const
     out.gridStyle = GridStyle(m_gridStyle->currentData().toInt());
     out.gridMajorEvery = m_gridMajorEvery->value();
     out.showSheetShadow = m_sheetShadow->isChecked();
+    // Le fond sombre n'est pas un champ du style : il decide QUEL prereglage
+    // sert de base. On le retient ici, et `buildRenderStyle` le relira.
+    Appearance::setDarkSheet(m_darkSheet->isChecked());
     out.crosshair = m_crosshairColor->color();
     out.grid = m_gridColor->color();
     out.gridMajor = m_gridMajorColor->color();

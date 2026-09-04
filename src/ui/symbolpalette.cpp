@@ -1,6 +1,7 @@
 #include "symbolpalette.h"
 
 #include "render/foliopainter.h"
+#include "mainwindow.h"
 #include "theme.h"
 
 #include <QComboBox>
@@ -273,9 +274,19 @@ void SymbolPalette::rebuildList()
         definitions = ordered;
     }
 
-    const RenderStyle style = palette().color(QPalette::Window).lightness() < 128
-            ? RenderStyle::screenDark()
-            : RenderStyle::screen();
+    // LES VIGNETTES DE SYMBOLES N'ONT PAS DE PAPIER SOUS ELLES.
+    //
+    // Elles sont peintes a meme le panneau, pas sur une feuille : leur encre
+    // doit donc suivre le CHROME, pas le papier. Les faire suivre le papier
+    // les rend invisibles — de l'encre presque noire sur un panneau sombre,
+    // ce qui vide la palette sans un message d'erreur. C'est la seule surface
+    // du logiciel ou le dessin n'est pas pose sur une feuille, et c'est pour
+    // cela qu'elle merite ces trois lignes.
+    RenderStyle style = MainWindow::buildRenderStyle();
+    const ThemeColors &c = Theme::colors();
+    style.symbol = c.text;
+    style.text = c.text;
+    style.frame = c.text;
     const int pixels = m_grid ? kGridIcon : kListIcon;
 
     for (const SymbolDefinition *definition : std::as_const(definitions)) {

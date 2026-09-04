@@ -103,8 +103,25 @@ struct RenderStyle {
     double wireNumberHeight = 2.0;
     QString fontFamily = QStringLiteral("Noto Sans");
 
+    // APPLIQUE LES JETONS DU THEME AU DESSIN.
+    //
+    // C'est la couche `ui` qui appelle : `render/` ne connait pas l'en-tete
+    // de theme de `ui/` et ne doit pas le connaitre — chaque couche ne connait
+    // que celles situees sous elle (BRIEF.md §3), et `render/` est SOUS `ui/`.
+    // L'injection garde la regle de dependance intacte tout en supprimant la
+    // divergence des deux palettes.
+    //
+    // Ne touche QUE ce qui depend du theme : la feuille, le vide autour, et
+    // l'encre du trace. Le fil, le repere, l'etiquette, la cote, la selection
+    // et le marqueur d'accrochage n'en dependent pas — le papier etant blanc
+    // dans les deux themes, ils sont valables dans les deux.
+    void applyTheme(const QColor &paper, const QColor &ink, const QColor &voidColor);
+
     static RenderStyle screen();
     static RenderStyle print();
+    // Fond de dessin sombre. N'est PLUS declenche par le theme d'interface :
+    // c'est une preference explicite, pour qui vient d'AutoCAD et a le noir
+    // dans les yeux depuis vingt ans (reglage « display/darkSheet »).
     static RenderStyle screenDark();
 };
 

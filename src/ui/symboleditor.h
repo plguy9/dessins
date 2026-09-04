@@ -96,7 +96,10 @@ private:
     QPointF m_cursor;
     bool m_dragging = false;
     QPointF m_dragLast;
-    RenderStyle m_style = RenderStyle::screen();
+    // Valeur de depart neutre — `RenderStyle()` est exactement ce que rend
+    // `screen()`. Le vrai style vient de `MainWindow::buildRenderStyle()`,
+    // pose dans le constructeur.
+    RenderStyle m_style;
 };
 
 class SymbolEditor : public QDialog

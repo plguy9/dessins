@@ -19,7 +19,8 @@ class QWidget;
 
 namespace dsn {
 
-// Un plan par usage, et un seul. « canvas » est le vide derriere la feuille,
+// Un plan par usage, et un seul — cinq depuis que le papier en est un.
+// « canvas » est le vide derriere la feuille,
 // « window » le chrome, « surface » les panneaux, « elevated » ce qui flotte
 // au-dessus. Le fond du dessin est plus profond que le chrome : c'est ce qui
 // fait flotter la feuille au lieu de la poser sur un gris etranger.
@@ -28,6 +29,21 @@ struct ThemeColors {
     QColor window;
     QColor surface;
     QColor elevated;
+
+    // LA FEUILLE ET SON ENCRE. Ce sont les couleurs du SUJET du logiciel :
+    // elles vivaient dans RenderStyle, c'est-a-dire nulle part pour le theme,
+    // et les deux palettes ne se connaissaient que par une ligne. La vignette
+    // d'un folio et le canevas peignaient alors la meme page de deux couleurs,
+    // a quinze centimetres l'une de l'autre.
+    //
+    // REGLE 6 — LE PAPIER EST LE SEUL BLANC PUR DU LOGICIEL. Aucune surface du
+    // chrome n'atteint #ffffff, dans aucun theme. C'est ce qui fait flotter la
+    // feuille en clair comme en sombre, et c'est ce qui permet au dessin
+    // d'avoir UNE SEULE palette au lieu de deux : puisque le papier est blanc
+    // des deux cotes, l'encre est la meme des deux cotes.
+    QColor paper;
+    QColor ink;
+
     QColor border;
     QColor borderStrong;
     QColor text;

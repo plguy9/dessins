@@ -32,6 +32,37 @@ const char *const kColorNames[] = { "crosshair", "grid",  "gridMajor",
 
 } // namespace
 
+bool Appearance::darkSheet()
+{
+    return QSettings().value(QStringLiteral("display/darkSheet"), false).toBool();
+}
+
+void Appearance::setDarkSheet(bool on)
+{
+    QSettings settings;
+    if (settings.value(QStringLiteral("display/darkSheet"), false).toBool() == on) {
+        settings.setValue(QStringLiteral("display/darkSheet"), on);
+        return;
+    }
+
+    // CHANGER DE FOND INVALIDE LA COULEUR EPINGLEE. `save()` ecrit la couleur
+    // de la feuille et du pourtour a CHAQUE validation de la boite, meme si
+    // l'utilisateur n'y a pas touche ; et `load()` passe en dernier, puisque
+    // le reglage explicite gagne sur le theme. Sans cet oubli, cocher « fond
+    // de dessin sombre » n'aurait plus aucun effet visible des la premiere
+    // visite dans les parametres — la couleur de l'autre prereglage
+    // resterait posee par-dessus, sans que rien ne le dise.
+    //
+    // Basculer la preference est un geste explicite qui veut dire « donne-moi
+    // l'autre papier » : la teinte retenue contre le prereglage precedent
+    // n'a plus de sens.
+    for (const char *nom : { "sheet", "pageBackground" }) {
+        for (bool dark : { true, false })
+            settings.remove(colorKey(dark, nom));
+    }
+    settings.setValue(QStringLiteral("display/darkSheet"), on);
+}
+
 void Appearance::load(RenderStyle &style, bool dark)
 {
     const QSettings settings;

@@ -50,6 +50,20 @@ class MainWindow : public QMainWindow
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
+
+    // LE SEUL ENDROIT QUI CONSTRUIT UN STYLE DE RENDU D'ECRAN.
+    //
+    // Sept endroits le faisaient chacun a sa facon — le canevas, la vignette
+    // de folio, l'apercu de mise en page, la palette de symboles, l'editeur de
+    // symboles — et ils ne tombaient pas d'accord : en theme clair, la
+    // vignette peignait la feuille avec `print()` pendant que le canevas la
+    // peignait avec `screen()`. La meme page, deux couleurs, a quinze
+    // centimetres l'une de l'autre.
+    //
+    // Statique et publique parce que ces widgets ne connaissent pas la fenetre
+    // qui les porte : ils n'ont pas a la remonter pour savoir de quelle
+    // couleur est le papier.
+    static RenderStyle buildRenderStyle();
     ~MainWindow() override;
 
     bool openFile(const QString &path);

@@ -1,5 +1,6 @@
 #include "folionavigator.h"
 
+#include "mainwindow.h"
 #include "theme.h"
 
 #include "core/documentcommands.h"
@@ -107,10 +108,11 @@ void FolioNavigator::scheduleThumbnails()
     QTimer::singleShot(150, this, [this] {
         for (int i = 0; i < m_list->count() && i < m_document->folioCount(); ++i) {
             const Folio *folio = m_document->project().folioAt(i);
-            // La vignette suit le theme : un rectangle blanc eclatant dans un
-            // panneau sombre attire l'oeil plus que le dessin lui-meme, et le
-            // navigateur de folios doit se lire d'un coup d'oeil, pas briller.
-            RenderStyle style = Theme::isDark() ? RenderStyle::screenDark() : RenderStyle::print();
+            // La vignette montre LA MEME PAGE que le canevas : elle prend
+            // donc le meme style. Elle choisissait le sien — `print()` en
+            // clair, `screenDark()` en sombre — et peignait la feuille d'une
+            // autre couleur que le canevas, a quinze centimetres de lui.
+            RenderStyle style = MainWindow::buildRenderStyle();
             style.showGrid = false;
             style.showSheetShadow = false;
             style.showCrosshair = false;

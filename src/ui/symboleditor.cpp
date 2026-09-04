@@ -3,6 +3,7 @@
 #include <numbers>
 
 #include "render/foliopainter.h"
+#include "mainwindow.h"
 #include "theme.h"
 #include "symbols/librarystore.h"
 
@@ -90,9 +91,9 @@ SymbolCanvas::SymbolCanvas(QWidget *parent) : QWidget(parent)
     setMouseTracking(true);
     setAttribute(Qt::WA_OpaquePaintEvent, true);
     setMinimumSize(420, 340);
-    // Le canevas suit le theme : une feuille blanche au milieu d'une interface
-    // sombre trahit un panneau qu'on a oublie d'habiller.
-    m_style = Theme::isDark() ? RenderStyle::screenDark() : RenderStyle::screen();
+    // Le meme style que le canevas principal : un symbole se dessine sur le
+    // meme papier que le schema ou il sera pose.
+    m_style = MainWindow::buildRenderStyle();
     m_style.gridStep = m_gridStep;
 }
 

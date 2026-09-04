@@ -80,6 +80,20 @@ Le reste des décisions déjà prises — le ruban reste, pas de panneau de
 propriétés ancré, pas de boîte modale à chaque pose, la palette en grille —
 est dans `contexte.md` et dans `CLAUDE.md`.
 
+## Avancement
+
+| Étape | État |
+|---|---|
+| 01 — jetons `paper` / `ink` | **faite** (2026-09-04) |
+| 02 — barre d'état | à faire |
+| 04 — ligne de commande | à faire |
+| 03 — ruban | à faire — voir la réserve ci-dessous |
+| 05 — palette et folios | à faire |
+| 06 — boîtes de dialogue | à faire |
+| 07 — rapports en folios | jalon séparé |
+
+Ordre conseillé par le paquet : 01 → 02 → 04 → 03 → 05 → 06, puis 07.
+
 ## Relu contre le code — l'étape « ruban »
 
 L'étape 03, qui imprime l'alias de chaque commande dans le coin de son

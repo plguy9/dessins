@@ -1,0 +1,752 @@
+<!--
+  ARCUS — la fenêtre principale, transposée en HTML pour la revue de design.
+
+  Ce n'est PAS le code du logiciel : Arcus est une application Qt 6 en C++.
+  Ce fichier reproduit le plan de travail avec les VRAIS jetons du thème
+  (src/ui/theme.cpp) et les VRAIES dimensions du ruban (src/ui/ribbon.h),
+  pour qu'on puisse le retoucher visuellement.
+
+  Ce qui est fidèle : couleurs, espacements, hauteurs, largeurs de panneaux,
+  hiérarchie, et tous les libellés — ce sont ceux de la table de disposition
+  du ruban (src/ui/mainwindow.cpp).
+
+  UNE RÉSERVE, ET ELLE COMPTE : les ICÔNES ci-dessous sont des substituts.
+  Dans le logiciel, chaque commande a son propre dessin au trait, généré à
+  l'exécution (Icons::Glyph), et deux tests refusent que deux commandes
+  partagent un glyphe. Ne pas juger le dessin des icônes sur ce fichier ;
+  juger leur taille, leur densité et leur alignement.
+
+  Basculer le thème : <html data-theme="light"> ou "dark".
+-->
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Arcus — fenêtre principale</title>
+<style>
+/* ================================================================== *
+ * LES JETONS — copiés de src/ui/theme.cpp, valeurs exactes.
+ *
+ * Règle 1 : quatre plans, dans cet ordre de profondeur.
+ *   canvas   le vide derrière la feuille (LE PLUS PROFOND)
+ *   window   le chrome
+ *   surface  les panneaux
+ *   elevated ce qui flotte : menus, boutons
+ * Le fond du dessin est plus sombre que le chrome : c'est ce qui fait
+ * FLOTTER la feuille au lieu de la poser sur un gris étranger.
+ * ================================================================== */
+:root {
+  --canvas:       #0a0d0f;
+  --window:       #111518;
+  --surface:      #161b1f;
+  --elevated:     #1e2429;
+  --border:       #232a30;   /* le filet, presque invisible */
+  --border-strong:#39434a;
+  --text:         #e9eef1;   /* règle 4 : trois niveaux d'encre */
+  --text-muted:   #87949c;
+  --text-faint:   #5c6870;   /* étiquettes gravées, unités */
+  --accent:       #1fa6e8;   /* règle 3 : un seul accent, tenu en réserve */
+  --accent-hover: #51bef3;
+  --accent-text:  #04121a;
+
+  /* La feuille de dessin et ce qu'on y trace. */
+  --sheet:        #12181c;
+  --sheet-edge:   #2a333a;
+  --ink:          #9fb0ba;   /* le trait du cadre et du cartouche */
+  --wire:         #1fa6e8;   /* un fil au type par défaut */
+  --tag:          #74c16a;   /* les repères d'appareil */
+
+  /* Règle 5 : un seul pas d'espacement — Theme::space(n) = 4n */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px; --s6: 24px; --s8: 32px;
+
+  --radius: 6px;             /* Theme::radius(), partout */
+
+  --font-ui: -apple-system, "Segoe UI", Inter, "Noto Sans", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "SF Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+  --ui-10: 13px;   /* Theme::uiFont(10) — le corps de l'interface */
+  --ui-9:  12px;
+  --mono:  12px;   /* chiffres et coordonnées : un nombre qui change ne doit
+                      pas déplacer ses voisins */
+  --engraved: 11px;/* Theme::engravedFont() — 8 pt, capitales espacées 0,9 px */
+
+  /* Les hauteurs du ruban — src/ui/ribbon.h, constantes exactes. */
+  --tab-h: 30px;      /* kTabHeight */
+  --row-h: 58px;      /* kRowHeight  : la rangée de boutons */
+  --panel-h: 78px;    /* kPanelHeight: rangée + nom gravé dessous */
+  --icon-l: 32px;     /* kLargeIcon */
+  --icon-s: 20px;     /* kSmallIcon */
+  --dock-w: 250px;    /* la colonne de gauche */
+}
+
+:root[data-theme="light"] {
+  --canvas:       #dfe3e6;
+  --window:       #f2f4f6;
+  --surface:      #ffffff;
+  --elevated:     #ffffff;
+  --border:       #e1e6ea;
+  --border-strong:#bfc8ce;
+  --text:         #0f1519;
+  --text-muted:   #5b6971;
+  --text-faint:   #8a969d;
+  --accent:       #0b76b8;
+  --accent-hover: #0d8bd6;
+  --accent-text:  #ffffff;
+  --sheet:        #ffffff;
+  --sheet-edge:   #c3ccd2;
+  --ink:          #37444d;
+  --wire:         #0b76b8;
+  --tag:          #2f7736;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 24px;
+  background: #05070a;
+  font-family: var(--font-ui); font-size: var(--ui-10); color: var(--text);
+  display: flex; justify-content: center;
+}
+:root[data-theme="light"] body { background: #c9d0d6; }
+
+/* La fenêtre : 1560 × 980, la taille des captures. */
+.app {
+  width: 1560px; height: 980px;
+  background: var(--window);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,.5);
+}
+
+/* ================================================================== *
+ * LA BARRE DE MENUS — neuf menus.
+ *
+ * LES MENUS SONT LA SOURCE DE VÉRITÉ de toutes les commandes : le ruban
+ * ne fait que représenter des actions déjà posées ici, et la palette de
+ * commandes (Ctrl+Maj+P) se remplit en les parcourant. Une commande qui
+ * ne serait qu'au ruban serait introuvable à la palette.
+ * ================================================================== */
+.menus { display: flex; gap: 2px; padding: 3px var(--s2); flex: none; }
+.menus span {
+  padding: 4px 10px; border-radius: 4px; color: var(--text); cursor: default;
+}
+.menus span:hover { background: var(--elevated); }
+.menus u { text-decoration: underline; text-underline-offset: 2px; }
+
+/* ================================================================== *
+ * LE RUBAN
+ * ================================================================== */
+.ruban { flex: none; }
+
+/* La rangée des onglets, avec la barre d'accès rapide à sa gauche.
+   Six commandes qu'on appelle sans y penser, et qui ne doivent dépendre
+   ni de l'onglet ouvert ni du repli du ruban — Annuler en fait partie. */
+.rangee-onglets {
+  height: var(--tab-h);
+  display: flex; align-items: center; gap: var(--s2);
+  padding: 0 var(--s2);
+}
+.acces-rapide { display: flex; gap: 1px; }
+.acces-rapide button, .onglets button, .replier {
+  background: none; border: none; color: var(--text-muted);
+  font-family: inherit; font-size: var(--ui-10); cursor: pointer;
+  display: grid; place-items: center;
+}
+.acces-rapide button { width: 24px; height: 22px; border-radius: 4px; }
+.acces-rapide button:hover { background: var(--elevated); color: var(--text); }
+.acces-rapide svg { width: 15px; height: 15px; }
+
+.onglets { display: flex; gap: 2px; margin-left: var(--s1); }
+.onglets button { padding: 0 12px; height: var(--tab-h); border-bottom: 2px solid transparent; }
+/* Règle 3 : l'accent ne désigne que ce qui est actif. */
+.onglets button.actif { color: var(--accent); border-bottom-color: var(--accent); }
+.onglets button:hover:not(.actif) { color: var(--text); }
+.replier { margin-left: auto; width: 24px; height: 22px; }
+.replier svg { width: 13px; height: 13px; }
+
+/* La rangée de panneaux. Chaque panneau porte son nom GRAVÉ DESSOUS et se
+   sépare du suivant par un filet — jamais par un cadre (règle 2).
+   Sa hauteur ne dépend pas de son contenu : un ou deux gros boutons, le
+   reste en grille de petites icônes sur deux rangées. */
+.panneaux {
+  height: var(--panel-h);
+  display: flex; align-items: stretch;
+  padding: 0 var(--s2);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.panneau { display: flex; flex-direction: column; padding: 4px var(--s2) 0; }
+.panneau + .panneau { border-left: 1px solid var(--border); }
+.panneau .contenu { height: var(--row-h); display: flex; align-items: center; gap: 2px; }
+.panneau .nom {
+  flex: 1;
+  font-size: var(--engraved); letter-spacing: .9px; text-transform: uppercase;
+  color: var(--text-faint); text-align: center;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Un gros bouton : icône 32 px au-dessus de son libellé. */
+.gros {
+  width: 62px; height: var(--row-h);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; border-radius: var(--radius);
+  background: none; border: none; color: var(--text);
+  font-family: inherit; font-size: var(--ui-9); cursor: pointer;
+}
+.gros:hover { background: var(--elevated); }
+.gros.actif { background: var(--elevated); color: var(--accent); }
+.gros svg { width: var(--icon-l); height: var(--icon-l); }
+
+/* La grille de petites icônes : deux rangées, autant de colonnes qu'il faut. */
+.grille {
+  display: grid; grid-template-rows: repeat(2, 26px);
+  grid-auto-flow: column; gap: 2px; align-content: center;
+}
+.petit {
+  width: 26px; height: 26px; border-radius: 4px;
+  background: none; border: none; color: var(--text-muted);
+  display: grid; place-items: center; cursor: pointer;
+}
+.petit:hover { background: var(--elevated); color: var(--text); }
+.petit svg { width: var(--icon-s); height: var(--icon-s); }
+
+/* Le sélecteur de type de fil : le seul contrôle non iconique du ruban. */
+.type-fil {
+  display: flex; align-items: center; gap: var(--s2);
+  height: 28px; padding: 0 10px; min-width: 170px;
+  background: var(--elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); cursor: pointer;
+}
+.type-fil .pastille { width: 11px; height: 11px; border-radius: 2px; background: var(--wire); }
+
+/* ================================================================== *
+ * LE MILIEU — la colonne de panneaux, puis le canevas.
+ * ================================================================== */
+.milieu { flex: 1; display: flex; min-height: 0; }
+
+.colonne { width: var(--dock-w); flex: none; display: flex; flex-direction: column;
+           background: var(--surface); }
+
+/* Chaque panneau porte SA barre de titre : nom gravé, filet dessous,
+   chevron de repli. La croix que Qt dessine sur un panneau ancrable est
+   minuscule et la feuille de style du thème l'efface — il n'y avait aucun
+   moyen visible de rendre la place au dessin. L'infobulle du chevron dit
+   le raccourci qui ramène le panneau. */
+.titre-panneau {
+  display: flex; align-items: center;
+  padding: var(--s2) var(--s1) var(--s2) var(--s3);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.titre-panneau .nom {
+  flex: 1;
+  font-size: var(--engraved); letter-spacing: .9px; text-transform: uppercase;
+  color: var(--text-faint);
+}
+.chevron {
+  width: 20px; height: 20px; border-radius: 4px;
+  background: none; border: none; color: var(--text-faint);
+  display: grid; place-items: center; cursor: pointer;
+}
+.chevron:hover { background: var(--elevated); color: var(--text); }
+.chevron svg { width: 12px; height: 12px; }
+
+/* --- la palette de symboles ---------------------------------------
+   UNE GRILLE DE VIGNETTES, PAS UNE LISTE. En liste à une colonne, cinq
+   symboles sur cent vingt-deux étaient visibles : chercher voulait dire
+   faire défiler. La grille en montre vingt-quatre dans un panneau PLUS
+   ÉTROIT — c'est l'Icon Menu d'AutoCAD Electrical, et c'est le bon modèle
+   parce qu'on reconnaît un symbole à sa forme plus vite qu'à son nom.
+   Conséquence : le nom passe dans l'infobulle. */
+.palette { display: flex; flex-direction: column; min-height: 0; }
+.palette .entete { padding: var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
+.palette .recherche { display: flex; gap: var(--s2); }
+.champ {
+  flex: 1; height: 30px; padding: 0 10px;
+  background: var(--elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text);
+  font-family: inherit; font-size: var(--ui-10);
+}
+.champ::placeholder { color: var(--text-faint); }
+.champ:focus { outline: none; border-color: var(--accent); }
+.bascule-vue {
+  width: 30px; height: 30px; flex: none;
+  background: var(--elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text-muted);
+  display: grid; place-items: center; cursor: pointer;
+}
+.bascule-vue svg { width: 14px; height: 14px; }
+.combo {
+  height: 30px; padding: 0 10px;
+  background: var(--elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text);
+  font-family: inherit; font-size: var(--ui-10);
+  display: flex; align-items: center; cursor: pointer;
+}
+/* Cellule 48 × 48, icône 30 px — src/ui/symbolpalette.cpp. */
+.vignettes {
+  flex: 1; min-height: 0; overflow: auto;
+  display: grid; grid-template-columns: repeat(4, 48px);
+  justify-content: center; gap: 4px; padding: 0 var(--s3) var(--s3);
+}
+.vignette {
+  width: 48px; height: 48px; border-radius: var(--radius);
+  display: grid; place-items: center; cursor: pointer;
+  color: var(--text-muted);
+}
+.vignette:hover { background: var(--elevated); color: var(--text); }
+.vignette svg { width: 30px; height: 30px; }
+
+/* --- la liste des folios ------------------------------------------- */
+.folios { flex: none; height: 300px; display: flex; flex-direction: column; }
+.folios .liste { flex: 1; padding: var(--s3); overflow: auto; }
+.folio {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s2); border-radius: var(--radius); cursor: pointer;
+}
+.folio.actif { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.folio .vignette-folio {
+  width: 112px; height: 84px; flex: none;
+  background: var(--sheet); border: 1px solid var(--sheet-edge); border-radius: 3px;
+}
+.folio .etiquette { color: var(--accent); }
+.folios .pied {
+  display: flex; gap: 2px; padding: var(--s2) var(--s3);
+  border-top: 1px solid var(--border);
+}
+.folios .pied button {
+  width: 28px; height: 24px; border-radius: 4px;
+  background: none; border: none; color: var(--text-muted);
+  display: grid; place-items: center; cursor: pointer; font-size: 15px;
+}
+.folios .pied button:hover { background: var(--elevated); color: var(--text); }
+
+/* --- le canevas -----------------------------------------------------
+   C'est un QWidget peint à la main, PAS une QGraphicsView : un seul
+   peintre sait dessiner un schéma, et il sert l'écran, l'aperçu, le PDF
+   et les vignettes. C'est la garantie « écran = papier ». */
+.canevas {
+  flex: 1; min-width: 0;
+  background: var(--canvas);
+  display: grid; place-items: center;
+  position: relative; overflow: hidden;
+}
+.feuille { box-shadow: 0 6px 28px rgba(0,0,0,.55); }
+:root[data-theme="light"] .feuille { box-shadow: 0 4px 18px rgba(0,0,0,.22); }
+
+/* ================================================================== *
+ * LA LIGNE DE COMMANDE — le seul endroit où le logiciel parle.
+ *
+ * Trois règles, sans exception :
+ *  1. l'invite est DÉDUITE de l'état, jamais poussée ;
+ *  2. la barre d'état ne porte plus de dialogue — tout compte rendu passe
+ *     ici, qui le GARDE ;
+ *  3. le ruban et les menus y écrivent aussi : un bouton cliqué enseigne
+ *     le nom à taper.
+ *
+ * L'historique est du TEXTE POSÉ (ni fond, ni bordure) : stylé comme un
+ * champ de saisie, un utilisateur a signalé « deux fois une ligne de
+ * commande ». Il part vide et se replie tant qu'il n'a rien à dire.
+ * ================================================================== */
+.commande { flex: none; height: 108px; border-top: 1px solid var(--border);
+            display: flex; flex-direction: column; }
+.commande .titre {
+  padding: var(--s2) var(--s4) var(--s1);
+  font-size: var(--engraved); letter-spacing: .9px; text-transform: uppercase;
+  color: var(--text-faint);
+}
+.historique {
+  flex: 1; padding: 0 var(--s4);
+  font-family: var(--font-mono); font-size: var(--mono); color: var(--text-muted);
+}
+.historique .cmd { color: var(--accent); }
+.saisie {
+  margin: 0 var(--s4) var(--s3);
+  height: 30px; padding: 0 10px;
+  background: var(--elevated); border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text); font-family: var(--font-mono); font-size: var(--mono);
+}
+.saisie::placeholder { color: var(--text-faint); }
+.saisie:focus { outline: none; border-color: var(--accent); }
+
+/* ================================================================== *
+ * LA BARRE D'ÉTAT — que des états PERMANENTS : coordonnées, zone, zoom,
+ * sélection, bascules. Plus une seule phrase de dialogue.
+ * ================================================================== */
+.etat {
+  flex: none; height: 28px;
+  display: flex; align-items: center; gap: var(--s6);
+  padding: 0 var(--s4);
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.etat .mono { font-family: var(--font-mono); font-size: var(--mono); }
+.etat .bascules { margin-left: auto; display: flex; gap: var(--s1); }
+.bascule {
+  padding: 3px 12px; border-radius: 4px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .5px;
+  background: var(--elevated); color: var(--text-faint);
+  border: 1px solid var(--border); cursor: pointer;
+}
+/* Une bascule allumée porte l'accent — la seule autre réserve d'usage. */
+.bascule.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ la barre de menus ============ -->
+  <nav class="menus">
+    <span><u>F</u>ichier</span><span><u>É</u>dition</span><span><u>M</u>odification</span>
+    <span><u>D</u>essin</span><span><u>O</u>utils</span><span><u>A</u>ffichage</span>
+    <span><u>P</u>rojet</span><span><u>S</u>ymboles</span><span>Ai<u>d</u>e</span>
+  </nav>
+
+  <!-- ============ le ruban ============ -->
+  <div class="ruban">
+
+    <div class="rangee-onglets">
+      <!-- Six commandes qu'on appelle sans y penser. -->
+      <div class="acces-rapide">
+        <button title="Nouveau projet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg></button>
+        <button title="Ouvrir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7h6l2 2h10v10H3z"/></svg></button>
+        <button title="Enregistrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4h13l3 3v13H4z"/><path d="M8 4v6h8V4"/></svg></button>
+        <button title="Imprimer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 9V4h10v5"/><path d="M4 9h16v7h-3v4H7v-4H4z"/></svg></button>
+        <button title="Annuler"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 7 4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 0 10h-3"/></svg></button>
+        <button title="Rétablir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M15 7l5 5-5 5"/><path d="M20 12H9a5 5 0 0 0 0 10h3"/></svg></button>
+      </div>
+
+      <!-- Le clic sur l'onglet ACTIF replie le ruban, comme chez AutoCAD.
+           Les onglets restent : replier ne doit pas le rendre introuvable. -->
+      <div class="onglets">
+        <button class="actif">Accueil</button><button>Insertion</button>
+        <button>Annoter</button><button>Projet</button><button>Vue</button>
+      </div>
+      <button class="replier" title="Replier le ruban">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg>
+      </button>
+    </div>
+
+    <!-- Les sept panneaux de l'onglet Accueil. Les libellés sont ceux de la
+         table de disposition : chaque bouton représente une QAction déjà
+         posée dans un menu, rien ne s'y connecte. -->
+    <div class="panneaux">
+
+      <div class="panneau">
+        <div class="contenu">
+          <div class="grille">
+            <button class="petit" title="Copier"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11"/><path d="M5 15V4h11"/></svg></button>
+            <button class="petit" title="Coller"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 5h12v15H6z"/><rect x="9" y="3" width="6" height="4"/></svg></button>
+            <button class="petit" title="Coller à l'identique"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 5h12v15H6z"/><path d="M9 12h6M9 15h6"/></svg></button>
+            <button class="petit" title="Supprimer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></button>
+            <button class="petit" title="Tout sélectionner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 2"><rect x="4" y="4" width="16" height="16"/></svg></button>
+          </div>
+        </div>
+        <div class="nom">Presse-papiers</div>
+      </div>
+
+      <div class="panneau">
+        <div class="contenu">
+          <button class="gros" title="Fil">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 17h8V7h10"/></svg>
+            Fil
+          </button>
+          <button class="gros" title="Fil multiple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 16h7V6h11M3 19h9V9h9"/></svg>
+            Bus
+          </button>
+          <div class="grille">
+            <button class="petit" title="Jonction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h16M12 4v8"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg></button>
+            <button class="petit" title="Ajuster"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 14h9"/><path d="M15 6v12" stroke-dasharray="2 2"/><path d="M17 14h3"/></svg></button>
+            <button class="petit" title="Prolonger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h9"/><path d="M13 12h4" stroke-dasharray="2 2"/><path d="M19 6v12"/></svg></button>
+            <button class="petit" title="Joindre les fils"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h6M14 12h6"/><path d="M10 9l4 6"/></svg></button>
+            <button class="petit" title="Couper un fil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h5M15 12h5"/><path d="M11 8l2 8"/></svg></button>
+            <button class="petit" title="Types de fils"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+            <button class="petit" title="Appliquer le type de fil à la sélection"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h16M4 16h10"/><path d="M16 14l2 2 4-4"/></svg></button>
+            <button class="petit" title="Mettre le potentiel en évidence"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h16"/><path d="M8 8v8M16 8v8"/></svg></button>
+          </div>
+          <div class="type-fil"><span class="pastille"></span> Fil standard</div>
+        </div>
+        <div class="nom">Fils</div>
+      </div>
+
+      <div class="panneau">
+        <div class="contenu">
+          <button class="gros actif" title="Palette de symboles">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg>
+            Palette
+          </button>
+          <button class="gros" title="Éditer le composant">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="6" width="12" height="9"/><path d="M13 19l7-7 2 2-7 7h-2z"/></svg>
+            Éditer
+          </button>
+          <div class="grille">
+            <button class="petit" title="Glisser le long du fil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12h18"/><rect x="9" y="8" width="6" height="8"/></svg></button>
+            <button class="petit" title="Déplacer l'appareil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="7" y="7" width="10" height="10"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+            <button class="petit" title="Surfer les renvois"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="6"/><path d="M15 15l5 5"/></svg></button>
+            <button class="petit" title="Insérer un automate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="4" width="12" height="16"/><path d="M3 8h3M3 12h3M3 16h3"/></svg></button>
+          </div>
+        </div>
+        <div class="nom">Composants</div>
+      </div>
+
+      <div class="panneau">
+        <div class="contenu">
+          <button class="gros" title="Déplacer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v18M3 12h18"/><path d="M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg>
+            Déplacer
+          </button>
+          <div class="grille">
+            <button class="petit" title="Pivoter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/></svg></button>
+            <button class="petit" title="Retourner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v18"/><path d="M9 7L4 12l5 5z"/><path d="M15 7l5 5-5 5z"/></svg></button>
+            <button class="petit" title="Échelle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="10" width="10" height="10"/><path d="M10 4h10v10"/></svg></button>
+            <button class="petit" title="Étirer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h16M4 16h16"/><path d="M8 4v16" stroke-dasharray="2 2"/></svg></button>
+            <button class="petit" title="Décaler"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="6" width="9" height="12"/><rect x="11" y="9" width="9" height="12" stroke-dasharray="2 2"/></svg></button>
+            <button class="petit" title="Réseau"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="5" height="5"/><rect x="15" y="4" width="5" height="5"/><rect x="4" y="15" width="5" height="5"/><rect x="15" y="15" width="5" height="5"/></svg></button>
+            <button class="petit" title="Remplacer le symbole"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h12l-3-3M20 16H8l3 3"/></svg></button>
+            <button class="petit" title="Copier les propriétés"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4h8v6H6z"/><path d="M10 10v10"/><path d="M7 20h6"/></svg></button>
+          </div>
+        </div>
+        <div class="nom">Modification</div>
+      </div>
+
+      <div class="panneau">
+        <div class="contenu">
+          <div class="grille">
+            <button class="petit" title="Ligne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 20L20 4"/></svg></button>
+            <button class="petit" title="Polyligne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 18l5-8 5 5 8-11"/></svg></button>
+            <button class="petit" title="Rectangle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="6" width="16" height="12"/></svg></button>
+            <button class="petit" title="Cercle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8"/></svg></button>
+            <button class="petit" title="Arc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 17a8 8 0 0 1 16 0"/></svg></button>
+            <button class="petit" title="Trait continu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16"/></svg></button>
+            <button class="petit" title="Trait pointillé"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"><path d="M4 12h16"/></svg></button>
+          </div>
+        </div>
+        <div class="nom">Dessin</div>
+      </div>
+
+      <div class="panneau">
+        <div class="contenu">
+          <div class="grille">
+            <button class="petit" title="Étiquette"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h11l5 4-5 4H4z"/></svg></button>
+            <button class="petit" title="Renvoi de folio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="7"/><path d="M9 12h6M13 9l3 3-3 3"/></svg></button>
+            <button class="petit" title="Texte"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 6h14M12 6v13"/></svg></button>
+          </div>
+        </div>
+        <div class="nom">Annotation</div>
+      </div>
+
+      <div class="panneau">
+        <div class="contenu">
+          <button class="gros" title="Repérage automatique">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+            Repérer
+          </button>
+          <div class="grille">
+            <button class="petit" title="Format des repères"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 5h14v6H5z"/><path d="M7 15h10M7 18h6"/></svg></button>
+            <button class="petit" title="Fixer les repères"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="11" width="14" height="9"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
+            <button class="petit" title="Libérer les repères"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="11" width="14" height="9"/><path d="M8 11V8a4 4 0 0 1 7-2.6"/></svg></button>
+            <button class="petit" title="Audit électrique"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4h9l4 4v12H6z"/><path d="M9 14l2 2 4-4"/></svg></button>
+          </div>
+        </div>
+        <div class="nom">Numérotation</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ le milieu ============ -->
+  <div class="milieu">
+
+    <div class="colonne">
+
+      <!-- --- la palette de symboles --- -->
+      <div class="titre-panneau">
+        <span class="nom">Symboles</span>
+        <button class="chevron" title="Tasser le panneau — Ctrl+3 le ramène">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+      </div>
+      <div class="palette">
+        <div class="entete">
+          <div class="recherche">
+            <input class="champ" placeholder="Rechercher…">
+            <button class="bascule-vue" title="Afficher la liste des noms">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+            </button>
+          </div>
+          <div class="combo">Toutes les catégories</div>
+        </div>
+        <div class="vignettes">
+          <!-- Les vignettes sont les VRAIS symboles, rendus par le même
+               peintre que le dessin — d'où leur air de famille avec la
+               planche. Celles-ci sont schématiques. -->
+          <div class="vignette" title="Contact à fermeture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 12h5M17 12h5M7 12l9-4"/></svg></div>
+          <div class="vignette" title="Bobine de contacteur"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 12h5M17 12h5"/><rect x="7" y="8" width="10" height="8"/></svg></div>
+          <div class="vignette" title="Disjoncteur"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M12 2v6M12 16v6"/><path d="M12 8l4 8"/><path d="M9 6h6"/></svg></div>
+          <div class="vignette" title="Fusible"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M12 2v4M12 18v4"/><rect x="9" y="6" width="6" height="12"/><path d="M12 6v12"/></svg></div>
+          <div class="vignette" title="Borne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M12 2v6M12 16v6"/><circle cx="12" cy="12" r="4"/></svg></div>
+          <div class="vignette" title="Moteur"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="12" cy="12" r="7"/><path d="M9 15l3-6 3 6"/></svg></div>
+          <div class="vignette" title="Instrument au champ (ISA)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3"/></svg></div>
+          <div class="vignette" title="Fonction d'automate (ISA)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="5" y="5" width="14" height="14"/><circle cx="12" cy="12" r="5"/></svg></div>
+          <div class="vignette" title="Vanne de réglage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M5 8l7 4-7 4zM19 8l-7 4 7 4z"/><path d="M12 8V4"/></svg></div>
+          <div class="vignette" title="Lampe de signalisation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="12" cy="12" r="6"/><path d="M8 8l8 8M16 8l-8 8"/></svg></div>
+          <div class="vignette" title="Bouton-poussoir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 14h6M16 14h6"/><path d="M8 14l8-2"/><path d="M12 12V5"/><path d="M9 5h6"/></svg></div>
+          <div class="vignette" title="Transformateur"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/></svg></div>
+          <div class="vignette" title="Terre"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M12 3v9M6 12h12M8 16h8M10 20h4"/></svg></div>
+          <div class="vignette" title="Résistance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 12h4M18 12h4"/><rect x="6" y="9" width="12" height="6"/></svg></div>
+          <div class="vignette" title="Sectionneur"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M12 2v5M12 17v5"/><path d="M12 7l5 8"/><path d="M15 5v4"/></svg></div>
+          <div class="vignette" title="Relais thermique"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="6" y="7" width="12" height="10"/><path d="M8 12h8"/><path d="M12 2v5M12 17v5"/></svg></div>
+          <div class="vignette" title="Voyant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="12" cy="12" r="5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
+          <div class="vignette" title="Ampèremètre"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="12" cy="12" r="7"/><path d="M10 15l2-6 2 6M10.7 13h2.6"/></svg></div>
+          <div class="vignette" title="Boîte de jonction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="3 2"><rect x="4" y="6" width="16" height="12"/></svg></div>
+          <div class="vignette" title="Manomètre"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="12" cy="10" r="6"/><path d="M12 10l3-3M12 16v5"/></svg></div>
+        </div>
+      </div>
+
+      <!-- --- la liste des folios --- -->
+      <div class="titre-panneau" style="border-top:1px solid var(--border)">
+        <span class="nom">Folios</span>
+        <button class="chevron" title="Tasser le panneau — Ctrl+4 le ramène">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+      </div>
+      <div class="folios">
+        <div class="liste">
+          <!-- La vignette d'un folio est peinte par le MÊME peintre que le
+               dessin, avec les couleurs du thème : c'est la planche en
+               petit, pas une icône de page. -->
+          <div class="folio actif">
+            <div class="vignette-folio"></div>
+            <span class="etiquette">1 — Folio 1</span>
+          </div>
+        </div>
+        <div class="pied">
+          <button title="Ajouter un folio">+</button>
+          <button title="Dupliquer">⧉</button>
+          <button title="Retirer">−</button>
+          <button title="Monter">↑</button>
+          <button title="Descendre">↓</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- --- le canevas et sa feuille --- -->
+    <div class="canevas">
+      <!-- Une planche de schéma de boucle : trois bandes de localisation
+           coiffées de leur bandeau, le repérage de cadre de droite à gauche
+           et de bas en haut, et le cartouche en bas à droite. -->
+      <svg class="feuille" width="1010" height="700" viewBox="0 0 420 297">
+        <rect width="420" height="297" fill="var(--sheet)" stroke="var(--sheet-edge)"/>
+        <g stroke="var(--ink)" fill="none" stroke-width=".4">
+          <!-- le cadre -->
+          <rect x="20" y="10" width="388" height="277"/>
+          <rect x="24" y="14" width="380" height="269"/>
+          <!-- les bandes de localisation, et leur bandeau -->
+          <path d="M148 14v269M235 14v269"/>
+          <path d="M24 24h380"/>
+        </g>
+        <g fill="var(--ink)" font-family="sans-serif" font-size="4.4" text-anchor="middle">
+          <text x="86" y="21">CHAMP</text>
+          <text x="191" y="21">BOÎTE DE JONCTION</text>
+          <text x="320" y="21">CABINET 037BJ0151</text>
+        </g>
+        <!-- le repérage du cadre : de droite à gauche, de bas en haut -->
+        <g fill="var(--ink)" font-family="sans-serif" font-size="3.4" text-anchor="middle" opacity=".75">
+          <text x="60" y="12.6">10</text><text x="108" y="12.6">9</text><text x="156" y="12.6">8</text>
+          <text x="204" y="12.6">7</text><text x="252" y="12.6">6</text><text x="300" y="12.6">5</text>
+          <text x="348" y="12.6">4</text><text x="396" y="12.6">3</text>
+        </g>
+        <g fill="var(--ink)" font-family="sans-serif" font-size="3.4" text-anchor="middle" opacity=".75">
+          <text x="22" y="60">F</text><text x="22" y="105">E</text><text x="22" y="150">D</text>
+          <text x="22" y="195">C</text><text x="22" y="240">B</text><text x="22" y="275">A</text>
+        </g>
+
+        <!-- la boucle : capteur au champ → borne → carte d'automate -->
+        <g stroke="var(--wire)" stroke-width=".7" fill="none">
+          <path d="M65 62h115"/><path d="M203 62h60"/>
+        </g>
+        <g stroke="var(--ink)" stroke-width=".5" fill="none">
+          <circle cx="58" cy="62" r="7"/>
+          <rect x="180" y="58" width="23" height="8"/><circle cx="191.5" cy="62" r="2.6"/>
+          <rect x="256" y="55" width="14" height="14" transform="rotate(45 263 62)"/>
+          <circle cx="263" cy="62" r="6.5"/>
+          <!-- la carte d'automate : une broche par point, l'adresse en regard -->
+          <rect x="248" y="95" width="46" height="70"/>
+        </g>
+        <g fill="var(--tag)" font-family="sans-serif" font-size="3.6" text-anchor="middle">
+          <text x="58" y="63">022TT8917</text><text x="263" y="63">022TY8917</text>
+        </g>
+        <g fill="var(--ink)" font-family="sans-serif" font-size="3" opacity=".8">
+          <text x="40" y="48">TRANSMETTEUR DE TEMPÉRATURE</text>
+          <text x="40" y="52">4-20 mA — 2 FILS</text>
+          <text x="150" y="52">2PR#16CU BLINDÉ</text>
+          <text x="150" y="56">CÂBLE 022TT8917A</text>
+          <text x="245" y="48">IDM PLC152  NŒUD 04</text>
+          <text x="245" y="52">%N04R07S07C016  (CH16)</text>
+          <text x="262" y="92">022A</text>
+        </g>
+        <g fill="var(--wire)" font-family="sans-serif" font-size="2.6">
+          <text x="105" y="60">022TT8917A (N)</text><text x="215" y="60">%N04R07S07C016 (N)</text>
+        </g>
+        <g stroke="var(--ink)" stroke-width=".3" fill="none" opacity=".8">
+          <path d="M248 101h-5M248 108h-5M248 115h-5M248 122h-5M248 129h-5M248 136h-5M248 143h-5M248 150h-5M248 157h-5"/>
+        </g>
+        <g fill="var(--ink)" font-family="sans-serif" font-size="2.4" opacity=".75">
+          <text x="253" y="102">%N04R07S07C000</text><text x="253" y="109">%N04R07S07C001</text>
+          <text x="253" y="116">%N04R07S07C002</text><text x="253" y="123">%N04R07S07C003</text>
+          <text x="253" y="130">%N04R07S07C004</text><text x="253" y="137">%N04R07S07C005</text>
+          <text x="253" y="144">%N04R07S07C006</text><text x="253" y="151">%N04R07S07C007</text>
+          <text x="253" y="158">%N04R07S07C008</text>
+        </g>
+
+        <!-- LE CARTOUCHE. Il n'est plus dessiné en dur : c'est un gabarit de
+             cases, chacune portant une CLEF de champ et non une donnée. Les
+             trois tables (Cheminement, Références, Révisions) grandissent
+             VERS LE HAUT — la dernière révision tombe sous l'œil en premier. -->
+        <g stroke="var(--ink)" fill="none" stroke-width=".4">
+          <rect x="174" y="248" width="230" height="35"/>
+          <path d="M174 275h230M232 248v35M290 248v35M348 248v35"/>
+          <path d="M348 256h56M348 264h56M348 272h56M376 248v8"/>
+        </g>
+        <g fill="var(--ink)" font-family="sans-serif" font-size="3" text-anchor="middle">
+          <text x="203" y="280">CHEMINEMENT</text><text x="261" y="280">RÉFÉRENCES</text>
+          <text x="319" y="280">RÉVISIONS</text>
+        </g>
+        <g fill="var(--ink)" font-family="sans-serif" font-size="2.4" opacity=".8">
+          <text x="350" y="254">APPROBATION</text><text x="378" y="254">COORDONNÉES</text>
+          <text x="350" y="262">SECTEUR: 022</text><text x="350" y="270">DESSINÉ:</text>
+          <text x="350" y="278">DATE: 04/09/2026</text>
+        </g>
+      </svg>
+    </div>
+
+  </div>
+
+  <!-- ============ la ligne de commande ============ -->
+  <div class="commande">
+    <div class="titre">Ligne de commande</div>
+    <div class="historique">
+      <div>122 symboles chargés — commencez par poser un symbole depuis la palette.</div>
+      <div><span class="cmd">FIL</span> — désignez le premier point, ou tapez une cote.</div>
+    </div>
+    <input class="saisie" placeholder="Entrez une commande — tapez ? pour la liste">
+  </div>
+
+  <!-- ============ la barre d'état ============ -->
+  <div class="etat">
+    <span class="mono">X 0,0&nbsp;&nbsp;Y 0,0 mm</span>
+    <span class="mono">zoom 58 %</span>
+    <span>aucune sélection</span>
+    <div class="bascules">
+      <span class="bascule on">RESOL</span><span class="bascule on">GRILLE</span>
+      <span class="bascule on">ORTHO</span><span class="bascule">POLAIRE</span>
+      <span class="bascule on">ACCROBJ</span><span class="bascule">REPOBJ</span>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

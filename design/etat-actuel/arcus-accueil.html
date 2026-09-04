@@ -1,0 +1,411 @@
+<!--
+  ARCUS — écran d'accueil, transposé en HTML pour la revue de design.
+
+  Ce n'est PAS le code du logiciel : Arcus est une application Qt 6 en C++,
+  et cet écran est peint à la main (QPainter) dans src/ui/startpage.cpp.
+  Ce fichier reproduit fidèlement le rendu avec les VRAIS jetons du thème
+  (src/ui/theme.cpp) pour qu'on puisse le retoucher visuellement.
+
+  Ce qui est transposable tel quel : couleurs, espacements, tailles de texte,
+  rayons, hiérarchie. Ce qui devra être retraduit en Qt : tout le reste.
+
+  Basculer le thème : <html data-theme="light"> ou "dark".
+-->
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Arcus — écran d'accueil</title>
+<style>
+/* ------------------------------------------------------------------ *
+ * LES JETONS — copiés de src/ui/theme.cpp, valeurs exactes.
+ *
+ * Règle 1 : quatre plans, dans cet ordre de profondeur.
+ *   canvas   le vide derrière la feuille de dessin (le plus profond)
+ *   window   le chrome
+ *   surface  les panneaux
+ *   elevated ce qui flotte : menus, boutons
+ * Le fond du dessin est PLUS SOMBRE que le chrome : c'est ce qui fait
+ * flotter la feuille au lieu de la poser sur un gris étranger.
+ * ------------------------------------------------------------------ */
+:root {
+  --canvas:       #0a0d0f;
+  --window:       #111518;
+  --surface:      #161b1f;
+  --elevated:     #1e2429;
+  --border:       #232a30;   /* le filet, presque invisible */
+  --border-strong:#39434a;
+  --text:         #e9eef1;   /* règle 4 : trois niveaux d'encre */
+  --text-muted:   #87949c;
+  --text-faint:   #5c6870;   /* étiquettes gravées, unités */
+  --accent:       #1fa6e8;   /* règle 3 : un seul accent, tenu en réserve */
+  --accent-hover: #51bef3;
+  --accent-text:  #04121a;
+  --danger:       #e86e60;
+  --success:      #74c16a;
+  --warning:      #e3a942;
+
+  --glow-alpha: 0.212;       /* alpha 54/255 du halo derrière le sigle */
+  --band-top: var(--canvas); /* le bandeau part du plan le plus profond */
+
+  /* Règle 5 : un seul pas d'espacement — Theme::space(n) = 4n */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 20px; --s6: 24px; --s8: 32px; --s9: 36px;
+
+  --radius: 6px;             /* Theme::radius(), partout */
+
+  /* Les fontes. Qt part de la fonte système ; les tailles sont en points
+     dans le code (10 pt ≈ 13 px à 96 dpi), converties ici en pixels. */
+  --font-ui: -apple-system, "Segoe UI", Inter, "Noto Sans", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "SF Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+  --ui-10: 13px;   /* Theme::uiFont(10) — le corps de l'interface */
+  --ui-9:  12px;   /* la ligne d'accompagnement */
+  --mono-8: 11px;  /* Theme::monoFont(8) — chemins, coordonnées */
+  --engraved: 11px;/* Theme::engravedFont() — 8 pt, capitales espacées */
+}
+
+:root[data-theme="light"] {
+  --canvas:       #dfe3e6;
+  --window:       #f2f4f6;
+  --surface:      #ffffff;
+  --elevated:     #ffffff;
+  --border:       #e1e6ea;
+  --border-strong:#bfc8ce;
+  --text:         #0f1519;
+  --text-muted:   #5b6971;
+  --text-faint:   #8a969d;
+  /* En clair, l'accent descend en luminosité sans changer de teinte :
+     les deux thèmes doivent porter la même marque. */
+  --accent:       #0b76b8;
+  --accent-hover: #0d8bd6;
+  --accent-text:  #ffffff;
+  --danger:       #bf382c;
+  --success:      #2f7736;
+  --warning:      #9c6b11;
+
+  --glow-alpha: 0.102;       /* alpha 26/255 */
+  --band-top: var(--surface);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 40px;
+  background: #05070a;
+  font-family: var(--font-ui);
+  font-size: var(--ui-10);
+  color: var(--text);
+  display: flex;
+  justify-content: center;
+}
+:root[data-theme="light"] body { background: #c9d0d6; }
+
+/* La fenêtre : 900 × 660, la taille réelle de la boîte d'accueil. */
+.fenetre {
+  width: 900px;
+  height: 660px;
+  background: var(--window);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,.45);
+}
+
+/* ------------------------------------------------------------------ *
+ * LE BANDEAU DE MARQUE — hauteur fixe 112 px.
+ *
+ * C'est le SEUL aplat coloré du logiciel. Partout ailleurs l'accent est
+ * tenu en réserve pour désigner ce qui est actif. Ici il a le droit de
+ * respirer, parce que c'est le premier écran et qu'il ne contient aucune
+ * commande à lire.
+ * ------------------------------------------------------------------ */
+.bandeau {
+  position: relative;
+  height: 112px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  padding: 0 var(--s8);
+  /* Un fond qui descend du plan le plus profond vers le chrome : le
+     bandeau se fond dans la page au lieu d'y être collé. */
+  background: linear-gradient(to bottom, var(--band-top), var(--window));
+  border-bottom: 1px solid var(--border);
+}
+/* La lueur de l'arc, derrière le sigle. Large et très diluée : on la voit
+   sans la regarder. Centre à 10 % de la largeur, 46 % de la hauteur. */
+.bandeau::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      circle 129px at 10% 46%,
+      color-mix(in srgb, var(--accent) calc(var(--glow-alpha) * 100%), transparent),
+      transparent 100%);
+  pointer-events: none;
+}
+.bandeau > * { position: relative; }
+
+.sigle {
+  width: 56px; height: 56px;
+  flex: none;
+  border-radius: 12px;
+  background: var(--elevated);
+  border: 1px solid var(--border-strong);
+  display: grid; place-items: center;
+}
+:root[data-theme="light"] .sigle { background: #0f1519; border-color: #0f1519; }
+
+/* Le mot est espacé comme sur un cartouche : c'est une marque gravée,
+   pas un titre de fenêtre. */
+.mot { font-size: 30px; font-weight: 600; letter-spacing: 8px; color: var(--text); }
+.baseline { margin-top: var(--s1); letter-spacing: 1px; color: var(--text-muted); }
+
+/* ------------------------------------------------------------------ *
+ * LE CORPS — deux colonnes : reprendre / commencer.
+ * ------------------------------------------------------------------ */
+.corps {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: var(--s9);
+  row-gap: var(--s3);
+  align-content: start;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--s6) var(--s8) var(--s4);
+}
+
+/* Règle 4 : les étiquettes gravées sont au troisième niveau d'encre —
+   petites capitales espacées. Qt n'a pas de text-transform en feuille de
+   style : la mise en capitales est portée par la fonte elle-même. */
+.grave {
+  font-size: var(--engraved);
+  letter-spacing: .9px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin: 0 0 var(--s2);
+}
+
+/* Les projets récents. Le nom sur une ligne, le chemin dessous en retrait :
+   deux dossiers peuvent porter le même nom, et ouvrir le mauvais fait
+   perdre plus de temps qu'il n'en gagne. */
+.recents { list-style: none; margin: 0; padding: 0; }
+.recent {
+  height: 50px;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.recent:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.recent .nom  { font-weight: 600; color: var(--text); line-height: 18px; }
+.recent .chemin {
+  font-family: var(--font-mono);
+  font-size: var(--mono-8);
+  color: var(--text-faint);
+  line-height: 16px;
+}
+.recent.vide { cursor: default; }
+.recent.vide:hover { background: none; }
+.recent.vide .nom { color: var(--text-faint); font-weight: 400; }
+
+/* Une action de départ : icône, titre, phrase. C'est un bouton, mais peint
+   comme les lignes de la liste d'à côté — l'écran d'accueil ne propose
+   qu'une seule sorte de geste : cliquer sur une ligne.
+   Hauteur FIXE (54 px) : sans elle une colonne chargée écraserait les
+   cartes et la phrase de chaque action passerait à la trappe. */
+.actions { display: flex; flex-direction: column; gap: var(--s2); }
+.carte {
+  height: 54px;
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+}
+/* Règle 3 : l'accent ne désigne que ce qui est actif ou survolé. */
+.carte:hover, .carte:focus-visible { border-color: var(--accent); outline: none; }
+.carte:active { background: var(--elevated); }
+.carte svg { width: 22px; height: 22px; flex: none; color: var(--accent); }
+.carte .deux-lignes { display: flex; flex-direction: column; min-width: 0; }
+.carte .titre { font-weight: 600; color: var(--text); line-height: 18px; }
+.carte .phrase {
+  font-size: var(--ui-9);
+  color: var(--text-muted);
+  line-height: 18px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------------ *
+ * LES QUATRE GESTES — le folio vide et l'accueil enseignent.
+ * La liste est courte volontairement : dix conseils ne s'apprennent pas,
+ * quatre si.
+ * ------------------------------------------------------------------ */
+.gestes { padding: var(--s4) var(--s8); }
+.gestes .rangee { display: flex; gap: var(--s6); margin-top: var(--s2); }
+.gestes .geste { flex: 1; }
+.gestes .touche { font-weight: 600; color: var(--text); }
+.gestes .quoi { margin-top: 2px; color: var(--text-muted); }
+
+/* Règle 2 : des filets, pas des boîtes. Un panneau se sépare par une
+   ligne de 1 px, jamais par un cadre fermé. */
+.filet { height: 1px; background: var(--border); flex: none; }
+
+.pied {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--s3) var(--s8) var(--s4);
+}
+.case { display: flex; align-items: center; gap: var(--s2); cursor: pointer; }
+.case .boite {
+  width: 16px; height: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--elevated);
+}
+.bouton-primaire {
+  padding: 8px 22px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-family: inherit; font-size: var(--ui-10);
+  cursor: pointer;
+}
+/* Piège Qt payé une fois : un font-weight posé sur le bouton par défaut
+   rogne son texte, parce que Qt calcule sa taille dans l'état normal. Le
+   bouton par défaut se distingue par son APLAT, pas par sa graisse. */
+.bouton-primaire:hover { background: var(--accent-hover); }
+</style>
+</head>
+<body>
+
+<div class="fenetre">
+
+  <!-- ---------------- le bandeau de marque ---------------- -->
+  <header class="bandeau">
+    <div class="sigle">
+      <!-- L'arc de la marque. Les icônes du logiciel sont dessinées au
+           trait à l'exécution (Icons::Glyph), jamais chargées en image :
+           elles suivent ainsi la couleur du thème. -->
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none"
+           stroke="#1fa6e8" stroke-width="2" stroke-linecap="round">
+        <path d="M3 18 A9 9 0 0 1 21 18"/>
+      </svg>
+    </div>
+    <div>
+      <div class="mot">ARCUS</div>
+      <div class="baseline">Schémas électriques — commande, puissance, unifilaires</div>
+    </div>
+  </header>
+
+  <!-- ---------------- le corps ---------------- -->
+  <main class="corps">
+
+    <section>
+      <h2 class="grave">Reprendre</h2>
+      <ul class="recents">
+        <li class="recent">
+          <span class="nom">armoire-047bj0152b.arcus</span>
+          <span class="chemin">D:/Affaires/2026/047BJ/schemas</span>
+        </li>
+        <li class="recent">
+          <span class="nom">boucle-8917.arcus</span>
+          <span class="chemin">D:/Affaires/2026/037BJ/instrumentation</span>
+        </li>
+        <li class="recent">
+          <span class="nom">demarrage-direct.arcus</span>
+          <span class="chemin">C:/Users/pl/Documents/Arcus/exemples</span>
+        </li>
+      </ul>
+      <!-- Quand la liste est vide :
+      <ul class="recents">
+        <li class="recent vide">
+          <span class="nom">Aucun projet récent</span>
+          <span class="chemin">les projets ouverts apparaîtront ici</span>
+        </li>
+      </ul> -->
+    </section>
+
+    <section>
+      <h2 class="grave">Commencer</h2>
+      <div class="actions">
+
+        <button class="carte">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>
+          </svg>
+          <span class="deux-lignes">
+            <span class="titre">Nouveau projet</span>
+            <span class="phrase">un folio A3, cadre et cartouche déjà posés</span>
+          </span>
+        </button>
+
+        <button class="carte">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M3 7h6l2 2h10v10H3z"/>
+          </svg>
+          <span class="deux-lignes">
+            <span class="titre">Ouvrir un projet…</span>
+            <span class="phrase">fichiers .arcus et .dsn</span>
+          </span>
+        </button>
+
+        <button class="carte">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <rect x="4" y="4" width="12" height="14"/><path d="M8 8h4M8 11h4"/>
+            <rect x="8" y="7" width="12" height="14"/>
+          </svg>
+          <span class="deux-lignes">
+            <span class="titre">Projet d'exemple</span>
+            <span class="phrase">démarrage direct d'un moteur, puissance et commande</span>
+          </span>
+        </button>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ---------------- les quatre gestes ---------------- -->
+  <section class="gestes">
+    <h2 class="grave">Quatre gestes qui changent tout</h2>
+    <div class="rangee">
+      <div class="geste">
+        <div class="touche">W puis un clic</div>
+        <div class="quoi">tracer un fil — tapez ensuite la cote (50, @10,5) au lieu
+          de viser à la souris</div>
+      </div>
+      <div class="geste">
+        <div class="touche">survol d'un point</div>
+        <div class="quoi">reste un instant sur le milieu d'un fil : le point est
+          retenu et son alignement se suit (F11)</div>
+      </div>
+      <div class="geste">
+        <div class="touche">double-clic sur un appareil</div>
+        <div class="quoi">repère, description, catalogue fabricant et rattachement,
+          en un écran</div>
+      </div>
+      <div class="geste">
+        <div class="touche">Ctrl + Maj + P</div>
+        <div class="quoi">la palette de commandes : tout ce que le logiciel sait
+          faire, cherché par son nom</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="filet"></div>
+
+  <footer class="pied">
+    <label class="case"><span class="boite"></span> Ne plus afficher cet écran</label>
+    <button class="bouton-primaire">Fermer</button>
+  </footer>
+
+</div>
+
+</body>
+</html>

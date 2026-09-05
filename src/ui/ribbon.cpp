@@ -7,8 +7,10 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenu>
+#include <QFontMetricsF>
 #include <QPainter>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QStackedWidget>
 #include <QTabBar>
 #include <QToolButton>
@@ -35,9 +37,83 @@ protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter p(this);
-        // Le filet s'arrete avant le nom du panneau : il separe les
-        // commandes, pas les etiquettes.
-        p.fillRect(0, Theme::space(2), 1, height() - Theme::space(6), Theme::colors().border);
+        // Le filet TRAVERSE tout le panneau, bandeau de zone compris, comme
+        // les traits de zone traversent le cadre d'une planche. Il s'arretait
+        // avant le nom tant que le nom etait une etiquette posee dessous ;
+        // maintenant que le nom EST la bande, l'interrompre couperait le
+        // bandeau en deux.
+        p.fillRect(0, 0, 1, height(), Theme::colors().border);
+    }
+};
+
+// Un bouton de ruban qui IMPRIME SON ALIAS dans un coin, au troisieme niveau
+// d'encre. Comme une cote sur une planche : presente, discrete, jamais dans le
+// chemin.
+//
+// C'est la reponse au vrai defaut de l'onglet Accueil — quarante commandes en
+// icone de vingt pixels sans etiquette. Le depot avait deja un garde-fou qui
+// refuse deux glyphes identiques, mais l'unicite n'est pas la reconnaissance :
+// deux dessins differents restent indiscernables a vingt pixels, ce qui est
+// exactement le cas des huit icones du panneau FILS. Etiqueter les petits
+// boutons ne tient pas — mesure faite, il faudrait 2 762 px de ruban pour les
+// quarante boutons de l'onglet Accueil, et on en a 1 720. L'alias, lui, coute
+// ZERO pixel de large : il se pose dans la case existante, et « J » « RV »
+// « ET » « PT » se distinguent meme quand les glyphes se brouillent.
+//
+// L'alias est LU SUR L'ACTION a chaque peinture : il n'est jamais recopie,
+// donc il ne peut pas diverger du registre de commandes. Le ruban ne detient
+// toujours aucune commande.
+class KeyButton : public QToolButton
+{
+public:
+    using QToolButton::QToolButton;
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        QToolButton::paintEvent(event);
+
+        const QAction *action = defaultAction();
+        if (!action)
+            return;
+        const QStringList aliases = action->property("aliases").toStringList();
+        if (aliases.isEmpty())
+            return;
+
+        // En haut a droite d'un grand bouton — son libelle occupe deja le bas ;
+        // CENTRE sous l'icone d'un petit, dans la bande que le rembourrage a
+        // liberee. Cale a droite, il paraissait appartenir a la case voisine :
+        // une cote se pose sous ce qu'elle mesure, pas a cote.
+        const bool large = iconSize().width() >= Ribbon::kLargeIcon;
+        const QRect box = large ? QRect(0, 1, width() - 4, 10)
+                                : QRect(0, height() - 9, width(), 8);
+        const int align = large ? Qt::AlignRight : Qt::AlignHCenter;
+
+        // LE PREMIER ALIAS QUI TIENT, dans l'ordre du registre. L'ordre porte
+        // l'intention — la forme francaise d'abord, celle d'AutoCAD ensuite :
+        // DECALER vaut « DC » puis « O ». Prendre le plus court trahirait ce
+        // choix et afficherait « O » pour Decaler, « M » pour Deplacer, « BR »
+        // pour Couper un fil. Et « ne rien imprimer » vaut mieux qu'un jeton
+        // rogne : « CONTRO » pour « CONTROLE » enseignerait un nom que la
+        // ligne de commande refuse. Rien n'est invente — le jeton sort du
+        // registre ou il ne sort pas.
+        const QFont font = Theme::monoFont(6.5);
+        const QFontMetricsF metrics(font);
+        QString alias;
+        for (const QString &candidat : aliases) {
+            if (metrics.horizontalAdvance(candidat) <= box.width()) {
+                alias = candidat;
+                break;
+            }
+        }
+        if (alias.isEmpty())
+            return;
+
+        QPainter p(this);
+        p.setFont(font);
+        p.setPen(isEnabled() ? Theme::colors().textFaint
+                             : Theme::colors().textFaint.darker(130));
+        p.drawText(box, align | Qt::AlignVCenter, alias);
     }
 };
 
@@ -58,21 +134,29 @@ RibbonPanel::RibbonPanel(const QString &title, QWidget *parent)
     : QWidget(parent), m_title(title)
 {
     auto *column = new QVBoxLayout(this);
-    column->setContentsMargins(Theme::space(2), Theme::space(1), Theme::space(2), 0);
+    column->setContentsMargins(0, 0, 0, 0);
     column->setSpacing(0);
 
+    // LE BANDEAU DE ZONE, en premier. Le nom etait grave SOUS les boutons :
+    // on balayait donc les icones, puis on lisait dessous pour savoir ce
+    // qu'on venait de survoler. Au-dessus, il dit ou chercher avant qu'on ait
+    // cherche — c'est toute la force du ruban, et c'est la grammaire du cadre
+    // d'une planche.
+    m_name = new QLabel(title.toUpper(), this);
+    m_name->setFixedHeight(Ribbon::kZoneBandHeight);
+    m_name->setContentsMargins(Theme::space(2), 0, Theme::space(2), 0);
+    m_name->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    m_name->setProperty("zoneBand", true);
+    Theme::engrave(m_name);
+    column->addWidget(m_name);
+
     auto *content = new QWidget(this);
-    content->setFixedHeight(Ribbon::kRowHeight);
+    content->setFixedHeight(Ribbon::kPanelHeight - Ribbon::kZoneBandHeight);
     m_row = new QHBoxLayout(content);
-    m_row->setContentsMargins(0, 0, 0, 0);
+    m_row->setContentsMargins(Theme::space(2), Theme::space(1), Theme::space(2),
+                              Theme::space(1));
     m_row->setSpacing(Theme::space(1));
     column->addWidget(content);
-
-    m_name = new QLabel(title.toUpper(), this);
-    m_name->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-    Theme::engrave(m_name);
-    m_name->setFixedHeight(Ribbon::kPanelHeight - Ribbon::kRowHeight - Theme::space(1));
-    column->addWidget(m_name);
 
     setFixedHeight(Ribbon::kPanelHeight);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
@@ -100,7 +184,7 @@ QToolButton *RibbonPanel::addLarge(QAction *action, const QString &shortLabel)
     else if (action->iconText() == action->text())
         action->setIconText(shortenLabel(action->text()));
 
-    auto *button = new QToolButton(this);
+    auto *button = new KeyButton(this);
     button->setDefaultAction(action);
     button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
     button->setIconSize(QSize(Ribbon::kLargeIcon, Ribbon::kLargeIcon));
@@ -136,7 +220,7 @@ QToolButton *RibbonPanel::addSmall(QAction *action)
         m_row->addWidget(host, 0, Qt::AlignVCenter);
     }
 
-    auto *button = new QToolButton(this);
+    auto *button = new KeyButton(this);
     button->setDefaultAction(action);
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     button->setIconSize(QSize(Ribbon::kSmallIcon, Ribbon::kSmallIcon));
@@ -149,6 +233,33 @@ QToolButton *RibbonPanel::addSmall(QAction *action)
     ++m_small;
     m_actions.append(action);
     return button;
+}
+
+void RibbonPanel::addSetting(const QString &label, QWidget *widget)
+{
+    if (!widget)
+        return;
+    closeGrid();
+
+    // Un filet le separe des boutons d'action : ce n'est pas un geste, c'est
+    // un ETAT. Pose au milieu des icones, on le clique par erreur en croyant
+    // lancer une commande.
+    auto *rule = new PanelSeparator(this);
+    m_row->addWidget(rule);
+
+    auto *cell = new QWidget(this);
+    auto *box = new QVBoxLayout(cell);
+    box->setContentsMargins(Theme::space(1), 0, Theme::space(1), 0);
+    box->setSpacing(Theme::space(1));
+
+    auto *name = new QLabel(label.toUpper(), cell);
+    name->setProperty("settingLabel", true);
+    Theme::engrave(name);
+    box->addWidget(name);
+    box->addWidget(widget);
+    box->addStretch(1);
+
+    m_row->addWidget(cell, 0, Qt::AlignVCenter);
 }
 
 void RibbonPanel::addControl(QWidget *widget)
@@ -225,7 +336,8 @@ Ribbon::Ribbon(QWidget *parent) : QWidget(parent)
     column->addWidget(tabRow);
 
     m_pages = new QStackedWidget(this);
-    m_pages->setFixedHeight(kPanelHeight + kScrollAllowance);
+    m_pages->setFixedHeight(kPanelHeight);
+    m_pages->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     column->addWidget(m_pages);
 
     connect(m_tabs, &QTabBar::currentChanged, this, [this](int index) {
@@ -274,6 +386,14 @@ RibbonPage *Ribbon::addPage(const QString &title)
     scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_pages->addWidget(scroll);
+    m_scrolls.append(scroll);
+    // L'ascenseur ne coute sa hauteur que quand il se montre : la page le
+    // signale en changeant de plage, et le ruban redemande sa taille.
+    connect(scroll->horizontalScrollBar(), &QScrollBar::rangeChanged, this,
+            [this](int, int) {
+                m_pages->setFixedHeight(kPanelHeight + scrollReserve());
+                updateGeometry();
+            });
 
     m_tabs->addTab(title);
     m_pageList.append(page);
@@ -321,10 +441,24 @@ void Ribbon::paintEvent(QPaintEvent *)
     p.fillRect(0, height() - 1, width(), 1, Theme::colors().border);
 }
 
+int Ribbon::scrollReserve() const
+{
+    // Zero tant que l'ascenseur ne se montre pas. C'etaient treize pixels
+    // pris au dessin en permanence pour une barre qui n'apparait que sur une
+    // fenetre etroite ; ils sont desormais payes au moment ou elle arrive.
+    const int index = m_pages ? m_pages->currentIndex() : -1;
+    if (index < 0 || index >= m_scrolls.size())
+        return 0;
+    const QScrollBar *bar = m_scrolls.at(index)->horizontalScrollBar();
+    if (!bar || bar->maximum() <= bar->minimum())
+        return 0;
+    return bar->sizeHint().height();
+}
+
 QSize Ribbon::sizeHint() const
 {
     return QSize(640, m_collapsed ? kTabHeight
-                                 : kTabHeight + kPanelHeight + kScrollAllowance);
+                                  : kTabHeight + kPanelHeight + scrollReserve());
 }
 
 QSize Ribbon::minimumSizeHint() const { return QSize(320, sizeHint().height()); }

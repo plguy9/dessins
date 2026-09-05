@@ -23,6 +23,7 @@ class QGridLayout;
 class QHBoxLayout;
 class QLabel;
 class QMenu;
+class QScrollArea;
 class QStackedWidget;
 class QTabBar;
 class QToolButton;
@@ -53,7 +54,13 @@ public:
     // (les huit alignements).
     QToolButton *addLargeMenu(QAction *action, QMenu *menu, const QString &shortLabel);
 
-    // Un reglage a la place d'un bouton — le selecteur de type de fil.
+    // Un reglage a la place d'un bouton — le selecteur de type de fil, le
+    // style de trait. Ce n'est PAS une action : il est donc precede d'un
+    // filet, coiffe d'un libelle grave, et il montre sa VALEUR. Pose au
+    // milieu de boutons d'action, un etat se clique au hasard ; separe et
+    // nomme, on sait ce qu'on va poser sans cliquer pour verifier.
+    void addSetting(const QString &label, QWidget *widget);
+    // Sans libelle : le reglage se pose tel quel, a la suite des boutons.
     void addControl(QWidget *widget);
 
     QString title() const { return m_title; }
@@ -101,12 +108,23 @@ public:
     static constexpr int kLargeIcon = 32;
     static constexpr int kSmallIcon = 20;
     static constexpr int kRowHeight = 58;
-    static constexpr int kPanelHeight = 78;
+    // Le nom du panneau, MONTE AU-DESSUS des boutons, dans une bande filetee
+    // en haut et en bas : c'est le bandeau de zone d'une planche — le meme
+    // motif que « CHAMP | BOÎTE DE JONCTION | CABINET » sur un schema de
+    // boucle. On lit ou chercher AVANT de regarder, au lieu de balayer les
+    // icones puis de lire le nom dessous pour comprendre ce qu'on vient de
+    // survoler.
+    static constexpr int kZoneBandHeight = 18;
+    // La rangee de boutons seule, le nom n'etant plus dedans.
+    static constexpr int kPanelHeight = kZoneBandHeight + kRowHeight + 8;
     static constexpr int kTabHeight = 30;
-    // La barre de defilement horizontale de la page se pose SOUS les
-    // panneaux : sans cette reserve, elle rogne le nom grave, et un panneau
-    // sans nom n'est plus qu'une grappe d'icones.
-    static constexpr int kScrollAllowance = 13;
+    // AUCUNE RESERVE PERMANENTE pour la barre de defilement horizontale.
+    // Elle en avait treize, prises au dessin en permanence pour un ascenseur
+    // qui ne se montre que sur une fenetre etroite. La reserve est desormais
+    // payee QUAND l'ascenseur est la, et pas avant : `sizeHint` interroge la
+    // page courante. Le nom grave, lui, ne risque plus rien — il est passe
+    // au-dessus des boutons.
+    static constexpr int kScrollAllowance = 0;
 
     explicit Ribbon(QWidget *parent = nullptr);
 
@@ -133,6 +151,11 @@ public:
     // couleur des filets et du chevron n'appartient a aucune action.
     void applyTheme();
 
+    // La hauteur que l'ascenseur horizontal reclame SUR LA PAGE COURANTE :
+    // zero tant qu'il ne se montre pas. Publique pour qu'un test lise la
+    // regle au lieu de compter des pixels.
+    int scrollReserve() const;
+
     // Publiques : la hauteur du ruban est ce qu'il prend au dessin, et c'est
     // la seule chose qu'un test a besoin de mesurer.
     QSize sizeHint() const override;
@@ -146,6 +169,7 @@ protected:
 
 private:
     QTabBar *m_tabs = nullptr;
+    QList<QScrollArea *> m_scrolls;
     QStackedWidget *m_pages = nullptr;
     QToolButton *m_fold = nullptr;
     QHBoxLayout *m_quickRow = nullptr;

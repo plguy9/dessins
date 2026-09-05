@@ -115,6 +115,10 @@ private:
     // Separe de updateActions() parce que ces trois valeurs ne dependent ni
     // de la selection ni du zoom : elles suivent le folio courant.
     void updateStatusCells();
+    // Pose sur chaque QAction du ruban l'alias a taper pour la meme commande.
+    // Le ruban ne detient toujours aucune commande : il LIT une propriete que
+    // le registre a posee, et la table des alias reste a un seul endroit.
+    void applyCommandAliases();
     void updateTitle();
     void updateActions();
 

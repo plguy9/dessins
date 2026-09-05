@@ -239,9 +239,10 @@ autrement. Nous gardons donc les deux bouts **et** le ruban.
 
 - **`ui/ribbon.*`** — onglets (Accueil, Insertion, Annoter, Projet, Vue), et
   sous l'onglet actif une rangée de panneaux séparés par un filet, chacun
-  portant son nom gravé dessous. Un ou deux gros boutons par panneau (icône
-  32 px + libellé), le reste en grille de petites icônes sur deux rangées —
-  la hauteur d'un panneau ne dépend donc pas de son contenu.
+  **coiffé de son nom** dans un bandeau de zone. Un ou deux gros boutons par
+  panneau (icône 32 px + libellé), le reste en grille de petites icônes sur
+  deux rangées — la hauteur d'un panneau ne dépend donc pas de son contenu.
+  Voir « Le ruban imprime le clavier », plus bas.
 - **Le ruban ne détient aucune commande.** Chaque bouton représente une
   `QAction` déjà posée dans un menu : rien ne s'y connecte, ne s'y grise ni
   ne s'y coche, le bouton suit son action. **Les menus restent la source de
@@ -404,6 +405,12 @@ Et ce qui distingue toujours notre interface de celle d'AutoCAD :
   second test parcourt donc chaque panneau du ruban et refuse deux commandes
   qui y portent la même image ; il a trouvé cinq collisions que l'œil n'avait
   pas relevées.
+  Un **troisième** compare les *silhouettes* plutôt que les dessins, panneau
+  par panneau : deux glyphes différents peuvent rester indiscernables à 20 px,
+  et c'est dans un panneau que l'œil compare. Une seule paire y échappe, et
+  elle se déclare — « Trait continu » et « Trait pointillé » sont le **même
+  objet dans deux états**, comme les marqueurs d'accrochage ; leur donner deux
+  dessins ferait croire à deux commandes.
 - **Neuf menus** : Fichier, Édition, **Modification**, **Dessin**, Outils,
   Affichage, Projet, Symboles, Aide. Modification est le groupe « Modifier »
   du ruban d'AutoCAD ; il était dilué dans Édition, où il voisinait le
@@ -565,6 +572,65 @@ reposait tel quel. Pour un panneau du **bas**, la dimension est la hauteur :
 plafond de 320 px. Il revenait — mais pas à sa taille, et en mangeant le tiers
 du dessin. Le défaut était inatteignable tant que le bandeau ne pouvait pas se
 fermer ; il l'est devenu à la ligne près où Ctrl+9 est devenu une bascule.
+
+**Le ruban imprime le clavier** (refonte 2026-09-04,
+`design/etapes/03-ruban.md`). L'onglet Accueil porte 47 commandes, dont **40
+en icône de 20 px sans étiquette**. Le ruban n'était pas en cause — les icônes
+muettes l'étaient. Le dépôt avait déjà un garde-fou qui refuse deux glyphes
+**identiques**, mais l'unicité n'est pas la reconnaissance : deux dessins
+différents restent indiscernables à 20 px, ce qui est exactement le cas des
+huit icônes du panneau FILS. Étiqueter les petits boutons ne tient pas —
+mesure faite, il faudrait **2 762 px** de ruban pour l'onglet Accueil et on en
+a 1 720. Quatre décisions :
+
+1. **Le bouton imprime son alias**, au troisième niveau d'encre, dans un coin
+   de la case existante : **zéro pixel de large**, et `J` `RV` `ET` `PT` se
+   distinguent même quand les glyphes se brouillent. Le petit bouton réserve
+   sa bande du bas par le **rembourrage de la feuille de style** — le même
+   mécanisme que le piège déjà payé trois fois, retourné à notre avantage — et
+   l'alias se pose **centré sous l'icône** : calé à droite il paraissait
+   appartenir à la case voisine. Mesuré : **78 boutons sur 100** portent leur
+   marque.
+2. **C'est le PREMIER alias qui tient**, dans l'ordre du registre. L'ordre
+   porte l'intention — la forme française d'abord, celle d'AutoCAD ensuite :
+   `DECALER` vaut `DC` puis `O`. Prendre le plus court trahirait ce choix et
+   afficherait `O` pour Décaler, `M` pour Déplacer, `BR` pour Couper un fil.
+   Et **ne rien imprimer vaut mieux qu'un jeton rogné** : « CONTRO » pour
+   « CONTROLE » enseignerait un nom que la ligne de commande refuse. Un test
+   vérifie que toute marque affichée se retrouve **telle quelle dans le
+   registre** — l'inventer serait la seule faute qui viderait ce mouvement de
+   sa valeur.
+3. **Le nom du panneau monte au-dessus des boutons**, dans une bande filetée
+   en haut et en bas, les filets verticaux la traversant : c'est le bandeau de
+   zone d'une planche. Gravé dessous, il obligeait à balayer les icônes puis à
+   lire pour savoir ce qu'on venait de survoler.
+4. **Le réglage sort de la grille d'actions** (`RibbonPanel::addSetting`). Le
+   sélecteur de type de fil est un **état**, pas un geste : posé au milieu de
+   boutons d'action on le clique par erreur. Il est désormais précédé d'un
+   filet, coiffé de `TYPE POSÉ`, et il montre sa valeur.
+
+**Et le ruban a maigri : 121 px → 114.** Treize pixels étaient pris au dessin
+**en permanence** pour une barre de défilement qui n'apparaît que sur une
+fenêtre étroite. `Ribbon::scrollReserve()` la paie quand elle arrive, et pas
+avant — ce qui n'était possible qu'une fois le nom gravé passé en haut, hors
+de sa portée.
+
+**Ce que ça a demandé, et la réserve qui va avec.** Rien ne reliait
+mécaniquement une commande du registre à son action de menu : ni le libellé,
+ni l'info-bulle — **mesure : 15 des 85 descriptions correspondent**. Le lien
+est donc écrit à la main dans `kCommandBridge`, en un seul endroit, et un test
+refuse toute ligne dont l'un des deux côtés a disparu. **Le bon dessin serait
+que l'action déclare son nom de commande à sa naissance et que le registre se
+remplisse en parcourant les menus** — comme le fait déjà la palette de
+commandes ; c'est un remaniement des 85 enregistrements, plus large que cette
+étape.
+
+**Et un piège qui n'en était pas un.** On attendait que le rembourrage de la
+feuille de style écrase l'icône du petit bouton, comme il avait écrasé celle
+du bouton de repli. Il ne le fait pas : `setIconSize` **fixe** la taille de
+l'icône, et Qt la dessine à cette taille quelle que soit la boîte de contenu.
+Le test écrit pour le tenir passait avec le rembourrage porté à 20 px — il ne
+prouvait rien, et il a été **retiré** plutôt qu'assoupli.
 
 **`MainWindow::buildRenderStyle()` est le seul endroit qui construit un style
 de rendu d'écran.** Sept endroits le faisaient chacun à sa façon — le canevas,

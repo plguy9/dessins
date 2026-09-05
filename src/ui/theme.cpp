@@ -604,11 +604,47 @@ QToolButton[ribbonLarge="true"] {
     min-height: 0;
     font-size: 8.5pt;
 }
-QToolButton[ribbonSmall="true"], QToolButton[ribbonQuick="true"] {
+/* LE BANDEAU DE ZONE d'un panneau de ruban : filets en haut et en bas, aucun
+   fond, aucun rayon. Les filets verticaux entre panneaux sont peints par
+   PanelSeparator et traversent la bande ET la rangee de boutons, comme les
+   traits de zone traversent le cadre d'une planche.
+
+   Les capitales et l'espacement viennent de Theme::engrave() : Qt n'a ni
+   « text-transform » ni « letter-spacing » en feuille de style. */
+QLabel[zoneBand="true"] {
+    color: %FAINT%;
+    background: transparent;
+    border: none;
+    border-top: 1px solid %BORDER%;
+    border-bottom: 1px solid %BORDER%;
+}
+
+/* Le libelle d'un reglage pose dans un panneau — « TYPE POSÉ », « TRAIT ».
+   Meme encre que le bandeau : ce sont deux reperages, pas du texte. */
+QLabel[settingLabel="true"] {
+    color: %FAINT%;
+    background: transparent;
+    border: none;
+}
+
+QToolButton[ribbonQuick="true"] {
     background: transparent;
     border: 1px solid transparent;
     border-radius: 5px;
     padding: 3px;
+    min-height: 0;
+}
+/* Le petit bouton du ruban reserve SA BANDE DU BAS a l'alias : le
+   rembourrage remonte l'icone, et le jeton ne se pose plus par-dessus le
+   dessin. C'est le meme mecanisme que le piege deja paye — Qt calcule la
+   place de l'icone dans la boite de contenu — mais retourne a notre
+   avantage. Il reste vingt pixels de haut pour une icone de vingt : le test
+   qui compte l'encre de l'icone le verifie. */
+QToolButton[ribbonSmall="true"] {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    padding: 0 3px 7px 3px;
     min-height: 0;
 }
 QToolButton[ribbonLarge="true"]:hover, QToolButton[ribbonSmall="true"]:hover,

@@ -277,6 +277,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     applyTheme(dark);
 
     registerCommands();
+    applyCommandAliases();
     echoMenuCommands();
     // La hauteur du bandeau, sans la rangee que l'en-tete prenait pour nommer
     // l'evidence : l'historique replie, l'invite et le champ. Elle suit la
@@ -1938,6 +1939,130 @@ void MainWindow::echoMenuCommands()
     }
 }
 
+namespace {
+
+// LE PONT ENTRE LE REGISTRE DE COMMANDES ET LES ACTIONS DE MENU.
+//
+// Les deux existent separement : une commande est un nom, des alias et un
+// geste ; une action est un libelle, une icone et un raccourci. Rien ne les
+// relie mecaniquement — ni le libelle, ni l'info-bulle (mesure : 15 des 85
+// descriptions de commandes correspondent a l'info-bulle d'une action). Le
+// lien est donc ecrit, en un seul endroit, et un test refuse toute ligne dont
+// l'un des deux cotes n'existe pas : la table ne peut pas pourrir en silence.
+//
+// Elle ne PORTE aucun alias — elle dit seulement quelle commande parle pour
+// quelle action. L'alias, lui, est lu dans le registre : l'inventer ici serait
+// exactement la faute que cette etape existe pour eviter.
+//
+// RESERVE HONNETE : le bon dessin serait que l'action DECLARE son nom de
+// commande a sa naissance, et que le registre se remplisse en parcourant les
+// menus — comme le fait deja la palette de commandes. C'est un remaniement des
+// quatre-vingt-cinq enregistrements, plus large que cette etape.
+struct CommandBridge {
+    const char *command; // le nom dans le registre
+    const char *label;   // le libelle de menu, nettoye
+};
+constexpr CommandBridge kCommandBridge[] = {
+    { "AJUSTER", "Ajuster" },
+    { "APPLIQUERTYPE", "Appliquer le type de fil à la sélection" },
+    { "ARC", "Arc" },
+    { "AUDIT", "Audit électrique" },
+    { "AUTOMATE", "Insérer un automate" },
+    { "BORNIER", "Éditeur de borniers" },
+    { "CARTOUCHE", "Cartouche du dossier" },
+    { "CERCLE", "Cercle" },
+    { "COLLER", "Coller" },
+    { "COLLERIDENT", "Coller à l'identique" },
+    { "COMPOSANT", "Éditer le composant" },
+    { "COPIER", "Copier" },
+    { "COPIERPROP", "Copier les propriétés" },
+    { "COTATION", "Cotation" },
+    { "COTATIONH", "Cote horizontale" },
+    { "COTATIONV", "Cote verticale" },
+    { "COUPURE", "Couper un fil" },
+    { "DECALER", "Décaler" },
+    { "DEPLACER", "Déplacer" },
+    { "DEPLACERAPPAREIL", "Déplacer l'appareil" },
+    { "DESTINATION", "Flèche de signal — destination" },
+    { "DISTANCE", "Mesurer une distance" },
+    { "ECHELLE", "Échelle" },
+    { "ECHELLECMD", "Insérer une échelle de commande" },
+    { "EFFACER", "Supprimer" },
+    { "ENREGISTRER", "Enregistrer" },
+    { "ENREGISTRERSOUS", "Enregistrer sous" },
+    { "ETIQUETTE", "Étiquette" },
+    { "ETIRER", "Étirer" },
+    { "EXPORTDXF", "Exporter en DXF" },
+    { "EXPORTPDF", "Exporter en PDF" },
+    { "FILMULTIPLE", "Fil multiple" },
+    { "FIXERREPERE", "Fixer les repères" },
+    { "FORMATREPERE", "Format des repères" },
+    { "GLISSER", "Glisser le long du fil" },
+    { "GRILLE", "Afficher la grille" },
+    { "IMPRIMER", "Imprimer" },
+    { "INFOPROJET", "Informations du projet" },
+    { "JOINDRE", "Joindre les fils" },
+    { "JONCTION", "Jonction" },
+    { "LIBERERREPERE", "Libérer les repères" },
+    { "LIGNE", "Fil" },
+    { "MISENPAGE", "Mise en page" },
+    { "MIROIR", "Retourner" },
+    { "NOUVEAU", "Nouveau projet" },
+    { "NOUVSYMBOLE", "Nouveau symbole" },
+    { "ORTHO", "Mode ortho" },
+    { "OUVRIR", "Ouvrir" },
+    { "PANORAMIQUE", "Panoramique" },
+    { "PARAMDESSIN", "Paramètres de dessin" },
+    { "PIVOTER", "Pivoter" },
+    { "POLAIRE", "Repérage polaire" },
+    { "POLYLIGNE", "Polyligne" },
+    { "POSERRAPPORT", "Poser le rapport dans le dessin" },
+    { "POTENTIEL", "Étiquette de potentiel" },
+    { "PROLONGER", "Prolonger" },
+    { "RECHERCHER", "Rechercher / remplacer" },
+    { "RECTANGLE", "Rectangle" },
+    { "REMPLACERSYMBOLE", "Remplacer le symbole" },
+    { "RENVOI", "Renvoi de folio" },
+    { "REPERAGE", "Repérage automatique" },
+    { "RESEAU", "Réseau" },
+    { "SOURCE", "Flèche de signal — source" },
+    { "SURFER", "Surfer les renvois" },
+    { "TEXTE", "Texte" },
+    { "TOUTSELECT", "Tout sélectionner" },
+    { "TYPEFIL", "Types de fils" },
+    { "ZOOMFENETRE", "Zoom fenêtre" },
+    { "ZOOMPRECEDENT", "Vue précédente" },
+    { "ACCROBJ", "Accrochage aux objets" },
+};
+
+} // namespace
+
+void MainWindow::applyCommandAliases()
+{
+    if (!m_command)
+        return;
+
+    // On pose la LISTE ENTIERE, dans l'ordre du registre. C'est le bouton qui
+    // choisit — il est le seul a connaitre sa largeur, et le choix depend
+    // d'elle : il prend le premier alias qui tient. L'ordre du registre porte
+    // l'intention (la forme francaise d'abord, celle d'AutoCAD ensuite :
+    // DECALER vaut « DC » puis « O »), et prendre le plus court la trahirait —
+    // « O » pour Décaler, « M » pour Déplacer, « BR » pour Couper un fil.
+    QHash<QString, QStringList> aliasParCommande;
+    for (const CommandDefinition &command : m_command->commands()) {
+        if (!command.aliases.isEmpty())
+            aliasParCommande.insert(command.name, command.aliases);
+    }
+
+    const QHash<QString, QAction *> actions = indexMenuActions();
+    for (const CommandBridge &pont : kCommandBridge) {
+        QAction *action = actions.value(QString::fromUtf8(pont.label));
+        const QStringList aliases = aliasParCommande.value(QString::fromUtf8(pont.command));
+        if (action && !aliases.isEmpty())
+            action->setProperty("aliases", aliases);
+    }
+}
+
 void MainWindow::registerCommands()
 {
     // Les alias reprennent ceux d'AutoCAD, en francais et en anglais : un
@@ -2133,10 +2258,13 @@ void MainWindow::registerCommands()
     simple(QStringLiteral("DEPLACERAPPAREIL"), { QStringLiteral("DA") },
            tr("Déplacer un appareil avec ses fils"),
            [this] { m_view->beginMoveComponent(); });
-    simple(QStringLiteral("SURFER"), { QStringLiteral("SUR"), QStringLiteral("SF") },
+    simple(QStringLiteral("SURFER"), { QStringLiteral("SF"), QStringLiteral("SUR") },
            tr("Lister les renvois de la sélection et y aller"),
            [this] { surfSelection(); });
-    simple(QStringLiteral("COMPOSANT"), { QStringLiteral("CO2"), QStringLiteral("EDC") },
+    // EDC en tete : a longueur egale, c'est le premier alias qui est imprime
+    // dans le coin du bouton de ruban, et « EDC » est celui qu'AutoCAD
+    // Electrical met dans les doigts. « CO2 » reste joignable.
+    simple(QStringLiteral("COMPOSANT"), { QStringLiteral("EDC"), QStringLiteral("CO2") },
            tr("Éditer l'appareil sélectionné"), [this] { editSelectedComponent(); });
     simple(QStringLiteral("BORNIER"), { QStringLiteral("BO"), QStringLiteral("TSE") },
            tr("Ouvrir l'éditeur de borniers"), [this] { editTerminalStrips(); });
@@ -2224,7 +2352,7 @@ void MainWindow::registerCommands()
     simple(QStringLiteral("AUDIT"), { QStringLiteral("CONTROLE"), QStringLiteral("VERIF") },
            tr("Audit électrique : tous les contrôles de cohérence du dossier"),
            [this] { checkSchematic(); });
-    simple(QStringLiteral("RAPPORTS"), { QStringLiteral("NOMENCLATURE"), QStringLiteral("BOM") },
+    simple(QStringLiteral("RAPPORTS"), { QStringLiteral("BOM"), QStringLiteral("NOMENCLATURE") },
            tr("Afficher les rapports"), [this] {
                if (auto *dock = findChild<QDockWidget *>(QStringLiteral("dock.reports"))) {
                    dock->show();
@@ -2652,7 +2780,10 @@ void MainWindow::createRibbon()
         for (RibbonPanel *panel : home->panels()) {
             if (panel->title() == QStringLiteral("Fils")) {
                 m_wireTypeSelector->setParent(panel);
-                panel->addControl(m_wireTypeSelector);
+                // Coiffe de son libelle et separe des boutons par un filet :
+                // c'est un etat, et il montre sa valeur. On sait quel type on
+                // va poser sans cliquer pour verifier.
+                panel->addSetting(tr("Type posé"), m_wireTypeSelector);
             }
         }
     }

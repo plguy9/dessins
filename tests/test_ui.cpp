@@ -4233,6 +4233,360 @@ QPlainTextEdit *historiqueDe(CommandLine *command)
 
 } // namespace
 
+namespace {
+
+// Les boutons d'un panneau de ruban, gros et petits.
+QList<QToolButton *> boutonsDe(RibbonPanel *panel)
+{
+    QList<QToolButton *> out;
+    for (QToolButton *b : panel->findChildren<QToolButton *>()) {
+        if (b->defaultAction())
+            out.append(b);
+    }
+    return out;
+}
+
+QToolButton *boutonDuRuban(Ribbon *ribbon, const QString &libelle)
+{
+    for (int i = 0; i < ribbon->pageCount(); ++i) {
+        for (RibbonPanel *panel : ribbon->page(i)->panels()) {
+            for (QToolButton *b : boutonsDe(panel)) {
+                QString cle = b->defaultAction()->text();
+                cle.remove(QLatin1Char('&'));
+                cle.remove(QStringLiteral("…"));
+                if (cle.trimmed() == libelle)
+                    return b;
+            }
+        }
+    }
+    return nullptr;
+}
+
+// Le nombre de pixels encres dans une zone d'un widget.
+int encreDans(QWidget *widget, const QRect &zone, const QColor &fond, int tolerance = 14)
+{
+    const QImage image = widget->grab().toImage();
+    int compte = 0;
+    for (int y = zone.top(); y <= zone.bottom(); ++y) {
+        if (y < 0 || y >= image.height())
+            continue;
+        for (int x = zone.left(); x <= zone.right(); ++x) {
+            if (x < 0 || x >= image.width())
+                continue;
+            const QColor c = image.pixelColor(x, y);
+            if (std::abs(c.red() - fond.red()) > tolerance
+                || std::abs(c.green() - fond.green()) > tolerance
+                || std::abs(c.blue() - fond.blue()) > tolerance)
+                ++compte;
+        }
+    }
+    return compte;
+}
+
+} // namespace
+
+TEST_CASE("Un bouton de ruban imprime l'alias à taper", "[ui][ruban][alias]")
+{
+    // LE VRAI DEFAUT DE L'ONGLET ACCUEIL : quarante commandes en icône de
+    // vingt pixels, sans étiquette. Le dépôt refusait déjà deux glyphes
+    // identiques, mais l'unicité n'est pas la reconnaissance — deux dessins
+    // différents restent indiscernables à vingt pixels, ce qui est le cas des
+    // huit icônes du panneau FILS. Étiqueter ne tient pas : il faudrait
+    // 2 762 px de ruban pour l'onglet Accueil, on en a 1 720. L'alias, lui,
+    // coûte zéro pixel de large.
+    //
+    // Le test compte l'encre dans la bande du bas : c'est la seule mesure qui
+    // distingue un alias peint d'un alias qu'on a seulement posé en propriété.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 8; ++i)
+        QCoreApplication::processEvents();
+
+    Ribbon *ribbon = window.findChild<Ribbon *>();
+    REQUIRE(ribbon);
+
+    QToolButton *jonction = boutonDuRuban(ribbon, QStringLiteral("Jonction"));
+    REQUIRE(jonction);
+    REQUIRE(jonction->defaultAction()->property("aliases").toStringList().first()
+            == QStringLiteral("J"));
+
+    // On mesure la DIFFERENCE que fait l'alias, pas l'encre absolue : l'icone
+    // occupe deja la case, et un fond suppose serait faux — un bouton du
+    // ruban est peint sur la page, pas sur la fenetre.
+    const QRect bande(0, jonction->height() - 9, jonction->width(), 8);
+    const QImage avec = jonction->grab().toImage();
+
+    const QVariant garde = jonction->defaultAction()->property("aliases");
+    jonction->defaultAction()->setProperty("aliases", QVariant());
+    jonction->update();
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+    const QImage sans = jonction->grab().toImage();
+    jonction->defaultAction()->setProperty("aliases", garde);
+    jonction->update();
+
+    int differents = 0;
+    for (int y = bande.top(); y <= bande.bottom(); ++y) {
+        for (int x = bande.left(); x < bande.right(); ++x) {
+            if (avec.pixel(x, y) != sans.pixel(x, y))
+                ++differents;
+        }
+    }
+    // Sans le correctif, les deux images sont identiques : le « J » n'a
+    // jamais ete peint.
+    CAPTURE(differents);
+    CHECK(differents > 3);
+}
+
+TEST_CASE("Un alias imprimé vient du registre, jamais d'une invention",
+          "[ui][ruban][alias]")
+{
+    // C'est le seul point où ce mouvement perdrait toute sa valeur : un alias
+    // inventé enseigne un nom que la ligne de commande refuse. Chaque marque
+    // affichée doit donc se retrouver telle quelle dans le registre — et ce
+    // doit être LA PLUS COURTE, celle qui coûte le moins de frappes et la
+    // seule qui tienne dans le coin d'une case de vingt pixels.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+
+    Ribbon *ribbon = window.findChild<Ribbon *>();
+    CommandLine *command = window.findChild<CommandLine *>();
+    REQUIRE(ribbon);
+    REQUIRE(command);
+
+    // Tous les alias du registre.
+    QSet<QString> connus;
+    for (const CommandDefinition &c : command->commands()) {
+        for (const QString &alias : c.aliases)
+            connus.insert(alias);
+    }
+    REQUIRE(connus.size() > 60);
+
+    int marques = 0;
+    for (int i = 0; i < ribbon->pageCount(); ++i) {
+        for (RibbonPanel *panel : ribbon->page(i)->panels()) {
+            for (QToolButton *b : boutonsDe(panel)) {
+                const QStringList aliases =
+                        b->defaultAction()->property("aliases").toStringList();
+                if (aliases.isEmpty())
+                    continue;
+                ++marques;
+                for (const QString &alias : aliases) {
+                    INFO("commande " << b->defaultAction()->text().toStdString()
+                         << " alias " << alias.toStdString());
+                    CHECK(connus.contains(alias));
+                }
+            }
+        }
+    }
+    // Le pont entre le registre et les actions ne peut pas pourrir en
+    // silence : s'il se vide, ce compte s'effondre.
+    CAPTURE(marques);
+    CHECK(marques > 60);
+
+    // Et la table de contrôle du paquet de design, telle quelle.
+    const QList<QPair<QString, QString>> controle = {
+        { QStringLiteral("Jonction"), QStringLiteral("J") },
+        { QStringLiteral("Étiquette"), QStringLiteral("ET") },
+        { QStringLiteral("Renvoi de folio"), QStringLiteral("RV") },
+        { QStringLiteral("Étiquette de potentiel"), QStringLiteral("PT") },
+        { QStringLiteral("Fil"), QStringLiteral("L") },
+        { QStringLiteral("Pivoter"), QStringLiteral("RO") },
+        { QStringLiteral("Décaler"), QStringLiteral("DC") },
+        { QStringLiteral("Ajuster"), QStringLiteral("AJ") },
+        { QStringLiteral("Prolonger"), QStringLiteral("PR") },
+        { QStringLiteral("Réseau"), QStringLiteral("RE") },
+        { QStringLiteral("Surfer les renvois"), QStringLiteral("SF") },
+        { QStringLiteral("Éditer le composant"), QStringLiteral("EDC") },
+        { QStringLiteral("Éditeur de borniers"), QStringLiteral("BO") },
+        { QStringLiteral("Repérage automatique"), QStringLiteral("RN") },
+    };
+    for (const auto &paire : controle) {
+        QToolButton *b = boutonDuRuban(ribbon, paire.first);
+        INFO("libelle " << paire.first.toStdString());
+        REQUIRE(b);
+        const QStringList aliases = b->defaultAction()->property("aliases").toStringList();
+        REQUIRE(!aliases.isEmpty());
+        INFO("attendu " << paire.second.toStdString() << " obtenu "
+             << aliases.first().toStdString());
+        // Le premier du registre : c'est celui que le bouton imprime des lors
+        // qu'il tient dans la case.
+        CHECK(aliases.first() == paire.second);
+    }
+}
+
+TEST_CASE("Le nom du panneau coiffe ses boutons", "[ui][ruban]")
+{
+    // Le nom était gravé SOUS les boutons : on balayait les icônes, puis on
+    // lisait dessous pour savoir ce qu'on venait de survoler. Au-dessus, il
+    // dit où chercher avant qu'on ait cherché — c'est la force du ruban, et
+    // c'est la grammaire du cadre d'une planche : « CHAMP | BOÎTE DE
+    // JONCTION | CABINET ».
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 8; ++i)
+        QCoreApplication::processEvents();
+
+    Ribbon *ribbon = window.findChild<Ribbon *>();
+    REQUIRE(ribbon);
+    RibbonPanel *fils = nullptr;
+    for (RibbonPanel *panel : ribbon->page(0)->panels()) {
+        if (panel->title() == QStringLiteral("Fils"))
+            fils = panel;
+    }
+    REQUIRE(fils);
+
+    QLabel *bandeau = nullptr;
+    for (QLabel *label : fils->findChildren<QLabel *>()) {
+        if (label->property("zoneBand").toBool())
+            bandeau = label;
+    }
+    REQUIRE(bandeau);
+    CHECK(bandeau->text() == QStringLiteral("FILS"));
+    CHECK(bandeau->height() == Ribbon::kZoneBandHeight);
+
+    // Au-DESSUS de tous les boutons du panneau.
+    const QList<QToolButton *> boutons = boutonsDe(fils);
+    REQUIRE(!boutons.isEmpty());
+    for (QToolButton *b : boutons) {
+        const QPoint dansPanneau = b->mapTo(fils, QPoint(0, 0));
+        CAPTURE(b->defaultAction()->text());
+        CHECK(dansPanneau.y() >= bandeau->y() + bandeau->height());
+    }
+
+    // Et il est FILETÉ en haut et en bas : c'est ce qui en fait une bande de
+    // cadre plutôt qu'une étiquette posée.
+    const QImage image = bandeau->grab().toImage();
+    const QColor filet = Theme::colors().border;
+    const auto estFilet = [&](int y) {
+        int compte = 0;
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor c = image.pixelColor(x, y);
+            if (std::abs(c.red() - filet.red()) <= 10 && std::abs(c.green() - filet.green()) <= 10
+                && std::abs(c.blue() - filet.blue()) <= 10)
+                ++compte;
+        }
+        return compte;
+    };
+    CHECK(estFilet(0) > image.width() / 2);
+    CHECK(estFilet(image.height() - 1) > image.width() / 2);
+}
+
+TEST_CASE("Le ruban ne réserve rien pour un ascenseur absent", "[ui][ruban]")
+{
+    // Treize pixels étaient pris au dessin EN PERMANENCE pour une barre de
+    // défilement qui n'apparaît que sur une fenêtre étroite. La réserve est
+    // désormais payée quand l'ascenseur arrive, et pas avant.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 8; ++i)
+        QCoreApplication::processEvents();
+
+    Ribbon *ribbon = window.findChild<Ribbon *>();
+    REQUIRE(ribbon);
+
+    CHECK(ribbon->scrollReserve() == 0);
+    CHECK(ribbon->sizeHint().height() == Ribbon::kTabHeight + Ribbon::kPanelHeight);
+    // Le nom gravé est en haut : la barre, quand elle vient, ne peut plus le
+    // rogner — c'est la raison pour laquelle la réserve peut tomber à zéro.
+    CHECK(Ribbon::kScrollAllowance == 0);
+
+    // Étroit : l'ascenseur arrive et le ruban paie sa hauteur, une fois.
+    window.resize(1000, 900);
+    for (int i = 0; i < 8; ++i)
+        QCoreApplication::processEvents();
+    CHECK(ribbon->scrollReserve() > 0);
+    CHECK(ribbon->sizeHint().height()
+          == Ribbon::kTabHeight + Ribbon::kPanelHeight + ribbon->scrollReserve());
+
+    window.resize(1560, 980);
+    for (int i = 0; i < 8; ++i)
+        QCoreApplication::processEvents();
+    CHECK(ribbon->scrollReserve() == 0);
+}
+
+TEST_CASE("Deux icônes d'un même panneau ne se ressemblent pas", "[ui][ruban][icones]")
+{
+    // Le garde-fou qui manquait. Le dépôt refusait déjà deux glyphes
+    // IDENTIQUES, mais deux dessins différents peuvent rester indiscernables
+    // à vingt pixels — c'est exactement ce qui arrivait aux huit icônes du
+    // panneau FILS. Le test compare les SILHOUETTES, panneau par panneau :
+    // c'est là que l'œil compare, et nulle part ailleurs.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+
+    Ribbon *ribbon = window.findChild<Ribbon *>();
+    REQUIRE(ribbon);
+
+    const auto silhouette = [](const QIcon &icon) {
+        QPixmap pixmap(Ribbon::kSmallIcon, Ribbon::kSmallIcon);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        icon.paint(&painter, QRect(0, 0, Ribbon::kSmallIcon, Ribbon::kSmallIcon));
+        painter.end();
+        const QImage image = pixmap.toImage().convertToFormat(QImage::Format_ARGB32);
+        QVector<bool> bits;
+        bits.reserve(image.width() * image.height());
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x)
+                bits.append(qAlpha(image.pixel(x, y)) > 24);
+        }
+        return bits;
+    };
+
+    int compares = 0;
+    for (int pi = 0; pi < ribbon->pageCount(); ++pi) {
+        for (RibbonPanel *panel : ribbon->page(pi)->panels()) {
+            QList<QPair<QString, QVector<bool>>> formes;
+            for (QToolButton *b : boutonsDe(panel)) {
+                if (b->defaultAction()->icon().isNull())
+                    continue;
+                formes.append({ b->defaultAction()->text(), silhouette(b->defaultAction()->icon()) });
+            }
+            for (int a = 0; a < formes.size(); ++a) {
+                for (int c = a + 1; c < formes.size(); ++c) {
+                    const QVector<bool> &x = formes.at(a).second;
+                    const QVector<bool> &y = formes.at(c).second;
+                    int commun = 0;
+                    int total = 0;
+                    for (int k = 0; k < x.size(); ++k) {
+                        if (x.at(k) || y.at(k))
+                            ++total;
+                        if (x.at(k) && y.at(k))
+                            ++commun;
+                    }
+                    if (total == 0)
+                        continue;
+                    ++compares;
+                    const double part = double(commun) / double(total);
+                    // UNE paire est voulue, et elle se declare : « Trait
+                    // continu » et « Trait pointillé » sont le MEME objet dans
+                    // deux etats, comme les marqueurs d'accrochage. Leur
+                    // donner deux dessins ferait croire a deux commandes.
+                    const QString paire = formes.at(a).first + formes.at(c).first;
+                    if (paire.contains(QStringLiteral("Trait"))
+                        && paire.count(QStringLiteral("Trait")) == 2)
+                        continue;
+                    INFO(panel->title().toStdString() << " : "
+                         << formes.at(a).first.toStdString() << " vs "
+                         << formes.at(c).first.toStdString() << " = " << part);
+                    CHECK(part < 0.92);
+                }
+            }
+        }
+    }
+    CHECK(compares > 100);
+}
+
 TEST_CASE("Les quatre voix de la ligne de commande ne se confondent pas",
           "[ui][ligne-de-commande]")
 {

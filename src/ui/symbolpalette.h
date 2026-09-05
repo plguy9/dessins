@@ -27,6 +27,7 @@
 #include <QWidget>
 
 class QComboBox;
+class QLabel;
 class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
@@ -60,6 +61,18 @@ public:
     // la recherche et la categorie ont retenu.
     int visibleCount() const;
 
+    // Combien de vignettes tiennent A L'ECRAN, sans faire defiler. C'est le
+    // vrai chiffre de la densite — `visibleCount` compte ce que le filtre a
+    // retenu, pas ce que l'oeil voit. Publique pour qu'un test verrouille le
+    // gain au lieu de compter des pixels.
+    int gridCapacity() const;
+
+    // La bande des recents : ce qu'on repose toute la journee, en permanence
+    // au-dessus de la grille plutot qu'en categorie a choisir. Sur cent trois
+    // symboles dont on en repose dix, c'est le raccourci le plus rentable du
+    // panneau — et `noteUsed` l'alimentait deja sans que rien ne le montre.
+    int recentVisibleCount() const;
+
     // Apercu d'une definition, dessine avec le meme peintre que le canevas.
     static QIcon renderIcon(const SymbolDefinition &definition, int pixels,
                             const RenderStyle &style);
@@ -77,6 +90,7 @@ protected:
     // reprendre la souris entre chaque symbole, ce qui est exactement ce qu'on
     // fait cent fois par jour.
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void rebuildCategories();
@@ -88,10 +102,21 @@ private:
     QStringList m_recent;
     bool m_grid = true;
 
+    void rebuildRecent();
+    void refreshSelectionCard();
+
     QLineEdit *m_search = nullptr;
     QComboBox *m_category = nullptr;
     QToolButton *m_viewToggle = nullptr;
     QListWidget *m_list = nullptr;
+    // La bande des recents, une rangee, au-dessus de la grille.
+    QWidget *m_recentBand = nullptr;
+    QListWidget *m_recentList = nullptr;
+    QLabel *m_allBand = nullptr;
+    // La case de selection, en bas : elle repond a la question que la grille
+    // pose forcement — « quelle variante ai-je ? » — et qui coute un survol.
+    QLabel *m_pickName = nullptr;
+    QLabel *m_pickDetail = nullptr;
 };
 
 } // namespace dsn

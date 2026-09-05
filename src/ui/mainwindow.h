@@ -24,6 +24,7 @@ namespace dsn {
 
 class DockTitle;
 class DockRail;
+class FolioTabs;
 
 // Ce qui rend une commande IMPOSSIBLE — jamais « ce que l'utilisateur a oublie
 // de faire ». La nuance est tout le bloc A : une commande qui a besoin d'objets
@@ -248,6 +249,8 @@ private:
     // Le rail des panneaux tasses, colle au bord gauche du canevas : c'est la
     // que la fleche reste pour ramener un panneau ferme.
     DockRail *m_rail = nullptr;
+    // Les onglets de page, au pied du dessin.
+    FolioTabs *m_folioTabs = nullptr;
 
     // Les cases de la barre d'etat. Chacune ne detient que sa VALEUR : le
     // libelle grave est pose une fois pour toutes et ne change jamais.

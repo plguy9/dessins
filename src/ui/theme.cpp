@@ -6,6 +6,8 @@
 #include <QFontInfo>
 #include <QHash>
 #include <QPainter>
+#include <QStandardPaths>
+#include <QDir>
 #include <QPainterPath>
 #include <QPalette>
 #include <QPixmap>
@@ -172,6 +174,43 @@ public:
         return QProxyStyle::pixelMetric(metric, option, widget);
     }
 };
+
+// LE CHEVRON D'UNE LISTE DEROULANTE, dessine puis pose sur le disque.
+//
+// Des qu'une feuille de style pose un fond ou une bordure sur un QComboBox,
+// Qt cesse de dessiner la fleche du style natif : toutes les combos du
+// logiciel se mettent a ressembler a un titre pose, et personne ne pense a
+// cliquer dessus. Le sous-ensemble CSS de Qt ne sait pas tracer un triangle
+// de bordures — verifie a l'oeil, il rend un rectangle plein — et
+// `down-arrow` n'accepte qu'une IMAGE. On dessine donc la notre, une fois par
+// theme, dans le cache du poste.
+//
+// Si l'ecriture echoue (poste en lecture seule), on n'ecrit pas de regle : la
+// combo garde l'aspect qu'elle avait, sans fleche. C'est une degradation, pas
+// une panne.
+QString arrowFile(const ThemeColors &c)
+{
+    const QString directory = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    if (directory.isEmpty())
+        return QString();
+    QDir().mkpath(directory);
+    const QString path = QDir(directory).filePath(c.dark ? QStringLiteral("chevron-sombre.png")
+                                                         : QStringLiteral("chevron-clair.png"));
+
+    QImage image(18, 18, QImage::Format_ARGB32);
+    image.fill(Qt::transparent);
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(QPen(c.textMuted, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    QPainterPath path2;
+    path2.moveTo(6.0, 7.5);
+    path2.lineTo(9.0, 10.5);
+    path2.lineTo(12.0, 7.5);
+    painter.drawPath(path2);
+    painter.end();
+
+    return image.save(path, "PNG") ? path : QString();
+}
 
 QString styleSheet(const ThemeColors &c)
 {
@@ -367,6 +406,23 @@ QLineEdit[commandInput="true"]:focus {
     background: transparent;
     border: none;
 }
+
+/* LE CHEVRON D'UNE LISTE DEROULANTE. Des qu'une feuille de style pose un
+   fond ou une bordure sur un QComboBox, Qt cesse de dessiner la fleche du
+   style natif : la combo se met a ressembler a un titre pose plutot qu'a un
+   controle, et personne ne pense a cliquer dessus. On la redessine donc, en
+   sous-controle sans lui donner d'image : styler `drop-down` seul rend a Qt
+   sa fleche native, alors qu'y poser un `down-arrow` la remplace par un
+   rectangle — le sous-ensemble CSS de Qt ne sait pas tracer un triangle de
+   bordures, et le verifier a l'oeil est la seule facon de le savoir. */
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+    width: 18px;
+    border: none;
+    background: transparent;
+}
+QComboBox::down-arrow { image: url(%ARROW%); width: 18px; height: 18px; }
 
 QLineEdit:disabled, QComboBox:disabled { color: %FAINT%; background: %WINDOW%; }
 QLineEdit[readOnly="true"] { color: %MUTED%; background: %WINDOW%; }
@@ -604,6 +660,48 @@ QToolButton[ribbonLarge="true"] {
     min-height: 0;
     font-size: 8.5pt;
 }
+/* LA GRILLE DE SYMBOLES : aucun cadre, un survol en aplat leger, et surtout
+   AUCUN APLAT D'ACCENT sur la selection — un filet suffit (regle 3). Un aplat
+   bleu derriere une vignette au trait la rend illisible, et c'est justement la
+   vignette qu'on est venu regarder. */
+QListWidget[symbolGrid="true"] {
+    background: transparent;
+    border: none;
+    outline: none;
+    /* Le rembourrage de la regle generale vaut trois pixels de chaque cote, et
+       la MARGE d'un item trois de plus : douze pixels en tout, soit exactement
+       la colonne de vignettes qui manquait. Une grille se cale au pixel, une
+       liste de noms respire — les deux ne veulent pas le meme reglage. */
+    padding: 0;
+}
+QListWidget[symbolGrid="true"]::item {
+    border-radius: 3px;
+    padding: 0;
+    margin: 0;
+}
+QListWidget[symbolGrid="true"]::item:hover { background: %HOVER%; }
+QListWidget[symbolGrid="true"]::item:selected {
+    background: transparent;
+    border: 1px solid %ACCENT%;
+}
+
+/* La case de selection de la palette, en grammaire de cartouche : le nom au
+   premier niveau d'encre, la norme et les broches au deuxieme. */
+QLabel[pickName="true"] { color: %TEXT%; background: transparent; }
+QLabel[pickDetail="true"] { color: %MUTED%; background: transparent; }
+
+/* Les boutons de la bande d'onglets de folio : ajouter une page, deplier les
+   vignettes. Taille fixe, donc regle propre — le rembourrage general d'un
+   QToolButton mangerait l'icone (piege paye trois fois). */
+QToolButton[folioTabButton="true"] {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 2px;
+}
+QToolButton[folioTabButton="true"]:hover { background: %HOVER%; }
+QToolButton[folioTabButton="true"]:checked { background: %ACCENTSOFT%; }
+
 /* LE BANDEAU DE ZONE d'un panneau de ruban : filets en haut et en bas, aucun
    fond, aucun rayon. Les filets verticaux entre panneaux sont peints par
    PanelSeparator et traversent la bande ET la rangee de boutons, comme les
@@ -714,6 +812,7 @@ QProgressBar {
 }
 QProgressBar::chunk { background: %ACCENT%; border-radius: 3px; }
 )")
+            .replace(QStringLiteral("%ARROW%"), arrowFile(c))
             .replace(QStringLiteral("%CANVAS%"), hex(c.canvas))
             .replace(QStringLiteral("%WINDOW%"), hex(c.window))
             .replace(QStringLiteral("%SURFACE%"), hex(c.surface))

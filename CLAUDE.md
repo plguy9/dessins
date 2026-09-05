@@ -272,8 +272,10 @@ Et ce qui distingue toujours notre interface de celle d'AutoCAD :
   moyen visible de rendre la place au dessin. Chaque panneau porte donc sa
   barre de titre — nom gravé, filet dessous, chevron de repli — et
   l'infobulle du bouton **dit le raccourci qui le ramène**. Les commandes
-  d'affichage (Ctrl+3, Ctrl+4) sont devenues des **bascules cochées**, si
-  bien que le ruban montre d'un coup d'œil ce qui est ouvert.
+  d'affichage (Ctrl+3, Ctrl+9) sont devenues des **bascules cochées**, si
+  bien que le ruban montre d'un coup d'œil ce qui est ouvert. Ctrl+4 en est
+  une aussi, mais elle ne montre plus un panneau : elle déplie la bande de
+  vignettes sous les onglets de folio (refonte 05, plus bas).
 - **Un rail sur le bord garde la flèche** (`ui/dockrail.*`, décision
   utilisateur, 2026-09-02 : *« la flèche doit rester pour pouvoir la
   rouvrir ? »*). Le chevron qui tasse un panneau vit dans **sa** barre de
@@ -336,17 +338,20 @@ Et ce qui distingue toujours notre interface de celle d'AutoCAD :
 - **`ui/symbolpalette.*` — une grille de vignettes, pas une liste** (décision
   utilisateur, 2026-09-02 : *« plus discret, cela prend trop de place »*). En
   liste à une colonne, cinq symboles sur cent trois étaient visibles :
-  chercher voulait dire faire défiler. La grille en montre vingt-quatre dans
-  un panneau **plus étroit** (250 px au lieu de 320) — c'est l'*Icon Menu*
+  chercher voulait dire faire défiler. La grille en montrait vingt-quatre dans
+  un panneau **plus étroit** (250 px au lieu de 320), et **soixante** depuis
+  qu'elle a la colonne pour elle seule (refonte 05) — c'est l'*Icon Menu*
   d'AutoCAD Electrical, et c'est le bon modèle parce qu'on reconnaît un
   symbole à sa forme plus vite qu'à son nom. Trois conséquences : le nom passe
   dans l'infobulle (« Disjoncteur magnétothermique tripolaire » tronqué à huit
   caractères n'apprend rien et double la hauteur de chaque case) ; la
   recherche et la catégorie tiennent sur une seule ligne ; la liste des noms
   reste disponible d'un bouton, et le choix est retenu.
-  Une catégorie **Récemment utilisés** est alimentée par `noteUsed`, appelée
-  sur `componentPlaced` — donc par ce qui est **réellement posé**, jamais par
-  ce qui est seulement sélectionné dans la palette.
+  Les **récents** sont alimentés par `noteUsed`, appelée sur
+  `componentPlaced` — donc par ce qui est **réellement posé**, jamais par ce
+  qui est seulement sélectionné dans la palette. Ils étaient une catégorie à
+  choisir ; ils sont une **bande permanente** au-dessus de la grille depuis la
+  refonte 05.
 - **Pas de panneau de propriétés ancré** (décision utilisateur, 2026-09-02 :
   *« elles ne servent à rien et prennent trop de place »*). Le bandeau de
   droite occupait la fenêtre en permanence pour un réglage qu'on ne fait que
@@ -631,6 +636,68 @@ du bouton de repli. Il ne le fait pas : `setIconSize` **fixe** la taille de
 l'icône, et Qt la dessine à cette taille quelle que soit la boîte de contenu.
 Le test écrit pour le tenir passait avec le rembourrage porté à 20 px — il ne
 prouvait rien, et il a été **retiré** plutôt qu'assoupli.
+
+**La palette a la colonne, les folios sont des pages** (refonte 2026-09-05,
+`design/etapes/05-palette-et-folios.md`). Deux objets sans rapport se
+partageaient les 250 px de gauche : la palette de symboles, qui est un
+**outil** — le panneau le plus sollicité de la journée — et le navigateur de
+folios, qui est de la **navigation de document**. Le navigateur prenait 193 px
+de large pour montrer, sur le projet d'exemple, un folio et beaucoup de vide.
+Quatre décisions :
+
+1. **Un folio est une page : sa place est l'onglet, pas la colonne.**
+   `ui/foliotabs.*` pose une bande de 28 px sous le canevas — 193 px rendus au
+   dessin — et sur un dossier de trente pages une bande horizontale se
+   parcourt à l'œil quand une colonne se parcourt à l'ascenseur. Chaque onglet
+   porte **deux niveaux d'encre**, comme une case de cartouche : le numéro en
+   chasse fixe au troisième, le titre au premier. L'actif se distingue par un
+   **filet d'accent de 2 px** du côté du canevas et rien d'autre — le même
+   motif que l'onglet de ruban actif et que la bascule d'état en marche :
+   trois endroits, une seule chose à apprendre. La barre est peinte à la main
+   parce qu'un `QTabBar` ne porte qu'un texte, jamais deux encres.
+2. **Les vignettes ne partent pas, elles se déplient.** `FolioNavigator` est
+   conservé tel quel et devient le contenu du tiroir (126 px, Ctrl+4). La
+   vignette reste le vrai rendu du folio — c'est ce qui permet de retrouver la
+   bonne page d'un coup d'œil plutôt qu'en lisant trente titres — et c'est là
+   que les rapports viendront se poser comme folios calculés (étape 07).
+3. **La barre ne détient rien, elle relit** — comme le ruban. Et elle relit
+   **à chaque commande**, pas seulement sur `folioListChanged` : ce signal
+   n'est émis qu'à l'ouverture, au projet neuf et à l'annulation, et le
+   navigateur était rafraîchi **à la main depuis cinq endroits** de la
+   fenêtre. Un sixième aurait fini par manquer. Le cas qui le démontre est le
+   **renommage** : il passe par une commande sans changer ni la liste ni la
+   page courante, et sans la relecture l'onglet gardait l'ancien titre jusqu'au
+   prochain changement de page. C'est pour lui que `FolioTabs::tabTitle`
+   existe — `tabCount` ne voit rien d'un folio renommé.
+4. **Les récents sortent des catégories.** `noteUsed` et `recentCategory`
+   existaient déjà et **rien ne les montrait** : il fallait ouvrir la liste
+   déroulante pour atteindre ce qu'on repose toute la journée. Sur cent trois
+   symboles dont on en repose dix, c'est le raccourci le plus rentable du
+   panneau ; il est maintenant une bande permanente d'une rangée, coiffée de
+   son nom gravé, et elle **se masque quand elle est vide** — une bande vide
+   enseignerait qu'il n'y a rien à y mettre.
+
+**Mesuré : 24 vignettes visibles → 60**, cinq colonnes au lieu de quatre. Le
+gain ne vient pas que de la place rendue : la cellule passe de 48 à 40 px, et
+c'est un test qui le tient (`SymbolPalette::gridCapacity`, publique et pure
+pour qu'il lise la règle au lieu de compter des pixels).
+
+**Trois pièges de Qt, payés ici.**
+
+- **Une `QComboBox` stylée perd sa flèche native**, et le sous-ensemble CSS de
+  Qt ne sait pas dessiner un triangle par bordures — il rend un **rectangle
+  plein**. La combo de catégorie ressemblait à un titre, pas à un contrôle.
+  `Theme::arrowFile()` dessine donc un chevron dans un PNG de cache, un par
+  thème, et la feuille de style le pose en `image:`. Si l'écriture échoue, la
+  règle n'est pas posée du tout : mieux vaut la flèche par défaut qu'un carré.
+- **Le rembourrage d'une feuille de style mange la grille.** La règle générale
+  `QListWidget { padding: 3px }` et `::item { margin: 1px 3px }` coûtaient
+  12 px de large — assez pour retenir la grille à quatre colonnes quelle que
+  soit la taille de cellule. C'est le **quatrième** avatar du même piège ; la
+  règle `[symbolGrid]` remet les deux à plat explicitement.
+- **`QListWidget::frameWidth()` rend le rembourrage de la feuille de style**,
+  pas le cadre posé par `setFrameShape`. Compter sur lui pour calculer la
+  capacité donnait un chiffre faux ; la mesure se fait sur `visualItemRect`.
 
 **`MainWindow::buildRenderStyle()` est le seul endroit qui construit un style
 de rendu d'écran.** Sept endroits le faisaient chacun à sa façon — le canevas,

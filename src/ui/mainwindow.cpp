@@ -2,6 +2,7 @@
 
 #include "findreplacedialog.h"
 #include "folionavigator.h"
+#include "foliotabs.h"
 #include "io/csvexport.h"
 #include "io/dsnfile.h"
 #include "io/dxfexport.h"
@@ -175,8 +176,27 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     centreLayout->setSpacing(0);
     m_rail = new DockRail(centre);
     centreLayout->addWidget(m_rail);
-    centreLayout->addWidget(m_view, 1);
+
+    // Le canevas et les onglets de folio forment une colonne : un folio est
+    // une PAGE, et sa place est celle d'un onglet de classeur au pied du
+    // dessin, pas celle d'une colonne laterale de 193 px partagee avec la
+    // palette de symboles.
+    auto *sheetColumn = new QWidget(centre);
+    auto *sheetLayout = new QVBoxLayout(sheetColumn);
+    sheetLayout->setContentsMargins(0, 0, 0, 0);
+    sheetLayout->setSpacing(0);
+    sheetLayout->addWidget(m_view, 1);
+    m_folioTabs = new FolioTabs(m_document, sheetColumn);
+    m_navigator = m_folioTabs->navigator();
+    sheetLayout->addWidget(m_folioTabs);
+    centreLayout->addWidget(sheetColumn, 1);
     setCentralWidget(centre);
+
+    connect(m_folioTabs, &FolioTabs::folioChosen, this, [this](const QString &folioId) {
+        const int index = m_document->project().indexOf(folioId);
+        if (index >= 0)
+            m_document->setCurrentFolioIndex(index);
+    });
     connect(m_rail, &DockRail::openRequested, this,
             [this](QDockWidget *dock) { setDockVisible(dock, true); });
 
@@ -311,12 +331,6 @@ void MainWindow::createDocks()
     paletteDock->setWidget(m_palette);
     addDockWidget(Qt::LeftDockWidgetArea, paletteDock);
 
-    auto *navigatorDock = new QDockWidget(tr("Folios").toUpper(), this);
-    navigatorDock->setObjectName(QStringLiteral("dock.folios"));
-    m_navigator = new FolioNavigator(m_document, navigatorDock);
-    navigatorDock->setWidget(m_navigator);
-    addDockWidget(Qt::LeftDockWidgetArea, navigatorDock);
-
     auto *reportDock = new QDockWidget(tr("Rapports").toUpper(), this);
     reportDock->setObjectName(QStringLiteral("dock.reports"));
     m_reports = new ReportPanel(m_document, reportDock);
@@ -342,8 +356,6 @@ void MainWindow::createDocks()
     const DockShortcut titled[] = {
         { paletteDock, QT_TR_NOOP("Symboles"),
           QT_TR_NOOP("Masquer la palette — le chevron du bord la ramène (Ctrl+3)") },
-        { navigatorDock, QT_TR_NOOP("Folios"),
-          QT_TR_NOOP("Masquer les folios — le chevron du bord les ramène (Ctrl+4)") },
         { reportDock, QT_TR_NOOP("Rapports"), QT_TR_NOOP("Masquer les rapports") },
     };
     for (const DockShortcut &entry : titled) {
@@ -362,7 +374,6 @@ void MainWindow::createDocks()
     // bord sans que personne ne l'ait ferme.
     m_rail->watch(paletteDock, tr("Symboles"),
                   tr("Rouvrir la palette de symboles (Ctrl+3)"));
-    m_rail->watch(navigatorDock, tr("Folios"), tr("Rouvrir la liste des folios (Ctrl+4)"));
 
     // Largeurs de depart. Les noms de symboles et les titres de folios sont
     // longs : un panneau trop etroit les tronque des le premier affichage.
@@ -372,10 +383,12 @@ void MainWindow::createDocks()
     // colonne. La largeur de depart n'est pas celle de la palette seule : le
     // navigateur de folios partage la meme colonne, et ses titres doivent
     // rester lisibles.
+    // La palette est SEULE dans sa colonne depuis que les folios sont
+    // descendus au pied du dessin : c'est le panneau le plus sollicite de la
+    // journee, et il gagne les 193 px que le navigateur prenait pour montrer
+    // un folio et beaucoup de vide.
     paletteDock->setMinimumWidth(200);
-    navigatorDock->setMinimumWidth(200);
-    resizeDocks({ paletteDock }, { 250 }, Qt::Horizontal);
-    resizeDocks({ paletteDock, navigatorDock }, { 3, 2 }, Qt::Vertical);
+    resizeDocks({ paletteDock }, { 230 }, Qt::Horizontal);
 
     m_commandDock = new QDockWidget(tr("Ligne de commande").toUpper(), this);
     m_commandDock->setObjectName(QStringLiteral("dock.command"));
@@ -926,6 +939,20 @@ void MainWindow::createActions()
     commandLineAction->setChecked(true);
     connect(m_commandDock, &QDockWidget::visibilityChanged, commandLineAction,
             &QAction::setChecked);
+    // Ctrl+4, le gestionnaire de jeu de feuilles d'AutoCAD. Les folios ne
+    // sont plus un panneau : la commande deplie la bande de vignettes sous
+    // les onglets de page, et la case cochee dit si elle est la.
+    QAction *folioStripAction =
+            make(viewMenu, G::Folios, tr("Vignettes de &folios"),
+                 QKeySequence(Qt::CTRL | Qt::Key_4),
+                 tr("Déplier les vignettes des pages sous les onglets"), [this] {
+                     m_folioTabs->setStripVisible(!m_folioTabs->stripVisible());
+                 });
+    folioStripAction->setCheckable(true);
+    folioStripAction->setChecked(m_folioTabs->stripVisible());
+    connect(m_folioTabs, &FolioTabs::stripVisibleChanged, folioStripAction,
+            &QAction::setChecked);
+
     viewMenu->addSeparator();
 
     // Raccourcis de palettes d'AutoCAD : Ctrl+1 les proprietes, Ctrl+3 les
@@ -947,8 +974,6 @@ void MainWindow::createActions()
     const PaletteShortcut palettes[] = {
         { QT_TR_NOOP("Palette de &symboles"), "dock.symbols", Qt::Key_3,
           QT_TR_NOOP("Ouvrir la bibliothèque de symboles"), G::Palette },
-        { QT_TR_NOOP("Navigateur de &folios"), "dock.folios", Qt::Key_4,
-          QT_TR_NOOP("Ouvrir la liste des pages du dossier"), G::Folios },
     };
     for (const PaletteShortcut &palette : palettes) {
         const QString name = QString::fromLatin1(palette.dock);

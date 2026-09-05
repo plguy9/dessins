@@ -5,6 +5,8 @@
 #include "theme.h"
 
 #include <QComboBox>
+#include <QFrame>
+#include <QLabel>
 #include <QKeyEvent>
 #include <QHBoxLayout>
 #include <QLineEdit>
@@ -13,6 +15,8 @@
 #include <QSettings>
 #include <QToolButton>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace dsn {
 
@@ -26,7 +30,16 @@ constexpr int kListIcon = 26;
 // La cellule est calee pour que quatre colonnes tiennent dans un panneau
 // etroit : trois colonnes laissaient une bande vide a droite, et c'est
 // justement la place qu'on cherchait a rendre au dessin.
-constexpr int kGridCell = 48;
+//
+// Elle a maigri de 48 a 40 px quand les folios ont quitte la colonne
+// (refonte 05) : moins d'air autour de chaque vignette, une cinquieme colonne,
+// et le glyphe lui-meme n'a pas bouge — c'est le vide qu'on a repris, pas le
+// dessin. Quarante-quatre laissait la cinquieme colonne sous l'ascenseur : la
+// largeur utile est celle du VIEWPORT, pas celle du panneau.
+constexpr int kGridCell = 40;
+// La bande des recents : une rangee, et rien de plus. Elle prend sa place sur
+// la grille, elle ne la repousse pas.
+constexpr int kRecentBandHeight = kGridCell + 2;
 constexpr int kIdRole = Qt::UserRole + 1;
 constexpr int kRecentLimit = 16;
 
@@ -71,7 +84,51 @@ SymbolPalette::SymbolPalette(QWidget *parent) : QWidget(parent)
     m_category = new QComboBox(this);
     layout->addWidget(m_category);
 
+    // LES RECENTS, EN BANDE PERMANENTE. Ils existaient deja — `noteUsed` les
+    // alimente et `recentCategory()` les range — mais il fallait aller les
+    // CHOISIR dans la liste des categories, ce qui coute autant que de
+    // chercher le symbole. Sur cent trois symboles dont on en repose dix
+    // toute la journee, c'est le raccourci le plus rentable du panneau.
+    m_recentBand = new QWidget(this);
+    auto *recentColumn = new QVBoxLayout(m_recentBand);
+    recentColumn->setContentsMargins(0, 0, 0, 0);
+    recentColumn->setSpacing(0);
+
+    auto *recentTitle = new QLabel(tr("RÉCENTS"), m_recentBand);
+    recentTitle->setProperty("zoneBand", true);
+    recentTitle->setContentsMargins(Theme::space(1), 0, Theme::space(1), 0);
+    Theme::engrave(recentTitle);
+    recentColumn->addWidget(recentTitle);
+
+    m_recentList = new QListWidget(m_recentBand);
+    m_recentList->setProperty("symbolGrid", true);
+    m_recentList->setViewMode(QListView::IconMode);
+    m_recentList->setIconSize(QSize(kGridIcon, kGridIcon));
+    m_recentList->setGridSize(QSize(kGridCell, kGridCell));
+    m_recentList->setMovement(QListView::Static);
+    m_recentList->setWrapping(false);
+    m_recentList->setSpacing(0);
+    m_recentList->setUniformItemSizes(true);
+    m_recentList->setFixedHeight(kRecentBandHeight);
+    m_recentList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_recentList->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_recentList->setSelectionMode(QAbstractItemView::NoSelection);
+    // Sans cadre : un QListWidget en pose un de trois pixels que « border:
+    // none » n'enleve pas — c'est le CADRE du widget, pas sa bordure de
+    // feuille de style. Six pixels de large, et c'est la colonne de trop.
+    m_recentList->setFrameShape(QFrame::NoFrame);
+    recentColumn->addWidget(m_recentList);
+    m_recentBand->hide();
+    layout->addWidget(m_recentBand);
+
+    m_allBand = new QLabel(tr("TOUS"), this);
+    m_allBand->setProperty("zoneBand", true);
+    m_allBand->setContentsMargins(Theme::space(1), 0, Theme::space(1), 0);
+    Theme::engrave(m_allBand);
+    layout->addWidget(m_allBand);
+
     m_list = new QListWidget(this);
+    m_list->setProperty("symbolGrid", true);
     m_list->setSelectionMode(QAbstractItemView::SingleSelection);
     m_list->setTextElideMode(Qt::ElideRight);
     m_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -79,7 +136,37 @@ SymbolPalette::SymbolPalette(QWidget *parent) : QWidget(parent)
     // pas des boites », et un damier derriere des vignettes transparentes
     // fait varier le fond d'un symbole a l'autre.
     m_list->setAlternatingRowColors(false);
+    // Sans cadre, pour la meme raison que la bande des recents : les trois
+    // pixels de cadre de chaque cote coutaient la cinquieme colonne.
+    m_list->setFrameShape(QFrame::NoFrame);
     layout->addWidget(m_list, 1);
+
+    // LA CASE DE SELECTION, en bas, en grammaire de cartouche. La grille pose
+    // forcement la question « quelle variante ai-je designee ? » — un contact
+    // NO et un contact NF se ressemblent a trente pixels — et y repondre
+    // coutait un survol. La case ne remplace pas le dessin, elle le confirme.
+    auto *pick = new QWidget(this);
+    auto *pickColumn = new QVBoxLayout(pick);
+    pickColumn->setContentsMargins(Theme::space(1), Theme::space(1), Theme::space(1),
+                                   Theme::space(1));
+    pickColumn->setSpacing(0);
+
+    auto *pickTitle = new QLabel(tr("SÉLECTION"), pick);
+    pickTitle->setProperty("zoneBand", true);
+    pickTitle->setContentsMargins(0, 0, 0, 0);
+    Theme::engrave(pickTitle);
+    pickColumn->addWidget(pickTitle);
+
+    m_pickName = new QLabel(pick);
+    m_pickName->setWordWrap(true);
+    m_pickName->setProperty("pickName", true);
+    pickColumn->addWidget(m_pickName);
+
+    m_pickDetail = new QLabel(pick);
+    m_pickDetail->setProperty("pickDetail", true);
+    m_pickDetail->setFont(Theme::monoFont(8));
+    pickColumn->addWidget(m_pickDetail);
+    layout->addWidget(pick);
 
     QSettings settings;
     m_grid = settings.value(kGridKey, true).toBool();
@@ -90,8 +177,19 @@ SymbolPalette::SymbolPalette(QWidget *parent) : QWidget(parent)
     connect(m_category, &QComboBox::currentIndexChanged, this, &SymbolPalette::rebuildList);
     connect(m_viewToggle, &QToolButton::toggled, this, [this](bool grid) { setGridMode(grid); });
     connect(m_list, &QListWidget::currentItemChanged, this, [this](QListWidgetItem *item) {
+        refreshSelectionCard();
         if (item)
             Q_EMIT symbolChosen(item->data(kIdRole).toString());
+    });
+    // La bande des recents ARME, elle ne selectionne pas : cliquer un recent
+    // doit poser le symbole, pas deplacer le curseur de la grille.
+    connect(m_recentList, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
+        if (item)
+            Q_EMIT symbolChosen(item->data(kIdRole).toString());
+    });
+    connect(m_recentList, &QListWidget::itemActivated, this, [this](QListWidgetItem *item) {
+        if (item)
+            Q_EMIT symbolActivated(item->data(kIdRole).toString());
     });
     connect(m_list, &QListWidget::itemActivated, this, [this](QListWidgetItem *item) {
         if (item)
@@ -100,6 +198,14 @@ SymbolPalette::SymbolPalette(QWidget *parent) : QWidget(parent)
     // La fleche vers le bas depuis la recherche entre dans la grille : on
     // tape trois lettres puis on descend, sans lacher le clavier.
     m_search->installEventFilter(this);
+}
+
+void SymbolPalette::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    // La bande des recents montre ce qui tient : sa largeur vient de changer,
+    // le nombre de vignettes aussi.
+    rebuildRecent();
 }
 
 bool SymbolPalette::eventFilter(QObject *watched, QEvent *event)
@@ -131,7 +237,12 @@ void SymbolPalette::applyViewMode()
         m_list->setResizeMode(QListView::Adjust);
         m_list->setMovement(QListView::Static);
         m_list->setWrapping(true);
-        m_list->setSpacing(2);
+        // AUCUN espacement : la grille en pose deja un, puisque la vignette
+        // occupe quatre pixels de moins que sa cellule. En ajouter deux de
+        // plus coutait la cinquieme colonne — Qt les compte de chaque cote,
+        // donc quatre pixels par cellule, et 210 px de viewport n'en portent
+        // plus que quatre.
+        m_list->setSpacing(0);
         m_list->setWordWrap(false);
         m_list->setUniformItemSizes(true);
     } else {
@@ -180,6 +291,87 @@ QString SymbolPalette::currentDefinitionId() const
 
 int SymbolPalette::visibleCount() const { return m_list->count(); }
 
+int SymbolPalette::gridCapacity() const
+{
+    // Ce que l'oeil voit sans faire defiler : colonnes x rangees de la grille
+    // dans la fenetre du panneau. `visibleCount` compte ce que le filtre a
+    // retenu — cent trois symboles tiennent dans le modele et cinq sur
+    // l'ecran, et c'est le second chiffre qui dit si le panneau sert.
+    if (!m_grid)
+        return m_list->viewport()->height()
+                / std::max(1, m_list->sizeHintForRow(0) > 0 ? m_list->sizeHintForRow(0)
+                                                            : kListIcon + 8);
+    const QSize cell = m_list->gridSize();
+    if (cell.width() <= 0 || cell.height() <= 0)
+        return 0;
+    // Qt garde deux pixels a gauche et un peu de reserve a droite : le calcul
+    // nu annoncait une colonne de plus que la grille n'en pose. Mesure faite
+    // sur visualItemRect, pas deduite.
+    const int columns = std::max(1, (m_list->viewport()->width() - 4) / cell.width());
+    const int rows = std::max(0, m_list->viewport()->height() / cell.height());
+    return columns * rows;
+}
+
+int SymbolPalette::recentVisibleCount() const
+{
+    return m_recentBand->isVisible() ? m_recentList->count() : 0;
+}
+
+void SymbolPalette::rebuildRecent()
+{
+    m_recentList->clear();
+    if (!m_library || m_recent.isEmpty()) {
+        m_recentBand->setVisible(false);
+        return;
+    }
+
+    RenderStyle style = MainWindow::buildRenderStyle();
+    const ThemeColors &c = Theme::colors();
+    style.symbol = c.text;
+    style.text = c.text;
+    style.frame = c.text;
+
+    // ON N'EN MONTRE QUE CE QUI TIENT. La bande ne defile pas — un ascenseur
+    // dans quarante-six pixels est illisible — donc un recent pose au-dela du
+    // bord serait injoignable, ce qui est pire que de ne pas le montrer. Les
+    // autres restent dans la categorie « Récemment utilisés ».
+    const int room = std::max(1, m_recentList->viewport()->width() / kGridCell);
+    for (const QString &id : std::as_const(m_recent)) {
+        if (m_recentList->count() >= room)
+            break;
+        const SymbolDefinition *definition = m_library->definition(id);
+        if (!definition)
+            continue;
+        auto *item = new QListWidgetItem(renderIcon(*definition, kGridIcon, style), QString(),
+                                         m_recentList);
+        item->setData(kIdRole, definition->id);
+        item->setSizeHint(QSize(kGridCell - 4, kGridCell - 4));
+        item->setToolTip(definition->name);
+    }
+    m_recentBand->setVisible(m_recentList->count() > 0);
+}
+
+void SymbolPalette::refreshSelectionCard()
+{
+    const QString id = currentDefinitionId();
+    const SymbolDefinition *definition = m_library ? m_library->definition(id) : nullptr;
+    if (!definition) {
+        // Rien de designe : la case se tait plutot que d'afficher un tiret et
+        // une ligne vide. Elle repond a une question qu'on n'a pas encore
+        // posee.
+        m_pickName->setText(QStringLiteral("\u2014"));
+        m_pickDetail->clear();
+        m_pickDetail->hide();
+        return;
+    }
+    m_pickDetail->show();
+    m_pickName->setText(definition->name);
+    // La norme et le nombre de broches : les deux choses qu'un dessinateur
+    // verifie avant de poser, et que la vignette seule ne dit pas.
+    m_pickDetail->setText(tr("%1  ·  %n broche(s)", "", int(definition->pins.size()))
+                                  .arg(definition->norm));
+}
+
 void SymbolPalette::noteUsed(const QString &definitionId)
 {
     if (definitionId.isEmpty())
@@ -189,6 +381,10 @@ void SymbolPalette::noteUsed(const QString &definitionId)
     while (m_recent.size() > kRecentLimit)
         m_recent.removeLast();
     QSettings().setValue(kRecentKey, m_recent);
+
+    // La bande des recents, elle, se refait toujours : c'est justement ce
+    // qu'elle est faite pour montrer.
+    rebuildRecent();
 
     // La liste ne se reconstruit que si c'est elle qu'on regarde : reordonner
     // sous les yeux de l'utilisateur ce qu'il vient de choisir lui ferait
@@ -232,7 +428,13 @@ void SymbolPalette::rebuildCategories()
     const QString previous = m_category->currentData().toString();
     m_category->blockSignals(true);
     m_category->clear();
-    m_category->addItem(tr("Toutes les catégories"), QString());
+    // La norme du projet en tete : « Tous les symboles — CEI » plutot que
+    // « Toutes les catégories », qui est vrai mais n'apprend rien. Un
+    // dessinateur qui ouvre le panneau doit voir a quelle norme il dessine.
+    m_category->addItem(tr("Tous les symboles — %1").arg(m_norm == QStringLiteral("IEC")
+                                                                 ? tr("CEI")
+                                                                 : m_norm),
+                        QString());
     // Les recents en tete : sur un depart moteur on repose les mêmes cinq
     // symboles, et les chercher a chaque fois est le vrai cout du panneau.
     m_category->addItem(tr("Récemment utilisés"), recentCategory());
@@ -318,6 +520,10 @@ void SymbolPalette::rebuildList()
             }
         }
     }
+
+    m_allBand->setText(tr("TOUS  ·  %1").arg(m_list->count()));
+    rebuildRecent();
+    refreshSelectionCard();
 }
 
 } // namespace dsn

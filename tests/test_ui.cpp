@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QAbstractButton>
@@ -36,6 +37,7 @@
 #include "core/titleblock.h"
 #include "ui/docktitle.h"
 #include "ui/document.h"
+#include "ui/foliotabs.h"
 #include "ui/folioview.h"
 #include "ui/symboleditor.h"
 #include "ui/appearance.h"
@@ -4262,28 +4264,239 @@ QToolButton *boutonDuRuban(Ribbon *ribbon, const QString &libelle)
     return nullptr;
 }
 
-// Le nombre de pixels encres dans une zone d'un widget.
-int encreDans(QWidget *widget, const QRect &zone, const QColor &fond, int tolerance = 14)
-{
-    const QImage image = widget->grab().toImage();
-    int compte = 0;
-    for (int y = zone.top(); y <= zone.bottom(); ++y) {
-        if (y < 0 || y >= image.height())
-            continue;
-        for (int x = zone.left(); x <= zone.right(); ++x) {
-            if (x < 0 || x >= image.width())
-                continue;
-            const QColor c = image.pixelColor(x, y);
-            if (std::abs(c.red() - fond.red()) > tolerance
-                || std::abs(c.green() - fond.green()) > tolerance
-                || std::abs(c.blue() - fond.blue()) > tolerance)
-                ++compte;
-        }
-    }
-    return compte;
-}
 
 } // namespace
+
+TEST_CASE("La palette montre soixante vignettes au lieu de vingt-quatre",
+          "[ui][palette]")
+{
+    // Deux panneaux tres differents partageaient une colonne de 200 px : la
+    // palette — un OUTIL, le panneau le plus sollicite de la journee — et le
+    // navigateur de folios, qui est de la NAVIGATION DE DOCUMENT. Le
+    // navigateur prenait 193 px pour montrer un folio et beaucoup de vide.
+    //
+    // `visibleCount` ne dit rien de cela : il compte ce que le filtre a
+    // retenu, cent trois symboles qui tiennent dans le modele. C'est
+    // `gridCapacity` — ce que l'oeil voit sans faire defiler — qui mesure si
+    // le panneau sert.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 8; ++i)
+        QCoreApplication::processEvents();
+
+    SymbolPalette *palette = window.findChild<SymbolPalette *>();
+    REQUIRE(palette);
+    // Le mode est retenu dans QSettings d'une seance a l'autre : on vise la
+    // grille, qui est le mode par defaut et celui que ce test mesure.
+    palette->setGridMode(true);
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+
+    CAPTURE(palette->width(), palette->height(), palette->gridCapacity());
+    CHECK(palette->gridCapacity() >= 48);
+    // Et la colonne n'a pas grossi pour autant : c'est la place du navigateur
+    // qu'elle a reprise, pas celle du dessin.
+    CHECK(palette->width() <= 240);
+}
+
+TEST_CASE("La bande des récents montre ce qu'on a réellement posé", "[ui][palette]")
+{
+    // `noteUsed` et `recentCategory()` existaient depuis le bloc 10, et RIEN
+    // ne les montrait : il fallait aller CHOISIR « Récemment utilisés » dans
+    // la liste des categories, ce qui coute autant que de chercher le symbole.
+    // Sur cent trois symboles dont on en repose dix toute la journee, c'est le
+    // raccourci le plus rentable du panneau.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 8; ++i)
+        QCoreApplication::processEvents();
+
+    SymbolPalette *palette = window.findChild<SymbolPalette *>();
+    Document *document = window.findChild<Document *>();
+    REQUIRE(palette);
+    REQUIRE(document);
+    palette->setGridMode(true);
+
+    // Un symbole POSE, pas seulement designe : c'est le seul signal fiable.
+    const SymbolDefinition *coil =
+            document->project().library.definition(QStringLiteral("iec:coil"));
+    REQUIRE(coil);
+    palette->noteUsed(coil->id);
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+
+    CHECK(palette->recent().contains(coil->id));
+    CHECK(palette->recentVisibleCount() > 0);
+    // La bande ne defile pas : elle ne montre que ce qui tient, et le reste
+    // reste joignable par la categorie. Un recent pose au-dela du bord serait
+    // injoignable, ce qui est pire que de ne pas le montrer.
+    CAPTURE(palette->recent().size(), palette->recentVisibleCount());
+    CHECK(palette->recentVisibleCount() <= palette->recent().size());
+    CHECK(palette->recentVisibleCount() <= 8);
+}
+
+TEST_CASE("Les folios sont des pages, pas une colonne", "[ui][folios]")
+{
+    // Un folio est une PAGE. Sa metaphore juste est l'onglet de classeur au
+    // pied du dessin, pas la colonne laterale — 28 px au lieu de 193, et sur
+    // un dossier de trente pages une bande horizontale se parcourt a l'oeil
+    // quand une colonne se parcourt a l'ascenseur.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 8; ++i)
+        QCoreApplication::processEvents();
+
+    // Le panneau des folios n'existe plus.
+    CHECK(window.findChild<QDockWidget *>(QStringLiteral("dock.folios")) == nullptr);
+
+    FolioTabs *tabs = window.findChild<FolioTabs *>();
+    REQUIRE(tabs);
+    CHECK(tabs->height() == FolioTabs::kTabHeight);
+    CHECK_FALSE(tabs->stripVisible());
+
+    // Les vignettes ne disparaissent pas : elles se deplient a la demande, et
+    // c'est le meme navigateur qu'avant — la vignette reste le vrai rendu du
+    // folio, ce qui est ce qui permet de retrouver la bonne page d'un coup
+    // d'oeil.
+    REQUIRE(tabs->navigator() != nullptr);
+    tabs->setStripVisible(true);
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+    CHECK(tabs->stripVisible());
+    CHECK(tabs->height() == FolioTabs::kTabHeight + FolioTabs::kStripHeight);
+
+    tabs->setStripVisible(false);
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+    CHECK(tabs->height() == FolioTabs::kTabHeight);
+}
+
+TEST_CASE("L'onglet de folio actif porte un filet d'accent, pas un aplat",
+          "[ui][folios]")
+{
+    // Le meme motif que l'onglet de ruban actif et que la bascule d'etat en
+    // marche : trois endroits, une seule chose a apprendre. Le filet est du
+    // cote du canevas — donc en haut — parce que c'est le dessin que l'onglet
+    // designe.
+    //
+    // Le test compte l'encre : une regle de feuille de style qu'un jeton mal
+    // ecrit ferait sauter passerait sans cela.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 8; ++i)
+        QCoreApplication::processEvents();
+
+    FolioTabs *tabs = window.findChild<FolioTabs *>();
+    Document *document = window.findChild<Document *>();
+    REQUIRE(tabs);
+    REQUIRE(document);
+    REQUIRE(document->folioCount() >= 1);
+
+    const QImage image = tabs->grab().toImage();
+    const QColor accent = Theme::colors().accent;
+
+    // Le filet du haut, sur les deux premieres rangees du premier onglet.
+    int filet = 0;
+    for (int y = 0; y <= 1; ++y) {
+        for (int x = 2; x < 60; ++x) {
+            const QColor c = image.pixelColor(x, y);
+            if (std::abs(c.red() - accent.red()) <= 8
+                && std::abs(c.green() - accent.green()) <= 8
+                && std::abs(c.blue() - accent.blue()) <= 8)
+                ++filet;
+        }
+    }
+    CAPTURE(filet);
+    CHECK(filet > 60);
+
+    // Et AUCUN aplat : le corps de l'onglet ne porte pas l'accent.
+    int aplat = 0;
+    for (int y = 8; y < FolioTabs::kTabHeight - 2; ++y) {
+        for (int x = 2; x < 60; ++x) {
+            const QColor c = image.pixelColor(x, y);
+            if (std::abs(c.red() - accent.red()) <= 8
+                && std::abs(c.green() - accent.green()) <= 8
+                && std::abs(c.blue() - accent.blue()) <= 8)
+                ++aplat;
+        }
+    }
+    CAPTURE(aplat);
+    CHECK(aplat == 0);
+}
+
+TEST_CASE("Ctrl+4 déplie les vignettes, NF et FS suivent la barre", "[ui][folios]")
+{
+    // Les folios ne sont plus un panneau : Ctrl+4 — le gestionnaire de jeu de
+    // feuilles d'AutoCAD — deplie la bande de vignettes, et la case cochee dit
+    // si elle est la. Les commandes de la ligne de commande, elles, ne
+    // changent pas : elles pilotent le document, et la barre suit.
+    MainWindow window;
+    window.resize(1560, 980);
+    window.show();
+    for (int i = 0; i < 8; ++i)
+        QCoreApplication::processEvents();
+
+    FolioTabs *tabs = window.findChild<FolioTabs *>();
+    CommandLine *command = window.findChild<CommandLine *>();
+    Document *document = window.findChild<Document *>();
+    REQUIRE(tabs);
+    REQUIRE(command);
+    REQUIRE(document);
+
+    QAction *strip = nullptr;
+    for (QAction *action : window.findChildren<QAction *>()) {
+        if (action->text().remove(QLatin1Char('&')) == QStringLiteral("Vignettes de folios"))
+            strip = action;
+    }
+    REQUIRE(strip);
+    CHECK(strip->isCheckable());
+    CHECK_FALSE(strip->isChecked());
+
+    strip->trigger();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+    CHECK(tabs->stripVisible());
+    CHECK(strip->isChecked());
+    strip->trigger();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+    CHECK_FALSE(tabs->stripVisible());
+
+    // NF ajoute une page, FS et FP la parcourent — ET LA BARRE SUIT.
+    const int before = document->folioCount();
+    REQUIRE(tabs->tabCount() == before);
+    REQUIRE(command->execute(QStringLiteral("NF")));
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+    CHECK(document->folioCount() == before + 1);
+    CHECK(tabs->tabCount() == before + 1);
+
+    document->setCurrentFolioIndex(0);
+    REQUIRE(command->execute(QStringLiteral("FS")));
+    CHECK(document->currentFolioIndex() == 1);
+    REQUIRE(command->execute(QStringLiteral("FP")));
+    CHECK(document->currentFolioIndex() == 0);
+
+    // Et elle suit un RENOMMAGE, qui est le cas que rien ne signalait.
+    //
+    // `folioListChanged` n'est emis qu'a l'ouverture, au projet neuf et a
+    // l'annulation ; le navigateur, lui, etait rafraichi A LA MAIN depuis
+    // cinq endroits — un sixieme aurait fini par manquer. Renommer ne change
+    // ni la liste ni la page courante : sans la relecture a chaque commande,
+    // l'onglet gardait l'ancien titre jusqu'au prochain changement de page.
+    // C'est pour ce cas que `tabTitle` existe — `tabCount` ne voit rien ici.
+    const QString identifiant = document->project().folioAt(0)->id();
+    document->push(std::make_unique<RenameFolioCommand>(
+            document->project(), identifiant, QStringLiteral("1"),
+            QStringLiteral("Chemin de câbles")));
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+    CHECK(tabs->tabTitle(0) == QStringLiteral("Chemin de câbles"));
+}
 
 TEST_CASE("Un bouton de ruban imprime l'alias à taper", "[ui][ruban][alias]")
 {

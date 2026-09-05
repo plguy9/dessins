@@ -9,6 +9,7 @@ add_library(arcus_ui STATIC
     propertiespanel.h propertiespanel.cpp
     propertiesdialog.h propertiesdialog.cpp
     folionavigator.h  folionavigator.cpp
+    foliotabs.h       foliotabs.cpp
     reportpanel.h     reportpanel.cpp
     symboleditor.h    symboleditor.cpp
     draftingsettingsdialog.h draftingsettingsdialog.cpp

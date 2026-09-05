@@ -189,6 +189,12 @@ private:
     // on y regarde parce qu'il s'y passe toujours quelque chose.
     void report(const QString &message);
     void echoMenuCommands();
+    // Ce qui a ABOUTI, et ce qui MERITE UN REGARD. Un compte rendu de la
+    // meme couleur qu'une erreur oblige a lire les deux pour savoir lequel
+    // est lequel — et c'est justement le compte rendu d'un automatisme qu'on
+    // veut pouvoir croire d'un coup d'oeil.
+    void reportOk(const QString &message);
+    void reportWarning(const QString &message);
     void reportError(const QString &message);
     void registerCommands();
     void zoomCommand(const QStringList &arguments);

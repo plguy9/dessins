@@ -278,7 +278,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 
     registerCommands();
     echoMenuCommands();
-    resizeDocks({ m_commandDock }, { 108 }, Qt::Vertical);
+    // La hauteur du bandeau, sans la rangee que l'en-tete prenait pour nommer
+    // l'evidence : l'historique replie, l'invite et le champ. Elle suit la
+    // taille naturelle du widget plutot qu'un chiffre en dur, pour qu'une
+    // police plus grande ne rogne pas le champ.
+    // La hauteur du bandeau, sans la rangee que l'en-tete prenait pour nommer
+    // l'evidence. Un pas de plus que la taille naturelle : le champ et
+    // l'invite sont repolis apres coup — feuille de style, fonte — et
+    // gagnent un pixel. Demander un pixel de trop coute moins qu'un bandeau
+    // qui grandit tout seul au premier geste.
+    resizeDocks({ m_commandDock }, { m_command->sizeHint().height() + Theme::space(5) },
+                Qt::Vertical);
     syncDraftingToggles();
     resize(1560, 980);
     updateTitle();
@@ -366,17 +376,24 @@ void MainWindow::createDocks()
     resizeDocks({ paletteDock }, { 250 }, Qt::Horizontal);
     resizeDocks({ paletteDock, navigatorDock }, { 3, 2 }, Qt::Vertical);
 
-    // Les titres de panneaux sont graves en petites capitales : Qt ne sait
-    // pas mettre en capitales depuis une feuille de style, on le fait ici.
     m_commandDock = new QDockWidget(tr("Ligne de commande").toUpper(), this);
     m_commandDock->setObjectName(QStringLiteral("dock.command"));
     m_command = new CommandLine(m_commandDock);
     m_commandDock->setWidget(m_command);
     addDockWidget(Qt::BottomDockWidgetArea, m_commandDock);
+    // PAS DE BARRE DE TITRE. « LIGNE DE COMMANDE » gravé au-dessus d'un champ
+    // où l'on tape dépensait une rangée entière à nommer l'évidence — et
+    // c'était la rangée qui manquait à l'invite. Le champ dit ce qu'il est dès
+    // qu'on y écrit.
+    //
+    // Le chevron de repli part avec la barre de titre : Ctrl+9 devient donc
+    // une bascule cochée, comme Ctrl+3 et Ctrl+4, et c'est le seul chemin de
+    // retour. Le rail ne prend pas d'onglet ici : il est vertical et collé au
+    // bord GAUCHE du canevas, et un bandeau du bas n'y a pas sa place.
+    m_commandDock->setTitleBarWidget(new QWidget(m_commandDock));
     // Trois lignes d'historique, comme la ligne de commande d'AutoCAD :
     // elle informe sans manger la place du dessin. Elle reste
     // redimensionnable pour qui veut relire une longue liste.
-    m_commandDock->setFont(Theme::engravedFont());
     m_command->setFont(Theme::uiFont(10));
     // Trois lignes d'historique tiennent dans cette hauteur, et l'historique
     // part vide : le bandeau ne reserve donc plus de place pour un message
@@ -890,13 +907,24 @@ void MainWindow::createActions()
          QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P),
          tr("Chercher n'importe quelle commande par son nom, sans savoir où elle est rangée"),
          &MainWindow::openCommandPalette);
-    make(viewMenu, G::CommandLine, tr("Ligne de &commande"),
-         QKeySequence(Qt::CTRL | Qt::Key_9), tr("Placer le curseur dans la ligne de commande"),
-         [this] {
-             m_commandDock->show();
-             m_commandDock->raise();
-             m_command->focusInput();
-         });
+    // Le bandeau n'a plus de barre de titre : cette commande est le seul
+    // chemin qui le ramene. Elle bascule donc au lieu de seulement montrer, et
+    // la case cochee dit d'un coup d'oeil s'il est la — comme Ctrl+3 et
+    // Ctrl+4. Ouvrir pose aussi le curseur dans le champ : on appelle Ctrl+9
+    // pour taper, pas pour regarder.
+    QAction *commandLineAction =
+            make(viewMenu, G::CommandLine, tr("Ligne de &commande"),
+                 QKeySequence(Qt::CTRL | Qt::Key_9),
+                 tr("Afficher la ligne de commande et y placer le curseur"), [this] {
+                     const bool montrer = !m_commandDock->isVisible();
+                     setDockVisible(m_commandDock, montrer);
+                     if (montrer)
+                         m_command->focusInput();
+                 });
+    commandLineAction->setCheckable(true);
+    commandLineAction->setChecked(true);
+    connect(m_commandDock, &QDockWidget::visibilityChanged, commandLineAction,
+            &QAction::setChecked);
     viewMenu->addSeparator();
 
     // Raccourcis de palettes d'AutoCAD : Ctrl+1 les proprietes, Ctrl+3 les
@@ -1791,25 +1819,35 @@ void MainWindow::setDockVisible(QDockWidget *dock, bool visible)
 {
     if (!dock)
         return;
+    // Un panneau du bas se mesure en HAUTEUR, pas en largeur. Retenir la
+    // largeur d'un bandeau de 1560 px et la reposer comme hauteur le
+    // ramenait plaque au plafond de 320 px — il revenait, mais pas a sa
+    // taille. Le bord decide de la dimension, aux deux bouts du chemin.
+    const Qt::DockWidgetArea bord = dockWidgetArea(dock);
+    const bool horizontal = bord != Qt::TopDockWidgetArea && bord != Qt::BottomDockWidgetArea;
+
     if (!visible) {
-        // La largeur est retenue AVANT de cacher : apres, elle vaut zero.
-        if (dock->width() > 0)
-            m_dockWidths.insert(dock, dock->width());
+        // La taille est retenue AVANT de cacher : apres, elle vaut zero.
+        const int taille = horizontal ? dock->width() : dock->height();
+        if (taille > 0)
+            m_dockWidths.insert(dock, taille);
         dock->hide();
         return;
     }
 
     dock->show();
     dock->raise();
-    // Reposer la largeur, faute de quoi le panneau revient a zero pixel et
+    // La disposition doit avoir repris la main AVANT qu'on repose la taille :
+    // juste apres show(), QMainWindow n'a pas encore replace le panneau, et
+    // resizeDocks travaille alors sur une geometrie qui n'existe pas encore.
+    if (layout())
+        layout()->activate();
+    // Reposer la taille, faute de quoi le panneau revient a zero pixel et
     // parait ne pas etre revenu du tout. La valeur de repli est celle de la
     // palette de symboles, qui est le panneau qu'on tasse et ramene le plus.
-    const int largeur = m_dockWidths.value(dock, 250);
-    resizeDocks({ dock }, { std::max(120, largeur) },
-                dockWidgetArea(dock) == Qt::TopDockWidgetArea
-                                || dockWidgetArea(dock) == Qt::BottomDockWidgetArea
-                        ? Qt::Vertical
-                        : Qt::Horizontal);
+    const int taille = m_dockWidths.value(dock, horizontal ? 250 : 108);
+    resizeDocks({ dock }, { std::max(horizontal ? 120 : 40, taille) },
+                horizontal ? Qt::Horizontal : Qt::Vertical);
     dock->setFocus();
 }
 
@@ -1822,6 +1860,26 @@ void MainWindow::report(const QString &message)
     // isHidden(), pas isVisible() : le panneau d'une fenetre pas encore
     // affichee n'est pas « replie » — il n'est pas encore montre. Doubler la
     // sur ce seul motif remplirait la barre d'etat pendant la construction.
+    if (!m_commandDock || m_commandDock->isHidden())
+        statusBar()->showMessage(message, 6000);
+}
+
+void MainWindow::reportOk(const QString &message)
+{
+    if (message.isEmpty())
+        return;
+    if (m_command)
+        m_command->writeOk(message);
+    if (!m_commandDock || m_commandDock->isHidden())
+        statusBar()->showMessage(message, 6000);
+}
+
+void MainWindow::reportWarning(const QString &message)
+{
+    if (message.isEmpty())
+        return;
+    if (m_command)
+        m_command->writeWarning(message);
     if (!m_commandDock || m_commandDock->isHidden())
         statusBar()->showMessage(message, 6000);
 }
@@ -1870,7 +1928,12 @@ void MainWindow::echoMenuCommands()
                                : tr("%1 : désactivé").arg(name));
                 return;
             }
-            report(name);
+            // Le nom de la commande n'est pas un compte rendu : c'est QUI
+            // parle. Il s'ecrit au troisieme niveau d'encre, et le resultat
+            // qui le suit porte sa propre voix. On lit ainsi l'historique en
+            // diagonale — le nom, puis ce qu'il a donne.
+            if (m_command)
+                m_command->writeSource(name);
         });
     }
 }
@@ -2999,6 +3062,11 @@ void MainWindow::applyTheme(bool dark)
 
     for (DockTitle *title : std::as_const(m_dockTitles))
         title->applyTheme();
+    // Les voix de l'historique sont ecrites en teintes dans le document : il
+    // faut le retracer, sinon la moitie des lignes garde les couleurs de
+    // l'autre theme.
+    if (m_command)
+        m_command->applyTheme();
     if (m_rail)
         m_rail->applyTheme();
 
@@ -3195,7 +3263,7 @@ bool MainWindow::saveProject()
         return false;
     }
     addRecentFile(m_document->filePath());
-    report(tr("Projet enregistré"));
+    reportOk(tr("Projet enregistré"));
     return true;
 }
 
@@ -3213,7 +3281,7 @@ bool MainWindow::saveProjectAs()
     }
     updateTitle();
     addRecentFile(path);
-    report(tr("Projet enregistré : %1").arg(QFileInfo(path).fileName()));
+    reportOk(tr("Projet enregistré : %1").arg(QFileInfo(path).fileName()));
     return true;
 }
 
@@ -3232,8 +3300,8 @@ void MainWindow::exportPdf()
         QMessageBox::critical(this, tr("Export PDF impossible"), error);
         return;
     }
-    report(tr("PDF écrit : %1 (%n folio(s))", "", m_document->folioCount())
-           .arg(QFileInfo(path).fileName()));
+    reportOk(tr("PDF écrit : %1 (%n folio(s))", "", m_document->folioCount())
+             .arg(QFileInfo(path).fileName()));
 }
 
 void MainWindow::exportDxf()
@@ -3567,7 +3635,11 @@ void MainWindow::renumberAll()
     const NumberingResult result = Numbering::renumberAll(m_document->project(), profile);
     m_document->invalidateNetlist();
 
-    report(tr("Repérage : %1 appareils désignés, %2 potentiels, %3 fils repérés, "
+    // En vert : c'est un automatisme qui rend compte, et la mention des
+    // saisies preservees est la garantie de l'invariant 1 — un repere ecrit a
+    // la main n'est jamais ecrase. Un utilisateur qui la voit a l'ecran cesse
+    // de se mefier de l'automatisme et de le desactiver.
+    reportOk(tr("Repérage : %1 appareils désignés, %2 potentiels, %3 fils repérés, "
            "%4 saisie(s) manuelle(s) préservée(s)")
            .arg(result.devicesDesignated)
            .arg(result.netsNumbered)
@@ -3600,9 +3672,13 @@ void MainWindow::checkSchematic()
     AuditDialog dialog(m_document, m_plc, this);
     connect(&dialog, &AuditDialog::locateRequested, this, &MainWindow::locate);
     dialog.exec();
-    report(dialog.findingCount() == 0
-           ? tr("Audit : aucune anomalie")
-           : tr("Audit : %n constat(s)", "", dialog.findingCount()));
+    // Aucune anomalie se dit en vert, des constats en orange : ce n'est pas
+    // une erreur — l'audit a fait son travail — mais cela demande un regard.
+    if (dialog.findingCount() == 0)
+        reportOk(tr("Audit : aucune anomalie"));
+    else
+        reportWarning(tr("Audit : %n constat(s) — voir Contrôles", "",
+                         dialog.findingCount()));
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)

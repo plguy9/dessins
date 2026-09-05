@@ -344,7 +344,28 @@ QLabel[commandPrompt="true"] {
     background: transparent;
     border: none;
     padding: 3px 9px 1px 9px;
-    color: %ACCENT%;
+    color: %TEXT%;
+}
+
+/* Le filet d'accent, allume tant qu'une invite est posee. C'est lui qui porte
+   la reserve d'usage de la regle 3, et non plus le texte de l'invite : un
+   accent DESIGNE, il ne colore pas une phrase entiere. Une phrase entierement
+   accentuee se lit moins bien, et elle depense la seule couleur du logiciel
+   sur quelque chose qu'un filet de deux pixels dit aussi bien. */
+QFrame[commandWaiting="true"] { background: %ACCENT%; border: none; }
+
+/* La saisie n'est pas un formulaire, c'est une invite : ni cadre ni fond. Le
+   filet d'accent a sa gauche suffit a dire ou l'on tape. */
+QLineEdit[commandInput="true"] {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    color: %TEXT%;
+    padding: 2px 9px;
+}
+QLineEdit[commandInput="true"]:focus {
+    background: transparent;
+    border: none;
 }
 
 QLineEdit:disabled, QComboBox:disabled { color: %FAINT%; background: %WINDOW%; }

@@ -320,11 +320,9 @@ Et ce qui distingue toujours notre interface de celle d'AutoCAD :
      le chemin pris, et **un bouton cliqué enseigne le nom à taper**. Les
      bascules s'y écrivent par leur nom court (`ORTHO : activé`), celui
      qu'AutoCAD écrit.
-  L'invite porte l'**accent** (`QLabel[commandPrompt="true"]`) : c'est la
-  réserve d'usage de la règle 3 du thème, puisque rien d'autre ne désigne ce
-  qui est actif pendant un geste. Le cartouche sous le curseur, pendant une
-  désignation, porte le même accent et est **rabattu dans la vue** — près
-  d'un bord il se coupait, or c'est au bord qu'on désigne le dernier fil.
+  Le cartouche sous le curseur, pendant une désignation, porte l'accent et est
+  **rabattu dans la vue** — près d'un bord il se coupait, or c'est au bord
+  qu'on désigne le dernier fil.
 - **Un seul abandon** (`FolioView::abandonGesture`). Échap et le clic droit
   avaient chacun leur code, et ils ne couvraient pas les mêmes états : Échap
   laissait le panoramique armé, quittait le zoom fenêtre sans un mot et
@@ -516,6 +514,57 @@ design écrivait `%ACCENT_HOVER%` là où le jeton s'appelle `%ACCENTHOVER%`, et
 vérifier que la règle est présente aurait laissé passer la faute. Les six ont
 été **contre-essayés** en désactivant leur correctif un par un — c'est la
 seule façon de savoir qu'ils ne prouvent pas rien.
+
+**La ligne de commande a quatre voix, et l'accent passe au filet** (refonte
+2026-09-04, `design/etapes/04-ligne-de-commande.md`). C'est le seul endroit où
+le logiciel parle, et il y parlait en 11 px gris sous un en-tête gravé
+« LIGNE DE COMMANDE » qui dépensait une rangée entière à nommer l'évidence.
+`success`, `warning` et `danger` étaient dans les jetons du thème **et ne se
+voyaient nulle part** : un compte rendu d'automatisme avait la même encre
+qu'une erreur, et il fallait lire la phrase entière pour savoir lequel était
+lequel. Cinq décisions :
+
+1. **Plus d'en-tête.** Un champ où l'on tape n'a pas besoin qu'on lui dise son
+   nom. La rangée gagnée va à l'invite. Le chevron de repli part avec la barre
+   de titre : **Ctrl+9 devient une bascule cochée**, comme Ctrl+3 et Ctrl+4, et
+   c'est le seul chemin de retour. Le rail ne prend pas d'onglet ici — il est
+   vertical et collé au bord **gauche** du canevas, et un bandeau du bas n'y a
+   pas sa place.
+2. **Quatre voix, plus la source.** `writeSource` dit **qui** parle — le nom de
+   la commande, au troisième niveau d'encre, écrit par le ruban et les menus ;
+   `write` le fil normal, `writeOk` ce qui a abouti, `writeWarning` ce qui
+   mérite un regard, `writeError` ce qui a échoué. Le repérage, l'audit,
+   l'enregistrement et l'export PDF sont branchés dessus : ce sont les
+   automatismes dont on veut le compte rendu. « 2 saisies manuelles
+   préservées » vaut d'être dit en vert — c'est l'invariant 1 rendu visible, et
+   un dessinateur qui le voit cesse de se méfier de l'automatisme.
+3. **L'accent passe de l'invite à un filet de 2 px.** Ce guide disait que
+   l'invite portait l'accent, faute d'autre chose à désigner. Un filet le fait
+   mieux : l'accent **désigne**, il ne colore pas une phrase entière — une
+   phrase entièrement accentuée se lit moins bien et dépense la seule couleur
+   du logiciel sur ce qu'un trait de deux pixels dit aussi bien. Le filet
+   s'allume avec l'invite et s'éteint avec elle : il ne peut pas mentir.
+   L'invite passe au **corps de l'interface** (`uiFont(10)`) — c'est une phrase
+   adressée au dessinateur ; seule la saisie garde la chasse fixe, parce
+   qu'elle porte des coordonnées.
+4. **L'invite garde sa rangée, vide, quand rien n'attend.** Ce guide disait
+   l'inverse — « une ligne vide en permanence prendrait la place sans rien
+   dire ». C'était vrai quand le bandeau valait 108 px en dur. Depuis qu'il
+   vaut sa taille naturelle, la masquer le fait **grandir de dix-neuf pixels au
+   premier geste** (43 px mesurés au repos contre 62 avec l'invite) : la
+   feuille recule au moment précis où l'on vise un point. Une rangée réservée
+   qui ne dit rien coûte moins qu'un dessin qui saute sous le curseur.
+5. **L'historique se retrace au changement de thème.** C'est le seul endroit du
+   logiciel où une couleur du thème est **figée** au moment où on l'écrit — Qt
+   ne range dans un document que des teintes, jamais des jetons. Chaque ligne
+   garde donc sa *voix* à côté de son texte, et le basculement les redessine.
+
+**Le défaut que ça a trouvé** : `setDockVisible` retenait `dock->width()` et le
+reposait tel quel. Pour un panneau du **bas**, la dimension est la hauteur :
+1560 px de largeur reposés comme hauteur ramenaient le bandeau plaqué au
+plafond de 320 px. Il revenait — mais pas à sa taille, et en mangeant le tiers
+du dessin. Le défaut était inatteignable tant que le bandeau ne pouvait pas se
+fermer ; il l'est devenu à la ligne près où Ctrl+9 est devenu une bascule.
 
 **`MainWindow::buildRenderStyle()` est le seul endroit qui construit un style
 de rendu d'écran.** Sept endroits le faisaient chacun à sa façon — le canevas,

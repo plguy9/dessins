@@ -21,6 +21,8 @@
 #include <QDockWidget>
 #include <QStatusBar>
 #include <QToolBar>
+#include <QTextBlock>
+#include <QFrame>
 #include <QTemporaryDir>
 
 #include <cmath>
@@ -4190,6 +4192,284 @@ QLabel *valeurDeCase(QStatusBar *bar, const QString &libelle)
 }
 
 } // namespace
+
+namespace {
+
+// La couleur reellement posee sur une ligne de l'historique. On la lit dans le
+// document, pas dans la feuille de style : c'est la seule facon de savoir ce
+// qui a ete ecrit — Qt ne range dans un document que des teintes.
+QColor couleurDeLaLigne(const QPlainTextEdit *history, int index)
+{
+    QTextBlock block = history->document()->findBlockByNumber(index);
+    if (!block.isValid())
+        return QColor();
+    QTextBlock::iterator it = block.begin();
+    if (it == block.end())
+        return QColor();
+    return it.fragment().charFormat().foreground().color();
+}
+
+// L'indice de la ligne qui porte ce texte. L'historique porte deja ce que le
+// demarrage a dit : chercher par le texte plutot que par le rang est la seule
+// facon de viser la ligne qu'on vient d'ecrire.
+int ligneQuiPorte(const QPlainTextEdit *history, const QString &texte)
+{
+    for (QTextBlock block = history->document()->begin(); block.isValid();
+         block = block.next()) {
+        if (block.text().contains(texte))
+            return block.blockNumber();
+    }
+    return -1;
+}
+
+QPlainTextEdit *historiqueDe(CommandLine *command)
+{
+    for (QPlainTextEdit *edit : command->findChildren<QPlainTextEdit *>()) {
+        if (edit->property("commandHistory").toBool())
+            return edit;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+TEST_CASE("Les quatre voix de la ligne de commande ne se confondent pas",
+          "[ui][ligne-de-commande]")
+{
+    // `success`, `warning` et `danger` etaient dans les jetons du theme et ne
+    // se voyaient NULLE PART : tout partait dans la meme encre, et un compte
+    // rendu d'automatisme avait l'air d'une erreur. Il fallait lire la phrase
+    // entiere pour savoir si le logiciel se felicitait ou se plaignait.
+    //
+    // Le test lit la couleur POSEE DANS LE DOCUMENT. Verifier que la fonction
+    // existe ne prouverait rien : c'est la teinte ecrite qui distingue les
+    // voix, et elle est ecrite une seule fois, au moment de la ligne.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+
+    CommandLine *command = window.findChild<CommandLine *>();
+    REQUIRE(command);
+    QPlainTextEdit *history = historiqueDe(command);
+    REQUIRE(history);
+
+    command->writeSource(QStringLiteral("REPERAGE-source"));
+    command->write(QStringLiteral("fil-normal"));
+    command->writeOk(QStringLiteral("abouti"));
+    command->writeWarning(QStringLiteral("a-regarder"));
+    command->writeError(QStringLiteral("echoue"));
+
+    const ThemeColors &c = Theme::colors();
+    const QStringList reperes = { QStringLiteral("REPERAGE-source"),
+                                  QStringLiteral("fil-normal"), QStringLiteral("abouti"),
+                                  QStringLiteral("a-regarder"), QStringLiteral("echoue") };
+    const QList<QColor> attendues = { c.textFaint, c.textMuted, c.success, c.warning,
+                                      c.danger };
+    QSet<QRgb> teintes;
+    for (int i = 0; i < reperes.size(); ++i) {
+        CAPTURE(reperes.at(i));
+        const int ligne = ligneQuiPorte(history, reperes.at(i));
+        REQUIRE(ligne >= 0);
+        CHECK(couleurDeLaLigne(history, ligne) == attendues.at(i));
+        teintes.insert(couleurDeLaLigne(history, ligne).rgb());
+    }
+    // Et elles sont bien cinq couleurs distinctes : deux voix de la meme
+    // teinte ne sont pas deux voix.
+    CHECK(teintes.size() == 5);
+}
+
+TEST_CASE("L'historique se retrace au changement de thème", "[ui][ligne-de-commande]")
+{
+    // Qt ne range dans un document QUE des teintes, jamais des jetons : une
+    // erreur ecrite en thème sombre garderait son rouge sombre sur fond clair.
+    // C'est le seul endroit du logiciel ou une couleur du thème est FIGEE au
+    // moment ou on l'ecrit — donc le seul qui demande un retracage.
+    auto *app = qobject_cast<QApplication *>(QCoreApplication::instance());
+    REQUIRE(app);
+
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+
+    CommandLine *command = window.findChild<CommandLine *>();
+    REQUIRE(command);
+    QPlainTextEdit *history = historiqueDe(command);
+    REQUIRE(history);
+
+    // Le basculement passe par la COMMANDE DE MENU, pas par Theme::apply : on
+    // veut tenir la chaine entiere. Si MainWindow oubliait de prevenir la
+    // ligne de commande, le test devrait le voir.
+    QAction *sombre = nullptr;
+    for (QAction *action : window.findChildren<QAction *>()) {
+        if (action->text().remove(QLatin1Char('&')) == QStringLiteral("Thème sombre"))
+            sombre = action;
+    }
+    REQUIRE(sombre);
+    if (!sombre->isChecked())
+        sombre->trigger();
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+
+    command->writeError(QStringLiteral("echec-temoin"));
+    command->writeOk(QStringLiteral("reussite-temoin"));
+    const QColor rougeSombre =
+            couleurDeLaLigne(history, ligneQuiPorte(history, QStringLiteral("echec-temoin")));
+    CHECK(rougeSombre == Theme::colors().danger);
+
+    sombre->trigger();
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+
+    // Les deux thèmes doivent vraiment differer, sinon le test ne prouve rien.
+    REQUIRE(Theme::colors().danger != rougeSombre);
+    const int echec = ligneQuiPorte(history, QStringLiteral("echec-temoin"));
+    const int reussite = ligneQuiPorte(history, QStringLiteral("reussite-temoin"));
+    // Et le texte n'a pas bouge en chemin : le retracage reecrit tout.
+    REQUIRE(echec >= 0);
+    REQUIRE(reussite >= 0);
+    CHECK(couleurDeLaLigne(history, echec) == Theme::colors().danger);
+    CHECK(couleurDeLaLigne(history, reussite) == Theme::colors().success);
+
+    if (!sombre->isChecked())
+        sombre->trigger();
+    Theme::apply(*app, true);
+}
+
+TEST_CASE("Le filet d'accent s'allume avec l'invite et s'éteint avec elle",
+          "[ui][ligne-de-commande]")
+{
+    // Le seul signal « le logiciel t'attend » de toute la fenêtre. Il s'allume
+    // avec l'invite et s'eteint avec elle : il ne peut donc pas mentir, ce
+    // qu'un message d'etat pousse a la main ne peut pas promettre.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+
+    CommandLine *command = window.findChild<CommandLine *>();
+    REQUIRE(command);
+    QFrame *filet = nullptr;
+    for (QFrame *frame : command->findChildren<QFrame *>()) {
+        if (frame->property("commandWaiting").toBool())
+            filet = frame;
+    }
+    REQUIRE(filet);
+    CHECK_FALSE(filet->isVisible());
+
+    command->setPrompt(QStringLiteral("Point suivant ou [Cote / Annuler] :"));
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+    REQUIRE(filet->isVisible());
+    CHECK(filet->width() == 2);
+
+    // Et il est vraiment encre a l'accent : une regle de feuille de style
+    // qu'un jeton mal ecrit ferait sauter passerait sans cela.
+    const QImage image = command->grab().toImage();
+    const QPoint milieu(filet->x() + filet->width() / 2,
+                        filet->y() + filet->height() / 2);
+    CHECK(image.pixelColor(milieu) == Theme::colors().accent);
+
+    command->setPrompt(QString());
+    for (int i = 0; i < 4; ++i)
+        QCoreApplication::processEvents();
+    CHECK_FALSE(filet->isVisible());
+}
+
+TEST_CASE("Le bandeau de commande ne change pas de hauteur en plein geste",
+          "[ui][ligne-de-commande]")
+{
+    // Depuis que l'en-tête est parti, le bandeau vaut sa taille naturelle — et
+    // l'invite, elle, va et vient avec le geste. Masquée quand rien n'attend,
+    // elle fait GRANDIR le bandeau de dix-neuf pixels au premier geste (43 px
+    // mesurés au repos contre 62 avec l'invite) : la feuille recule au moment
+    // précis où l'on vise un point. L'invite garde donc sa rangée, vide ; seul
+    // le filet bascule.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+
+    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("dock.command"));
+    FolioView *view = window.findChild<FolioView *>();
+    REQUIRE(dock);
+    REQUIRE(view);
+
+    const int repos = dock->height();
+    CHECK(repos > 40);
+
+    Q_EMIT view->promptChanged(QStringLiteral("Point suivant ou [Cote / Annuler] :"));
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+    CAPTURE(repos, dock->height());
+    CHECK(dock->height() == repos);
+
+    Q_EMIT view->promptChanged(QString());
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+    CHECK(dock->height() == repos);
+}
+
+TEST_CASE("Le bandeau de commande n'a plus d'en-tête, et Ctrl+9 le ramène",
+          "[ui][ligne-de-commande]")
+{
+    // « LIGNE DE COMMANDE » gravé au-dessus d'un champ où l'on tape dépensait
+    // une rangée entière à nommer l'évidence. Le chevron de repli part avec la
+    // barre de titre : la commande d'affichage devient donc le seul chemin de
+    // retour, et elle doit ramener le bandeau AVEC SA HAUTEUR.
+    MainWindow window;
+    window.resize(1400, 900);
+    window.show();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+
+    auto *dock = window.findChild<QDockWidget *>(QStringLiteral("dock.command"));
+    REQUIRE(dock);
+    // Une barre de titre posee explicitement, donc vide : c'est ainsi que Qt
+    // retire la sienne.
+    REQUIRE(dock->titleBarWidget() != nullptr);
+    CHECK(dock->titleBarWidget()->findChildren<QLabel *>().isEmpty());
+
+    QAction *bascule = nullptr;
+    for (QAction *action : window.findChildren<QAction *>()) {
+        if (action->text().remove(QLatin1Char('&')) == QStringLiteral("Ligne de commande"))
+            bascule = action;
+    }
+    REQUIRE(bascule);
+    // Cochee : le ruban et le menu disent d'un coup d'oeil qu'il est la.
+    CHECK(bascule->isCheckable());
+    CHECK(bascule->isChecked());
+
+    const int hauteur = dock->height();
+    REQUIRE(hauteur > 40);
+
+    bascule->trigger();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+    CHECK_FALSE(dock->isVisible());
+    CHECK_FALSE(bascule->isChecked());
+
+    bascule->trigger();
+    for (int i = 0; i < 6; ++i)
+        QCoreApplication::processEvents();
+    CHECK(dock->isVisible());
+    CHECK(bascule->isChecked());
+    // ET AVEC SA HAUTEUR. Un panneau du bas se mesure en hauteur, pas en
+    // largeur : retenir 1560 px et les reposer comme hauteur le ramenait
+    // plaque au plafond de 320 px. Il revenait, mais pas a sa taille.
+    // Il revient A LA TAILLE DE SON CONTENU. Avant le correctif, setDockVisible
+    // retenait `dock->width()` — 1400 px pour un bandeau qui court sur toute
+    // la fenêtre — et la reposait comme HAUTEUR : le bandeau revenait plaqué
+    // au plafond de 320 px et mangeait le tiers du dessin.
+    CAPTURE(hauteur, dock->height(), dock->widget()->minimumSizeHint().height());
+    CHECK(dock->height() <= dock->widget()->minimumSizeHint().height() + 4);
+    CHECK(dock->height() < 150);
+}
 
 TEST_CASE("Une bascule allumée porte un filet, pas un aplat", "[ui][barre-etat]")
 {
